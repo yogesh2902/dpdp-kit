@@ -2,9 +2,16 @@ import type { Duration } from "./duration.js";
 
 /**
  * Why you may process data for a purpose.
- * - `"consent"`: the person agreed (Section 6). They can withdraw at any time.
- * - `"legitimate-use"`: one of the certain legitimate uses in Section 7 (for example, data the
- *   person gave you voluntarily for a specific service, or to meet a legal obligation).
+ * - `"consent"`: the person agreed (Section 6(1)). They can withdraw at any time, as easily as
+ *   they gave it (Section 6(4)).
+ * - `"legitimate-use"`: one of the uses listed in Section 7, which need no consent. For most apps
+ *   that means Section 7(a): data the person voluntarily gave you for a specified purpose (a
+ *   receipt by SMS, an order delivery). Section 7(a) applies only while they haven't told you they
+ *   don't want it used, so it isn't permanent. Section 7(i) covers employment. The other clauses
+ *   are for the State, legal orders, medical emergencies and disasters.
+ *
+ * Keeping data because another law requires it (tax, KYC) is not a legitimate use. Model it as a
+ * `legalHold` on the table instead (Section 8(7)).
  */
 export type Basis = "consent" | "legitimate-use";
 
@@ -13,7 +20,9 @@ export type Basis = "consent" | "legitimate-use";
  * - `"while-active"`: for as long as the purpose is still being served (e.g. the account is open).
  * - a duration, e.g. `"1y"`: at most this long after it was collected.
  * - `{ afterWithdrawal }`: for consent purposes, how long after withdrawal before it's erased
- *   (default `"0d"`, erase as soon as possible).
+ *   (default `"0d"`). Section 8(7)(a) says to erase upon withdrawal, and Section 6(6) to stop
+ *   processing within a reasonable time, so keep this to the delay your systems really need
+ *   (batch jobs, backups).
  */
 export type Retention = "while-active" | Duration | { afterWithdrawal: Duration };
 
@@ -44,7 +53,10 @@ export interface PersonalField<P extends string = string> {
   childSignal?: boolean;
 }
 
-/** Another law says you must keep these rows (e.g. tax records). Section 8(7) allows that. */
+/**
+ * Another law says you must keep these rows (e.g. tax or KYC records). Section 8(7) requires
+ * erasure "unless retention is necessary for compliance with any law".
+ */
 export interface LegalHold {
   reason: string;
   keep: Duration;
@@ -69,9 +81,16 @@ export interface ProcessorDef<P extends string = string> {
 
 export interface FiduciaryDef {
   name: string;
-  /** Where people raise a grievance (Section 13). */
+  /**
+   * Where people raise a grievance. Section 8(10) requires a grievance mechanism, Section 13 gives
+   * people the right to use it, and Section 5(1)(ii) requires the notice to say how.
+   */
   grievanceUrl?: string;
-  /** Data Protection Officer or contact person. */
+  /**
+   * Data Protection Officer, or a person who can answer questions about the data. Section 8(9)
+   * requires publishing their business contact details, and Section 6(3) requires them in every
+   * consent request.
+   */
   dpo?: string;
 }
 

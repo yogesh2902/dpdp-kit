@@ -41,8 +41,10 @@ export interface Dpdp<P extends string> {
       meta?: ConsentMeta,
     ): Promise<{ event: ConsentEvent; erasure: ErasurePlan }>;
     /**
-     * Whether you may process this person's data for this purpose: always true for
-     * legitimate-use purposes; for consent purposes, true when their latest choice was a grant.
+     * Whether you hold consent, or don't need it, for this purpose. For consent purposes: true when
+     * the person's latest choice was a grant. For legitimate-use purposes: always true, because
+     * there's nothing to record. But under Section 7(a) you must stop once the person tells you they
+     * don't want their data used; v0.1 doesn't record that yet.
      */
     has(subjectId: string, purpose: P): Promise<boolean>;
     /** Consent purposes this person currently has granted. */

@@ -99,7 +99,8 @@ export function audit(config: DpdpConfig<string>): Issue[] {
       level: "warning",
       code: "grievance-missing",
       path: "fiduciary.grievanceUrl",
-      message: "Add where people can raise a grievance (Section 13). Notices need to point to it.",
+      message:
+        "Add where people can raise a grievance. Section 8(10) requires a grievance mechanism, and Section 5(1)(ii) requires the notice to say how to use it.",
     });
   }
 
@@ -123,7 +124,8 @@ export function audit(config: DpdpConfig<string>): Issue[] {
         level: "error",
         code: "invalid-retention",
         path: `${path}.retain`,
-        message: "afterWithdrawal only applies to consent purposes. Nothing is withdrawn from a legitimate use.",
+        message:
+          "afterWithdrawal only applies to consent purposes (Section 6(4)). Use \"while-active\" or a duration for a legitimate use.",
       });
     }
   }

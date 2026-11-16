@@ -1,6 +1,7 @@
 /**
- * Languages a notice can be given in. Section 5(3) of the DPDP Act lets a person read the
- * notice in English or in any language in the Eighth Schedule to the Constitution (22 languages).
+ * Languages a notice can be given in. Section 5(3) of the DPDP Act gives people the option to
+ * read the notice in English or any language in the Eighth Schedule to the Constitution (22
+ * languages), and Section 6(3) gives the same option for the consent request itself.
  * Codes are ISO 639 (639-2/3 where a language has no two-letter code).
  */
 export const NOTICE_LANGUAGES = {

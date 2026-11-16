@@ -36,8 +36,10 @@ export interface TablePlan {
 export interface ProcessorPlan {
   name: string;
   /**
-   * - `erase`: every purpose you shared data for has ended; ask them to erase it (Section 8(7)).
-   * - `restrict`: some purposes ended; tell them to stop using it for `ended`.
+   * - `erase`: every purpose you shared data for has ended; you must make them erase it
+   *   (Section 8(7)(b)).
+   * - `restrict`: some purposes ended; make them stop using it for `ended` (Section 6(6) requires
+   *   you to make your processors stop after a withdrawal).
    */
   action: "erase" | "restrict";
   ended: string[];

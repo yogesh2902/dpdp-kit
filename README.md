@@ -34,7 +34,7 @@ export default defineConfig({
     account:       { basis: "legitimate-use", retain: "while-active" },
     order_updates: { basis: "consent", retain: "while-active" },
     marketing_sms: { basis: "consent", retain: { afterWithdrawal: "0d" } },
-    analytics:     { basis: "consent", retain: { afterWithdrawal: "30d" } },
+    analytics:     { basis: "consent", retain: { afterWithdrawal: "7d" } }, // time for the batch job to run
   },
 
   data: {
@@ -64,9 +64,9 @@ export default defineConfig({
 });
 ```
 
-- **`basis`**: `"consent"` (Section 6) or `"legitimate-use"` (Section 7).
-- **`retain`**: `"while-active"`, a duration such as `"1y"`, or `{ afterWithdrawal: "30d" }` for consent purposes. Durations use `h`, `d` or `y`.
-- **`legalHold`**: another law makes you keep these rows (Section 8(7) allows it). They are held, not erased.
+- **`basis`**: `"consent"` (Section 6) or `"legitimate-use"` (Section 7). For most apps a legitimate use means Section 7(a): data the person voluntarily gave you for a specified purpose, until they tell you they don't want it used. Keeping data because a law requires it is not a legitimate use; use `legalHold`.
+- **`retain`**: `"while-active"`, a duration such as `"1y"`, or `{ afterWithdrawal: "7d" }` for consent purposes. Durations use `h`, `d` or `y`. Section 8(7)(a) says to erase upon withdrawal, so keep `afterWithdrawal` to the delay your systems really need.
+- **`legalHold`**: another law makes you keep these rows (tax, KYC). Section 8(7) requires erasure "unless retention is necessary for compliance with any law". They are held, not erased.
 
 ## 2. Check it
 
@@ -79,7 +79,7 @@ npx dpdp-kit audit --strict   # also fail on warnings
 ✖ error    data.users.fields.phone.purposes
              Unknown purpose "acount". Declare it under `purposes` or fix the spelling.
 ⚠ warning  fiduciary.grievanceUrl
-             Add where people can raise a grievance (Section 13). Notices need to point to it.
+             Add where people can raise a grievance. Section 8(10) requires a grievance mechanism, and Section 5(1)(ii) requires the notice to say how to use it.
 ```
 
 The same checks run when the app starts: `createDpdp` throws if the config has errors.
@@ -95,7 +95,7 @@ export const dpdp = createDpdp({ config, store: drizzleStore(db) });
 
 await dpdp.consent.grant(userId, ["marketing_sms", "analytics"], {
   noticeVersion: "2026-11",
-  language: "hi",          // English or any of the 22 Eighth Schedule languages (Section 5(3))
+  language: "hi",          // English or any of the 22 Eighth Schedule languages (Sections 5(3), 6(3))
   channel: "android",
   evidence: { ip: req.ip },
 });
@@ -106,7 +106,7 @@ await dpdp.consent.history(userId);                // every event, oldest first
 await dpdp.consent.verify(userId);                 // { ok: true, events: 1 }
 ```
 
-`has()` answers "may I process this person's data for this purpose?". It is always `true` for legitimate-use purposes.
+`has()` answers "do I hold consent, or not need it, for this purpose?". It is always `true` for legitimate-use purposes. Under Section 7(a) you must still stop once the person tells you they don't want their data used; v0.1 doesn't record that yet.
 
 ## 4. Withdrawals and deletions
 
@@ -118,7 +118,7 @@ const { erasure } = await dpdp.consent.withdraw(userId, ["analytics"]);
 {
   "tables": [
     { "table": "users", "action": "erase-fields",
-      "fields": [{ "field": "interests", "action": "erase", "after": "30d" }] }
+      "fields": [{ "field": "interests", "action": "erase", "after": "7d" }] }
   ],
   "processors": [{ "name": "posthog", "action": "erase", "ended": ["analytics"] }]
 }
@@ -166,6 +166,8 @@ Implement `ConsentStore`: three methods (`lastEvent`, `insert`, `events`). `inse
 
 ## How the consent record works
 
+Section 6(10) puts the burden on you: if consent is questioned in a proceeding, the Data Fiduciary must prove that a notice was given and consent was given. That's why each event stores the notice version, language, channel and evidence, and why the record shows edits.
+
 - Events are only ever added. Each has `seq` (1, 2, 3… per person), `prevHash` and `hash`, a sha256 over the event's fields and the previous hash.
 - Two writes for the same person at once can't fork the chain. The second hits the `(subjectId, seq)` key and retries on top of the first.
 - `verify()` recomputes every hash. It catches an edited event, a deleted event in the middle, and reordering.
@@ -177,7 +179,14 @@ Implement `ConsentStore`: three methods (`lastEvent`, `insert`, `events`). `inse
 |---|---|
 | **v0.1** (this) | Config and types, `audit` + CLI, consent records, erasure plans, Drizzle store, Express/Hono guards |
 | v0.2 | User rights requests (access, correction, erasure, grievance, nominee), applying erasure plans, processor hooks, React notice + privacy centre |
-| v0.3 | Breach records with deadlines (Rule 7), children and guardian consent (Section 9), Consent Manager interop, Prisma store |
+| v0.3 | Breach records with deadlines (Section 8(6), Rule 7), children and guardian consent (Section 9), Consent Manager interop (Sections 6(7)–6(9)), Prisma store |
+
+## Legal sources
+
+- **The Digital Personal Data Protection Act, 2023** (No. 22 of 2023), Gazette of India Extraordinary, Part II Section 1, 11 August 2023 (CG-DL-E-12082023-248045). Every Section reference here has been checked against this text.
+- **The Digital Personal Data Protection Rules, 2025**, G.S.R. 846(E), November 2025, with corrigendum G.S.R. 892(E). **Rule references (Rule 7, Rule 8(3)) have not been checked against the Gazette text yet.**
+
+Report a wrong or outdated reference as an issue. It's treated as a bug.
 
 ## Licence
 
