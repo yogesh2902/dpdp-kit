@@ -1,0 +1,5 @@
+# pnpm settings for this single-package repo.
+# esbuild's install script only re-checks its binary, which already comes from its
+# platform package, so it is declined. Without an explicit choice, pnpm fails in CI.
+allowBuilds:
+  esbuild: false
