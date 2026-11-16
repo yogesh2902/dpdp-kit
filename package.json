@@ -1,6 +1,6 @@
 {
   "name": "dpdp-kit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Build India's DPDP Act 2023 into your Node.js backend: declared purposes, tamper-evident consent records, erasure plans and an audit you can run in CI.",
   "keywords": [
     "dpdp",
