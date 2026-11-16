@@ -20,6 +20,7 @@
   "engines": {
     "node": ">=20.19"
   },
+  "packageManager": "pnpm@12.15.0",
   "files": [
     "dist"
   ],
