@@ -23,7 +23,7 @@ const config = defineConfig({
   data: {
     users: { table: "users", subject: "id", fields: { phone: { category: "contact", purposes: ["account", "promo"] } } },
   },
-  logs: { minimumRetention: "1y" },
+  minimumRetention: "1y",
 });
 
 const dpdp = createDpdp({ config, store: memoryStore() });
