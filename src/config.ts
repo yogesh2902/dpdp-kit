@@ -107,6 +107,11 @@ export interface DpdpConfig<P extends string = string> {
    * security investigations.
    */
   minimumRetention?: Duration;
+  /**
+   * Columns whose names look personal but aren't, for the schema drift check: `"products.name"`,
+   * or `"products.*"` for a whole table. Use database table and column names.
+   */
+  notPersonal?: readonly string[];
 }
 
 /** Purpose names of a config, e.g. `"account" | "marketing_sms"`. */

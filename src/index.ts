@@ -35,4 +35,6 @@ export {
 export { DpdpError, type DpdpErrorCode, SeqConflictError } from "./errors.js";
 export { CONSENT_REQUIRED_BODY, type GuardOptions } from "./guard.js";
 export { isNoticeLanguage, NOTICE_LANGUAGES, type NoticeLanguage } from "./languages.js";
+export { type Confidence, guessPersonal, type PersonalGuess, tokenize } from "./personal.js";
+export { checkSchema, type Schema, type SchemaColumn, type SchemaTable } from "./schema-check.js";
 export { type ConsentAction, type ConsentEvent, type ConsentStore, memoryStore } from "./store.js";

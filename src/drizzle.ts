@@ -1,7 +1,8 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, getTableColumns, getTableName, is, Table } from "drizzle-orm";
 import { integer, jsonb, type PgDatabase, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 import { SeqConflictError } from "./errors.js";
 import type { NoticeLanguage } from "./languages.js";
+import type { Schema, SchemaTable } from "./schema-check.js";
 import type { ConsentEvent, ConsentStore } from "./store.js";
 
 /**
@@ -119,4 +120,27 @@ export function drizzleStore(db: AnyPgDatabase): ConsentStore {
       return rows.map(fromRow);
     },
   };
+}
+
+/**
+ * Read a Drizzle schema module (Postgres, MySQL or SQLite) for `checkSchema()`. Pass the module
+ * itself, so every exported table is found:
+ *
+ * ```ts
+ * import * as schema from "./db/schema";
+ * checkSchema(config, drizzleSchema(schema));
+ * ```
+ */
+export function drizzleSchema(module: Record<string, unknown>): Schema {
+  const tables = new Map<string, SchemaTable>();
+  for (const value of Object.values(module)) {
+    if (!is(value, Table)) continue;
+    const name = getTableName(value);
+    if (tables.has(name)) continue;
+    const columns = Object.entries(getTableColumns(value)).map(([key, column]) =>
+      key === column.name ? { name: column.name } : { name: column.name, key },
+    );
+    tables.set(name, { name, columns });
+  }
+  return { tables: [...tables.values()] };
 }

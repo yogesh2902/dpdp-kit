@@ -18,8 +18,14 @@ export interface Issue {
     | "minimum-retention-missing"
     | "minimum-retention-too-short"
     | "grievance-missing"
-    | "fiduciary-missing";
-  /** Where in the config, e.g. `data.users.fields.phone`. */
+    | "fiduciary-missing"
+    | "invalid-not-personal"
+    // from checkSchema(), comparing the data map with the real database schema
+    | "unknown-table"
+    | "unknown-column"
+    | "unmapped-personal-column"
+    | "stale-not-personal";
+  /** Where in the config (`data.users.fields.phone`), or in the schema (`schema.users.phone`). */
   path: string;
   message: string;
 }
@@ -173,6 +179,17 @@ export function audit(config: DpdpConfig<string>): Issue[] {
         code: "unused-purpose",
         path: `purposes.${name}`,
         message: "No field or processor uses this purpose. Remove it, or map the data it covers.",
+      });
+    }
+  }
+
+  for (const entry of config.notPersonal ?? []) {
+    if (!/^[^.\s]+(\.[^.\s]+)*\.([^.\s]+|\*)$/.test(entry)) {
+      issues.push({
+        level: "error",
+        code: "invalid-not-personal",
+        path: "notPersonal",
+        message: `${JSON.stringify(entry)} should be "table.column" or "table.*".`,
       });
     }
   }
