@@ -8,6 +8,7 @@
 - **Keep consent records that show tampering.** Each person's grants and withdrawals form a hash chain, with the notice version and language they saw.
 - **Know what to erase.** When consent is withdrawn or an account is deleted, get a plan: which fields go, which stay (and why), which tables are under a legal hold, which third parties to tell.
 - **Check it in CI.** `dpdp-kit audit` fails the build when the data map is inconsistent.
+- **Catch drift.** `dpdp-kit audit --schema` reads your Drizzle schema and fails the build when someone adds a `phone`, `email` or `aadhaar_number` column without saying what it's for, or when the data map points at columns that no longer exist. Compliance that can't quietly fall out of date.
 
 ## Node-native
 
@@ -91,6 +92,37 @@ npx dpdp-kit audit --strict   # also fail on warnings
 ```
 
 The same checks run when the app starts: `createDpdp` throws if the config has errors.
+
+### Catch schema drift
+
+A data map is only useful while it matches the database. Point the audit at your Drizzle schema (Postgres, MySQL or SQLite):
+
+```bash
+npx dpdp-kit audit --schema src/db/schema.ts
+```
+
+```
+✖ error    schema.users.aadhaar_number
+             Looks like personal data (identity, matched "aadhaar") but isn't in the data map. Add it under `data`
+             with the purposes it's held for, or add "users.aadhaar_number" to `notPersonal`.
+✖ error    data.users.fields.interests
+             Column "interests" isn't in table "users". Fix the name, or remove it if the column was dropped.
+⚠ warning  schema.users.gender
+             Looks like personal data (identity, matched "gender") but isn't in the data map. ...
+```
+
+It checks both directions:
+
+- **New personal columns nobody mapped.** Columns are recognised by name: phone and email, Aadhaar, PAN, passport and voter ID, date of birth, names, addresses and PIN codes, UPI, IFSC and bank details, IP addresses and device IDs, health, biometric and location data. Clear cases are errors. Columns that are personal only sometimes, like `name`, `gender` or `city`, or anything named for a company or branch, are warnings.
+- **A data map that points at nothing.** Tables or columns that were renamed or dropped.
+
+Columns that describe data rather than hold it, such as `email_verified_at`, `phone_confirmed` and `address_type`, are not flagged. For anything that only looks personal, list it in the config:
+
+```ts
+notPersonal: ["products.name", "branches.*"], // database table and column names
+```
+
+From code, `checkSchema(config, drizzleSchema(schema))` returns the same issues. `drizzleSchema` comes from `dpdp-kit/drizzle`. Matching is by column name, so it can't see personal data hidden inside a JSON column or a vaguely named field. Review those by hand.
 
 ## 3. Record consent
 
@@ -187,7 +219,8 @@ Section 6(10) puts the burden on you: if consent is questioned in a proceeding, 
 
 | Version | Adds |
 |---|---|
-| **v0.1** (this) | Config and types, `audit` + CLI, consent records, erasure plans, Drizzle store, Express/Hono guards |
+| **v0.1** | Config and types, `audit` + CLI, consent records, erasure plans, Drizzle store, Express/Hono guards |
+| **next** | Schema drift check: `audit --schema`, `checkSchema`, `drizzleSchema`, `notPersonal` |
 | v0.2 | User rights requests (Sections 11–14, Rule 14; grievances answered within 90 days, Rule 14(3)), recording objections to a Section 7(a) use, applying erasure plans, processor hooks, React notice that meets Rule 3 + privacy centre |
 | v0.3 | Breach records with deadlines (Section 8(6), Rule 7: people and the Board without delay, detailed report to the Board within 72 hours), children and guardian consent (Section 9, Rule 10), inactivity erasure with 48 hours' warning for large e-commerce, gaming and social media platforms (Rule 8(1)–(2), Third Schedule), Consent Manager interop (Sections 6(7)–6(9), Rule 4), Prisma store |
 
