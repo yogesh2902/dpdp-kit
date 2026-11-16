@@ -88,8 +88,8 @@ export interface FiduciaryDef {
   grievanceUrl?: string;
   /**
    * Data Protection Officer, or a person who can answer questions about the data. Section 8(9)
-   * requires publishing their business contact details, and Section 6(3) requires them in every
-   * consent request.
+   * and Rule 9 require publishing their business contact details prominently and in every reply
+   * to a rights request; Section 6(3) requires them in every consent request.
    */
   dpo?: string;
 }
@@ -99,8 +99,14 @@ export interface DpdpConfig<P extends string = string> {
   purposes: { readonly [K in P]: PurposeDef };
   data: Record<string, TableDef<NoInfer<P>>>;
   processors?: Record<string, ProcessorDef<NoInfer<P>>>;
-  /** Rule 8(3) of the DPDP Rules sets a minimum of one year for logs and traffic data. */
-  logs?: { minimumRetention: Duration };
+  /**
+   * How long personal data, traffic data and logs of each processing are kept, at minimum, from the
+   * date of that processing, even after erasure is otherwise due (e.g. the account is deleted).
+   * Rule 8(3) of the DPDP Rules requires at least one year (`"1y"`), only for the purposes in the
+   * Seventh Schedule (requests from the State); Rule 6(1)(e) also requires a year of logs for
+   * security investigations.
+   */
+  minimumRetention?: Duration;
 }
 
 /** Purpose names of a config, e.g. `"account" | "marketing_sms"`. */

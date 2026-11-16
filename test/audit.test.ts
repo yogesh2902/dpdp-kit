@@ -15,7 +15,7 @@ describe("audit", () => {
       purposes: { account: { basis: "legitimate-use", retain: "while-active" } },
       // @ts-expect-error "acount" is not a declared purpose
       data: { users: { table: "users", subject: "id", fields: { phone: { category: "contact", purposes: ["acount"] } } } },
-      logs: { minimumRetention: "1y" },
+      minimumRetention: "1y",
     });
     expect(codes(bad)).toContain("error:unknown-purpose:data.users.fields.phone.purposes");
     expect(hasErrors(audit(bad))).toBe(true);
@@ -34,7 +34,7 @@ describe("audit", () => {
         orders: { table: "orders", subject: "", fields: {}, legalHold: { reason: "tax", keep: "8 years", then: "delete" } },
       },
       processors: { sms: { purposes: ["account", "nope"] } },
-      logs: { minimumRetention: "90d" },
+      minimumRetention: "90d",
     } as unknown as DpdpConfig<string>;
 
     expect(codes(bad).sort()).toEqual(
@@ -43,7 +43,7 @@ describe("audit", () => {
         "error:invalid-duration:data.orders.legalHold.keep",
         "error:invalid-duration:purposes.spare.retain.afterWithdrawal",
         "error:invalid-retention:purposes.promo.retain",
-        "error:logs-retention-too-short:logs.minimumRetention",
+        "error:minimum-retention-too-short:minimumRetention",
         "error:missing-subject-column:data.orders.subject",
         "error:unknown-purpose:processors.sms.purposes",
         "warning:grievance-missing:fiduciary.grievanceUrl",
@@ -62,7 +62,7 @@ describe("audit", () => {
     } as unknown as DpdpConfig<string>;
     expect(codes(bad)).toEqual([
       "error:invalid-retention:purposes.account.retain",
-      "warning:logs-retention-missing:logs.minimumRetention",
+      "warning:minimum-retention-missing:minimumRetention",
     ]);
   });
 });

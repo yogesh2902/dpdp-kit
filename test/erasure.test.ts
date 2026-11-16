@@ -60,6 +60,19 @@ describe("erasure plan", () => {
       ["msg91", "erase"],
       ["posthog", "erase"],
     ]);
+    // Rule 8(3): keep a restricted copy for a year after the last processing, even on deletion
+    expect(plan.minimumRetention).toBe("1y");
+  });
+
+  it("leaves minimumRetention out when the config doesn't set it", () => {
+    const { minimumRetention: _, ...withoutMinimum } = config;
+    const plan = planErasure(withoutMinimum, {
+      subjectId: "u9",
+      reason: "account-deletion",
+      ended: ["account"],
+      remaining: [],
+    });
+    expect(plan).not.toHaveProperty("minimumRetention");
   });
 
   it("is a pure function of the config", () => {

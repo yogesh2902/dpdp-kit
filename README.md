@@ -60,13 +60,14 @@ export default defineConfig({
     posthog: { purposes: ["analytics"] },
   },
 
-  logs: { minimumRetention: "1y" }, // Rule 8(3): at least one year
+  minimumRetention: "1y", // Rule 8(3): keep data and logs of each processing at least one year
 });
 ```
 
 - **`basis`**: `"consent"` (Section 6) or `"legitimate-use"` (Section 7). For most apps a legitimate use means Section 7(a): data the person voluntarily gave you for a specified purpose, until they tell you they don't want it used. Keeping data because a law requires it is not a legitimate use; use `legalHold`.
 - **`retain`**: `"while-active"`, a duration such as `"1y"`, or `{ afterWithdrawal: "7d" }` for consent purposes. Durations use `h`, `d` or `y`. Section 8(7)(a) says to erase upon withdrawal, so keep `afterWithdrawal` to the delay your systems really need.
 - **`legalHold`**: another law makes you keep these rows (tax, KYC). Section 8(7) requires erasure "unless retention is necessary for compliance with any law". They are held, not erased.
+- **`minimumRetention`**: Rule 8(3) requires keeping the personal data, traffic data and logs of each processing for at least one year from that processing, even after the account is deleted, but only for the purposes in the Seventh Schedule (requests from the State). The audit fails if this is under `"1y"`.
 
 ## 2. Check it
 
@@ -131,6 +132,8 @@ await dpdp.erasure.plan(userId, { reason: "account-deletion" });
 // users → delete-rows, orders → hold (GST records, 8y, then anonymise), processors → erase
 ```
 
+**"Erase" is not "delete this second".** Every plan carries `minimumRetention` from your config. Under Rule 8(3), stop using the data now, keep a restricted copy only for the Seventh Schedule purposes, and delete it once a year has passed since its last processing. The Rule's own example is an e-book platform that keeps order details and logs for a year "even if X deletes her account".
+
 **In v0.1 the plan only describes what to do; nothing is deleted for you.** Applying it (with your own `onErase` hooks for third parties) arrives in v0.2.
 
 ## 5. Guard routes
@@ -178,13 +181,22 @@ Section 6(10) puts the burden on you: if consent is questioned in a proceeding, 
 | Version | Adds |
 |---|---|
 | **v0.1** (this) | Config and types, `audit` + CLI, consent records, erasure plans, Drizzle store, Express/Hono guards |
-| v0.2 | User rights requests (access, correction, erasure, grievance, nominee), applying erasure plans, processor hooks, React notice + privacy centre |
-| v0.3 | Breach records with deadlines (Section 8(6), Rule 7), children and guardian consent (Section 9), Consent Manager interop (Sections 6(7)–6(9)), Prisma store |
+| v0.2 | User rights requests (Sections 11–14, Rule 14; grievances answered within 90 days, Rule 14(3)), recording objections to a Section 7(a) use, applying erasure plans, processor hooks, React notice that meets Rule 3 + privacy centre |
+| v0.3 | Breach records with deadlines (Section 8(6), Rule 7: people and the Board without delay, detailed report to the Board within 72 hours), children and guardian consent (Section 9, Rule 10), inactivity erasure with 48 hours' warning for large e-commerce, gaming and social media platforms (Rule 8(1)–(2), Third Schedule), Consent Manager interop (Sections 6(7)–6(9), Rule 4), Prisma store |
+
+## When the Rules apply
+
+The DPDP Rules, 2025 were published on 13 November 2025 and start in phases (Rule 1):
+
+- **Rule 4** (Consent Managers): one year after publication, November 2026.
+- **Rules 3, 5 to 16, 22 and 23**, including notices, security safeguards, breaches, retention and erasure, children, and rights requests: **18 months after publication, May 2027.**
+
+Building this in now gives you time to test before those obligations start.
 
 ## Legal sources
 
 - **The Digital Personal Data Protection Act, 2023** (No. 22 of 2023), Gazette of India Extraordinary, Part II Section 1, 11 August 2023 (CG-DL-E-12082023-248045). Every Section reference here has been checked against this text.
-- **The Digital Personal Data Protection Rules, 2025**, G.S.R. 846(E), November 2025, with corrigendum G.S.R. 892(E). **Rule references (Rule 7, Rule 8(3)) have not been checked against the Gazette text yet.**
+- **The Digital Personal Data Protection Rules, 2025**, G.S.R. 846(E), 13 November 2025 (MeitY copy). Every Rule reference here has been checked against this text. The corrigendum G.S.R. 892(E) (11 December 2025), which corrects some English wording, has not been checked yet.
 
 Report a wrong or outdated reference as an issue. It's treated as a bug.
 

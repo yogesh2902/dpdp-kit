@@ -27,7 +27,7 @@ describe("dpdp-kit audit", () => {
         fiduciary: { name: "X" },
         purposes: { account: { basis: "legitimate-use", retain: "while-active" } },
         data: { users: { table: "users", subject: "id", fields: { phone: { category: "contact", purposes: ["acount"] } } } },
-        logs: { minimumRetention: "1y" },
+        minimumRetention: "1y",
       };`,
     );
     const { code, out } = await audit([], dir);
@@ -46,7 +46,7 @@ describe("dpdp-kit audit", () => {
         fiduciary: { name: "X" },
         purposes: { account: { basis: "legitimate-use", retain: "while-active" } },
         data: { users: { table: "users", subject: "id", fields: { phone: { category: "contact", purposes: ["account"] } } } },
-        logs: { minimumRetention: "1y" },
+        minimumRetention: "1y",
       };`,
     );
     expect((await audit([], dir)).code).toBe(0);

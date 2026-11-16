@@ -48,7 +48,7 @@ describe("consent records", () => {
   });
 
   it("refuses to start with a broken config", () => {
-    const broken = { ...config, logs: { minimumRetention: "30d" as const } };
+    const broken = { ...config, minimumRetention: "30d" as const };
     expect(() => createDpdp({ config: broken, store: memoryStore() })).toThrow(/Rule 8\(3\)/);
   });
 

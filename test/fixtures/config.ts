@@ -35,7 +35,7 @@ export const config = defineConfig({
     msg91: { purposes: ["order_updates", "marketing_sms"] },
     posthog: { purposes: ["analytics"] },
   },
-  logs: { minimumRetention: "1y" },
+  minimumRetention: "1y",
 });
 
 export default config;

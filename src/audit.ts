@@ -15,8 +15,8 @@ export interface Issue {
     | "table-without-fields"
     | "missing-subject-column"
     | "unused-purpose"
-    | "logs-retention-missing"
-    | "logs-retention-too-short"
+    | "minimum-retention-missing"
+    | "minimum-retention-too-short"
     | "grievance-missing"
     | "fiduciary-missing";
   /** Where in the config, e.g. `data.users.fields.phone`. */
@@ -177,27 +177,29 @@ export function audit(config: DpdpConfig<string>): Issue[] {
     }
   }
 
-  const logs = config.logs?.minimumRetention;
-  if (logs === undefined) {
+  const minimum = config.minimumRetention;
+  if (minimum === undefined) {
     issues.push({
       level: "warning",
-      code: "logs-retention-missing",
-      path: "logs.minimumRetention",
-      message: 'Set how long logs are kept. Rule 8(3) of the DPDP Rules sets a one-year minimum ("1y").',
+      code: "minimum-retention-missing",
+      path: "minimumRetention",
+      message:
+        'Set minimumRetention. Rule 8(3) of the DPDP Rules requires keeping personal data, traffic data and logs of each processing for at least one year from the processing ("1y").',
     });
-  } else if (!isDuration(logs)) {
+  } else if (!isDuration(minimum)) {
     issues.push({
       level: "error",
       code: "invalid-duration",
-      path: "logs.minimumRetention",
-      message: `${JSON.stringify(logs)} is not a duration. Use e.g. "1y".`,
+      path: "minimumRetention",
+      message: `${JSON.stringify(minimum)} is not a duration. Use e.g. "1y".`,
     });
-  } else if (durationMs(logs) < ONE_YEAR_MS) {
+  } else if (durationMs(minimum) < ONE_YEAR_MS) {
     issues.push({
       level: "error",
-      code: "logs-retention-too-short",
-      path: "logs.minimumRetention",
-      message: 'Rule 8(3) of the DPDP Rules sets a one-year minimum for logs. Use at least "1y".',
+      code: "minimum-retention-too-short",
+      path: "minimumRetention",
+      message:
+        'Rule 8(3) of the DPDP Rules requires keeping personal data, traffic data and logs of each processing for at least one year. Use at least "1y".',
     });
   }
 

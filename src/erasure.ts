@@ -53,6 +53,14 @@ export interface ErasurePlan {
   remaining: string[];
   tables: TablePlan[];
   processors: ProcessorPlan[];
+  /**
+   * From `config.minimumRetention`. Rule 8(3): personal data, traffic data and logs of each
+   * processing must be kept for at least this long from the date of that processing, even when
+   * erasure is due (the Rule's own example: "even if X deletes her account"). So `erase` and
+   * `delete-rows` mean: stop using the data now, keep it only for the Seventh Schedule purposes
+   * (requests from the State), and erase it once this long has passed since its last processing.
+   */
+  minimumRetention?: Duration;
 }
 
 export interface PlanInput {
@@ -131,5 +139,6 @@ export function planErasure(config: DpdpConfig<string>, input: PlanInput): Erasu
     remaining: [...remaining],
     tables,
     processors,
+    ...(config.minimumRetention !== undefined ? { minimumRetention: config.minimumRetention } : {}),
   };
 }
