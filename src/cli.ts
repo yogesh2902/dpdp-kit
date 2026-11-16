@@ -4,10 +4,15 @@ import { runAudit } from "./run-audit.js";
 const HELP = `dpdp-kit — DPDP Act tooling for Node.js
 
 Usage:
-  dpdp-kit audit [--config <file>] [--strict]   Check your data map and purposes
+  dpdp-kit audit [--config <file>] [--schema <file>] [--strict]
+
+  Checks your data map and purposes. With --schema, also compares the data map with your
+  Drizzle schema: personal-looking columns missing from the map, and map entries that no
+  longer exist.
 
 Options:
   --config <file>   Config file (default: dpdp.config.ts / .mts / .js / .mjs)
+  --schema <file>   Drizzle schema file (Postgres, MySQL or SQLite), e.g. src/db/schema.ts
   --strict          Fail on warnings too
 `;
 
