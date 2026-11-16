@@ -2,14 +2,21 @@
 
 [![CI](https://github.com/yogesh2902/dpdp-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/yogesh2902/dpdp-kit/actions/workflows/ci.yml)
 
-Build India's **Digital Personal Data Protection Act, 2023** into your Node.js backend.
+**The Node.js-native toolkit for India's Digital Personal Data Protection Act, 2023.** Build it into your Node.js backend.
 
 - **Declare why you hold each piece of personal data**, in one typed config file. A misspelt purpose is a type error.
 - **Keep consent records that show tampering.** Each person's grants and withdrawals form a hash chain, with the notice version and language they saw.
 - **Know what to erase.** When consent is withdrawn or an account is deleted, get a plan: which fields go, which stay (and why), which tables are under a legal hold, which third parties to tell.
 - **Check it in CI.** `dpdp-kit audit` fails the build when the data map is inconsistent.
 
-It runs inside your app and writes to your own Postgres. There's no hosted service and no account.
+## Node-native
+
+dpdp-kit is a TypeScript library that runs **inside your Node.js process**, not a service you call.
+
+- **No separate server.** There's nothing to deploy, no sidecar to keep running, and no REST API between your code and your consent records.
+- **No hosted service.** No account, no API key, and no network calls. Personal data never leaves your infrastructure.
+- **Your own database.** Consent records go into your own Postgres, through the Drizzle setup you already have, in the same database as the rest of your data.
+- **Fits your Node stack.** Typed config, middleware for Express and Hono, a CLI for CI, and works with ESM, `require()` and TypeScript.
 
 > **Not legal advice.** dpdp-kit helps you put compliance into practice; it does not make an app compliant on its own. Section and rule references point you to the text so you can check them. Have your own lawyer review your purposes, notices and retention periods.
 
