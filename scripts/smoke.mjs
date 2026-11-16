@@ -47,4 +47,24 @@ const out = execFileSync(process.execPath, ["dist/cli.js", "audit", "--config", 
 if (!out.includes("No problems found")) fail(`CLI output:\n${out}`);
 console.log("✔ dpdp-kit audit");
 
+// 4. Schema drift check against a Drizzle schema: a matching schema passes, a drifted one fails
+const audit = (schema) => {
+  try {
+    const stdout = execFileSync(
+      process.execPath,
+      ["dist/cli.js", "audit", "--config", "test/fixtures/config.ts", "--schema", schema],
+      { encoding: "utf8" },
+    );
+    return { code: 0, stdout };
+  } catch (err) {
+    return { code: err.status, stdout: String(err.stdout) };
+  }
+};
+if (audit("test/fixtures/schema.ts").code !== 0) fail("matching schema should pass");
+const drifted = audit("test/fixtures/schema-drift.ts");
+if (drifted.code !== 1 || !drifted.stdout.includes("schema.users.aadhaar_number")) {
+  fail(`drifted schema should fail and name aadhaar_number:\n${drifted.stdout}`);
+}
+console.log("✔ dpdp-kit audit --schema");
+
 console.log(`All smoke checks passed on Node ${process.version}`);

@@ -36,6 +36,7 @@ export const config = defineConfig({
     posthog: { purposes: ["analytics"] },
   },
   minimumRetention: "1y",
+  notPersonal: ["products.name"],
 });
 
 export default config;

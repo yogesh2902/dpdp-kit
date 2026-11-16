@@ -53,4 +53,24 @@ describe("dpdp-kit audit", () => {
     expect((await audit(["--strict"], dir)).code).toBe(1);
     expect((await audit([], tmpdir())).code).toBe(1);
   });
+
+  it("--schema passes when the Drizzle schema matches the data map", async () => {
+    const { code, out } = await audit(["--config", "config.ts", "--schema", "schema.ts"], fixtures);
+    expect(code).toBe(0);
+    expect(out).toContain("No problems found");
+  });
+
+  it("--schema fails on drift and names each column", async () => {
+    const { code, out } = await audit(["--config", "config.ts", "--schema", "schema-drift.ts"], fixtures);
+    expect(code).toBe(1);
+    expect(out).toContain("schema.users.aadhaar_number");
+    expect(out).toContain("schema.leads.email");
+    expect(out).toContain("data.events.table");
+    expect(out).toMatch(/4 error\(s\), 2 warning\(s\)/);
+  });
+
+  it("--schema reports a missing file, or a file with no tables", async () => {
+    expect((await audit(["--config", "config.ts", "--schema", "nope.ts"], fixtures)).code).toBe(1);
+    await expect(audit(["--config", "config.ts", "--schema", "config.ts"], fixtures)).rejects.toThrow(/no Drizzle tables/);
+  });
 });
