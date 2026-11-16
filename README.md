@@ -220,7 +220,7 @@ Section 6(10) puts the burden on you: if consent is questioned in a proceeding, 
 | Version | Adds |
 |---|---|
 | **v0.1** | Config and types, `audit` + CLI, consent records, erasure plans, Drizzle store, Express/Hono guards |
-| **next** | Schema drift check: `audit --schema`, `checkSchema`, `drizzleSchema`, `notPersonal` |
+| **v0.1.2** | Schema drift check: `audit --schema`, `checkSchema`, `drizzleSchema`, `notPersonal` |
 | v0.2 | User rights requests (Sections 11–14, Rule 14; grievances answered within 90 days, Rule 14(3)), recording objections to a Section 7(a) use, applying erasure plans, processor hooks, React notice that meets Rule 3 + privacy centre |
 | v0.3 | Breach records with deadlines (Section 8(6), Rule 7: people and the Board without delay, detailed report to the Board within 72 hours), children and guardian consent (Section 9, Rule 10), inactivity erasure with 48 hours' warning for large e-commerce, gaming and social media platforms (Rule 8(1)–(2), Third Schedule), Consent Manager interop (Sections 6(7)–6(9), Rule 4), Prisma store |
 
