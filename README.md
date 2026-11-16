@@ -1,5 +1,7 @@
 # dpdp-kit
 
+[![CI](https://github.com/yogesh2902/dpdp-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/yogesh2902/dpdp-kit/actions/workflows/ci.yml)
+
 Build India's **Digital Personal Data Protection Act, 2023** into your Node.js backend.
 
 - **Declare why you hold each piece of personal data**, in one typed config file. A misspelt purpose is a type error.
