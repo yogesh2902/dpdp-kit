@@ -196,7 +196,8 @@ Building this in now gives you time to test before those obligations start.
 ## Legal sources
 
 - **The Digital Personal Data Protection Act, 2023** (No. 22 of 2023), Gazette of India Extraordinary, Part II Section 1, 11 August 2023 (CG-DL-E-12082023-248045). Every Section reference here has been checked against this text.
-- **The Digital Personal Data Protection Rules, 2025**, G.S.R. 846(E), 13 November 2025 (MeitY copy). Every Rule reference here has been checked against this text. The corrigendum G.S.R. 892(E) (11 December 2025), which corrects some English wording, has not been checked yet.
+- **The Digital Personal Data Protection Rules, 2025**, G.S.R. 846(E), 13 November 2025 (MeitY copy). Every Rule reference here has been checked against this text.
+- **Corrigendum G.S.R. 892(E)**, 10 December 2025, published 11 December 2025 (CG-DL-E-12122025-268455). It makes 8 wording corrections, to Rule 1(3)–(4), Rule 11, Rule 19, the First Schedule and the Fourth Schedule. None changes anything cited here. Rule 1's "of this Gazette" becoming "in the Official Gazette" leaves the start dates unchanged.
 
 Report a wrong or outdated reference as an issue. It's treated as a bug.
 
