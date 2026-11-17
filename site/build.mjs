@@ -100,6 +100,8 @@ function page({ title, description, path, body, active, docs = false }) {
   <div class="wrap">
     <a class="brand" href="${base}">${ICONS.shield} dpdp-kit</a>
     <nav class="links" aria-label="Main">
+      <a class="hide-sm" href="${base}#why">Why</a>
+      <a class="hide-sm" href="${base}#roadmap">Roadmap</a>
       <a href="${base}docs/"${active === "docs" ? ' aria-current="page"' : ""}>Docs</a>
       <a class="hide-sm" href="${base}docs/law/"${active === "law" ? ' aria-current="page"' : ""}>The law</a>
       <a class="hide-sm" href="https://www.npmjs.com/package/dpdp-kit" aria-label="npm">${ICONS.npm}</a>

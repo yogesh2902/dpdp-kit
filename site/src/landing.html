@@ -16,6 +16,34 @@
   </div>
 </section>
 
+<section class="stats">
+  <div class="wrap">
+    <div class="stat reveal"><b>85</b><span>tests, including real Postgres</span></div>
+    <div class="stat reveal"><b>22<small>+1</small></b><span>notice languages: the Eighth Schedule and English</span></div>
+    <div class="stat reveal"><b>0</b><span>network calls; data stays on your servers</span></div>
+    <div class="stat reveal"><b>MIT</b><span>free and open source, no paid tier</span></div>
+  </div>
+</section>
+
+<section class="block" id="why-now">
+  <div class="wrap">
+    <span class="label reveal">Why build it in now</span>
+    <h2 class="reveal">The penalties are <em>real money</em>.</h2>
+    <p class="intro reveal">The Act's Schedule (Section 33) sets the maximum penalty for each kind of breach. Even the line for "any other provision", which covers consent, notices, erasure and rights requests, goes up to ₹50 crore.</p>
+    <div class="penalties">
+      <div class="pen reveal"><b>₹250<small> crore</small></b><span>Not taking reasonable security safeguards to prevent a personal data breach</span><i>Section 8(5) · Schedule item 1</i></div>
+      <div class="pen reveal"><b>₹200<small> crore</small></b><span>Not notifying the Board and affected people of a personal data breach</span><i>Section 8(6) · Schedule item 2</i></div>
+      <div class="pen reveal"><b>₹200<small> crore</small></b><span>Not meeting the additional obligations for children's data</span><i>Section 9 · Schedule item 3</i></div>
+      <div class="pen reveal"><b>₹50<small> crore</small></b><span>Breaking any other provision of the Act or the Rules: consent, notices, erasure, rights</span><i>Schedule item 7</i></div>
+    </div>
+    <div class="reasons3">
+      <div class="reveal"><h4>The burden of proof is on you.</h4><p>If consent is questioned, Section 6(10) makes the Data Fiduciary prove that a notice was given and consent was given. "consented: true" in a column isn't proof.</p></div>
+      <div class="reveal"><h4>May 2027 is closer than it looks.</h4><p>Notices, erasure, breach handling and rights requests all start then. Retrofitting them into a grown codebase takes longer than building them in now.</p></div>
+      <div class="reveal"><h4>Spreadsheets drift.</h4><p>A data map that lives outside the code is out of date the day someone adds a column. Compliance has to live where the changes happen: in the code and in CI.</p></div>
+    </div>
+  </div>
+</section>
+
 <section class="block" id="drift">
   <div class="wrap">
     <span class="label reveal">Compliance that can't quietly drift</span>
@@ -172,16 +200,48 @@ jobs:
   </div>
 </section>
 
-<section class="block" id="native">
+<section class="block" id="why">
   <div class="wrap">
-    <span class="label reveal">Node-native</span>
-    <h2 class="reveal">A library, <em>not a service.</em></h2>
-    <p class="intro reveal">dpdp-kit runs inside your Node.js process. Personal data never leaves your infrastructure.</p>
-    <div class="grid4">
-      <div class="card reveal"><h4>No server</h4><p>Nothing to deploy, no sidecar to keep running, no REST API between your code and your consent records.</p></div>
-      <div class="card reveal"><h4>No account</h4><p>No API key and no network calls. Install it from npm and it works offline.</p></div>
-      <div class="card reveal"><h4>Your Postgres</h4><p>Records go into your own database through the Drizzle setup you already have: node-postgres, postgres.js, Neon or PGlite.</p></div>
-      <div class="card reveal"><h4>Your stack</h4><p>Typed config, Express and Hono middleware, a CLI for CI. ESM, <code>require()</code> and TypeScript.</p></div>
+    <span class="label reveal">Why dpdp-kit</span>
+    <h2 class="reveal">Compliance that lives <em>in your code</em>.</h2>
+    <p class="intro reveal">There are three common ways to handle the DPDP Act. Only one of them is checked every time your code changes.</p>
+    <div class="compare-wrap reveal">
+      <table class="compare">
+        <thead><tr><th></th><th>Spreadsheet and a policy page</th><th>Hosted consent platform</th><th class="us">dpdp-kit</th></tr></thead>
+        <tbody>
+          <tr><td>Checked on every pull request</td><td class="no">No</td><td class="mid">Usually not</td><td class="yes">Yes, in CI</td></tr>
+          <tr><td>Catches a new personal column before it ships</td><td class="no">No</td><td class="mid">Usually not</td><td class="yes">Yes, from your schema</td></tr>
+          <tr><td>Personal data stays on your servers</td><td class="yes">Yes</td><td class="mid">Usually sent to the vendor</td><td class="yes">Yes, no network calls</td></tr>
+          <tr><td>Consent records that show tampering</td><td class="no">No</td><td class="mid">Varies</td><td class="yes">Yes, hash-chained</td></tr>
+          <tr><td>Erasure carried out on time, with legal holds</td><td class="no">By hand</td><td class="mid">Varies</td><td class="yes">Yes, retention runner</td></tr>
+          <tr><td>Mistakes caught in your editor</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes, typed config</td></tr>
+          <tr><td>Cost</td><td class="mid">Free, but manual</td><td class="mid">Subscription</td><td class="yes">Free, MIT</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid3" style="margin-top:56px">
+      <div class="card reveal"><div class="ico">{}</div><h4>Compliance as code</h4><p>One typed config is the single source of truth. The audit, the guards, erasure and rights requests all read it.</p></div>
+      <div class="card reveal"><div class="ico">⌁</div><h4>Drift-proof</h4><p>The audit reads your real Drizzle schema in both directions, so the data map can't quietly fall out of date.</p></div>
+      <div class="card reveal"><div class="ico">◎</div><h4>Node-native, no SaaS</h4><p>A library inside your process. No server to run, no account, no API key, and your own Postgres.</p></div>
+      <div class="card reveal"><div class="ico">§</div><h4>Checked against the law</h4><p>Every Section and Rule reference was checked against the official Gazette texts. A wrong reference is treated as a bug.</p></div>
+      <div class="card reveal"><div class="ico">✓</div><h4>Tested like infrastructure</h4><p>85 tests, including full flows on real Postgres and three runners racing for the same tasks. CI on Node 20.19, 22 and 24.</p></div>
+      <div class="card reveal"><div class="ico">↗</div><h4>Open, no lock-in</h4><p>MIT licensed. Your records live in your own tables, and every store and data-access layer is an interface you can replace.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="who">
+  <div class="wrap">
+    <span class="label reveal">Who it's for</span>
+    <h2 class="reveal">Any team holding <em>Indian users'</em> data.</h2>
+    <p class="intro reveal">If your app stores a phone number, an email or an address of someone in India, the Act applies. Here's where dpdp-kit helps most.</p>
+    <div class="who">
+      <div class="card reveal"><h4>Fintech and lending</h4><p>KYC records under legal holds, erasure that respects them, and rights requests with due dates.</p></div>
+      <div class="card reveal"><h4>E-commerce and D2C</h4><p>Consent for marketing SMS and email, GST invoices kept for 8 years then anonymised, and SMS vendors told to stop.</p></div>
+      <div class="card reveal"><h4>Ed-tech</h4><p>Consent records today. Children's data and verifiable guardian consent (Section 9, Rule 10) are on the roadmap.</p></div>
+      <div class="card reveal"><h4>Health and wellness</h4><p>Health and biometric columns are flagged by the drift check, so nothing is stored without a stated purpose.</p></div>
+      <div class="card reveal"><h4>SaaS and B2B</h4><p>Processor hooks tell analytics and messaging vendors to stop and erase, and the Action reviews every pull request.</p></div>
+      <div class="card reveal"><h4>Agencies and freelancers</h4><p>One config and one CI check per client project, so every app you ship starts with the basics in place.</p></div>
     </div>
   </div>
 </section>
@@ -198,6 +258,75 @@ jobs:
       <div class="t now"><div class="when">May 2027</div><div class="what">Most duties begin</div><div class="sub">Notices, safeguards, breaches, erasure, children, rights: Rules 3, 5–16, 22, 23</div></div>
     </div>
     <p class="note reveal" style="margin-top:64px"><strong>Not legal advice.</strong> dpdp-kit helps you put compliance into practice; it doesn't make an app compliant on its own. Section and Rule references point you to the text so you can check them. Have your own lawyer review your purposes, notices and retention periods.</p>
+  </div>
+</section>
+
+<section class="block" id="roadmap">
+  <div class="wrap">
+    <span class="label reveal">Roadmap</span>
+    <h2 class="reveal">What's shipped, and <em>what's next</em>.</h2>
+    <p class="intro reveal">dpdp-kit is growing from a backend toolkit into a full-stack one: the same config will drive the screens people see, on the web and on mobile.</p>
+    <div class="board">
+      <div class="col reveal">
+        <div class="col-head"><span class="pill done">Shipped</span><span class="ver">0.1 – 0.2</span></div>
+        <ul>
+          <li><b>Typed config and audit CLI</b>purposes, data map, checks</li>
+          <li><b>Schema drift check</b>Drizzle: Postgres, MySQL, SQLite</li>
+          <li><b>Consent records</b>hash-chained, 22 languages + English</li>
+          <li><b>Erasure and retention runner</b>legal holds, Rule 8(3)</li>
+          <li><b>Rights requests</b>Sections 11–14, Rule 14 due dates</li>
+          <li><b>GitHub Action</b>annotations on pull requests</li>
+          <li><b>Express and Hono guards</b>consent-required routes</li>
+        </ul>
+      </div>
+      <div class="col now reveal">
+        <div class="col-head"><span class="pill building"><i></i>Building now</span><span class="ver">0.3</span></div>
+        <ul>
+          <li><b>Rule 3 notices from the config</b>in every offered language, with an automatic notice version</li>
+          <li><b>Objections to a legitimate use</b>Section 7(a), respected by <code>has()</code></li>
+          <li><b>HTTP API</b>notice, consent and rights routes, with Express, Hono and Next.js adapters</li>
+        </ul>
+      </div>
+      <div class="col reveal">
+        <div class="col-head"><span class="pill next">Next</span><span class="ver">0.4 – 0.5</span></div>
+        <ul>
+          <li><b>Typed client</b>for browsers, React Native and Node</li>
+          <li><b>React hooks and components</b>a consent notice and a privacy centre, ready for Next.js</li>
+          <li><b>React Native screens</b>Expo-friendly, no native modules</li>
+          <li><b>Example apps</b>Next.js and Expo, end to end</li>
+        </ul>
+      </div>
+      <div class="col reveal">
+        <div class="col-head"><span class="pill later">Later</span><span class="ver">0.6 +</span></div>
+        <ul>
+          <li><b>Children's data</b>age gate and verifiable guardian consent, Section 9, Rule 10</li>
+          <li><b>Breach records</b>with the deadlines of Section 8(6) and Rule 7</li>
+          <li><b>Inactivity erasure</b>48 hours' warning, Rule 8(1)–(2)</li>
+          <li><b>More databases</b>MySQL and SQLite data access, a Prisma store</li>
+          <li><b>Consent Manager interop</b>Sections 6(7)–6(9), Rule 4</li>
+        </ul>
+      </div>
+    </div>
+    <p class="muted reveal" style="margin-top:28px;font-size:15px">Plans can change as the law and the community shape them. Want something sooner? <a href="https://github.com/yogesh2902/dpdp-kit/issues">Open an issue</a> or star the repo to follow along.</p>
+  </div>
+</section>
+
+<section class="block" id="faq">
+  <div class="wrap faq-wrap">
+    <div>
+      <span class="label reveal">Questions</span>
+      <h2 class="reveal">Things people <em>ask</em>.</h2>
+    </div>
+    <div class="faq">
+      <details class="reveal"><summary>Does dpdp-kit make my app compliant?</summary><p>No tool can do that on its own. dpdp-kit puts the obligations into practice in your code: declared purposes, consent records, erasure and rights requests. You still need a privacy notice, security safeguards and your own lawyer's review of your purposes and retention periods.</p></details>
+      <details class="reveal"><summary>Is it free?</summary><p>Yes. It's MIT licensed, with no paid tier and no account. You can use it in commercial products.</p></details>
+      <details class="reveal"><summary>Do I need to run a server or sign up for anything?</summary><p>No. It's a library that runs inside your Node.js process and writes to your own database. There's no API key, and it makes no network calls.</p></details>
+      <details class="reveal"><summary>Which databases and frameworks does it support?</summary><p>Storage and data access work with Postgres through Drizzle (node-postgres, postgres.js, Neon, PGlite). The schema drift check reads Drizzle schemas for Postgres, MySQL and SQLite. Guards are included for Express and Hono. Every store is an interface, so you can add another database; MySQL, SQLite and Prisma support are on the roadmap.</p></details>
+      <details class="reveal"><summary>Which Node.js versions?</summary><p>Node.js 20.19 or later. The package is ESM-only, and <code>require("dpdp-kit")</code> also works on those versions.</p></details>
+      <details class="reveal"><summary>When do I need to have this in place?</summary><p>The DPDP Rules were notified on 13 November 2025. Most obligations, including notices, erasure, breaches, children and rights requests, start in May 2027 (Rule 1). Starting now leaves time to test.</p></details>
+      <details class="reveal"><summary>What if a legal reference is wrong?</summary><p>Every reference was checked against the official texts of the Act, the Rules and their corrigendum, but laws change. Report it as a <a href="https://github.com/yogesh2902/dpdp-kit/issues">GitHub issue</a>; it's treated as a bug.</p></details>
+      <details class="reveal"><summary>How can I help?</summary><p>Star the repo, try it in a project, and open issues for what's missing. Pull requests are welcome, especially for new database adapters.</p></details>
+    </div>
   </div>
 </section>
 
