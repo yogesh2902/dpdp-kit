@@ -7,7 +7,7 @@
 - **Declare why you hold each piece of personal data**, in one typed config file. A misspelt purpose is a type error.
 - **Keep consent records that show tampering.** Each person's grants and withdrawals form a hash chain, with the notice version and language they saw.
 - **Know what to erase.** When consent is withdrawn or an account is deleted, get a plan: which fields go, which stay (and why), which tables are under a legal hold, which third parties to tell.
-- **Check it in CI.** `dpdp-kit audit` fails the build when the data map is inconsistent.
+- **Check it in CI.** `dpdp-kit audit` fails the build when the data map is inconsistent, and the GitHub Action puts each problem on the pull request.
 - **Catch drift.** `dpdp-kit audit --schema` reads your Drizzle schema and fails the build when someone adds a `phone`, `email` or `aadhaar_number` column without saying what it's for, or when the data map points at columns that no longer exist. Compliance that can't quietly fall out of date.
 
 ## Node-native
@@ -123,6 +123,33 @@ notPersonal: ["products.name", "branches.*"], // database table and column names
 ```
 
 From code, `checkSchema(config, drizzleSchema(schema))` returns the same issues. `drizzleSchema` comes from `dpdp-kit/drizzle`. Matching is by column name, so it can't see personal data hidden inside a JSON column or a vaguely named field. Review those by hand.
+
+### In GitHub Actions
+
+Add the audit to any workflow. Problems show up as annotations on the pull request, plus a summary on the run page:
+
+```yaml
+# .github/workflows/dpdp.yml
+name: DPDP
+on: [pull_request]
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci                       # so your config can import dpdp-kit
+      - uses: yogesh2902/dpdp-kit@main
+        with:
+          schema: src/db/schema.ts        # optional: also check for drift
+          # config: dpdp.config.ts        # default: found automatically
+          # strict: true                  # fail on warnings too
+          # working-directory: apps/api   # for monorepos
+```
+
+The Action runs the dpdp-kit your project installed, falling back to `npx dpdp-kit@latest`. It sets `errors` and `warnings` outputs. Annotations need a dpdp-kit release newer than 0.1.2; with 0.1.2 the check still runs and fails the build, without annotations. Outside GitHub, `npx dpdp-kit audit --format github` prints the same annotation lines.
 
 ## 3. Record consent
 
