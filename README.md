@@ -128,10 +128,18 @@ From code, `checkSchema(config, drizzleSchema(schema))` returns the same issues.
 
 ```ts
 import { createDpdp } from "dpdp-kit";
-import { drizzleStore } from "dpdp-kit/drizzle";
+import { drizzleData, drizzleStore } from "dpdp-kit/drizzle";
+import * as schema from "./db/schema";
 import config from "./dpdp.config";
 
-export const dpdp = createDpdp({ config, store: drizzleStore(db) });
+export const dpdp = createDpdp({
+  config,
+  store: drizzleStore(db),                  // consent records, rights requests, erasure tasks
+  data: drizzleData(db, { schema }),        // reads and erases personal data in your own tables
+  processors: {                             // optional: tell third parties to stop or erase
+    msg91: { stop: ({ subjectId }) => msg91.optOut(subjectId), erase: ({ subjectId }) => msg91.deleteContact(subjectId) },
+  },
+});
 
 await dpdp.consent.grant(userId, ["marketing_sms", "analytics"], {
   noticeVersion: "2026-11",
@@ -173,9 +181,63 @@ await dpdp.erasure.plan(userId, { reason: "account-deletion" });
 
 **"Erase" is not "delete this second".** Every plan carries `minimumRetention` from your config. Under Rule 8(3), stop using the data now, keep a restricted copy only for the Seventh Schedule purposes, and delete it once a year has passed since its last processing. The Rule's own example is an e-book platform that keeps order details and logs for a year "even if X deletes her account".
 
-**In v0.1 the plan only describes what to do; nothing is deleted for you.** Applying it (with your own `onErase` hooks for third parties) arrives in v0.2.
+### Carrying it out
 
-## 5. Guard routes
+`withdraw()` schedules the plan as dated tasks, and `erasure.deleteAccount(userId)` plans and schedules an account deletion. Then run the retention runner on a schedule; once a day is plenty:
+
+```ts
+const report = await dpdp.retention.run();   // { done, failed, manual }
+```
+
+| Task | When it runs | What it does |
+|---|---|---|
+| `processor-stop` | straight away | calls the processor's `stop` hook (Section 6(6)) |
+| `erase-fields` | after `minimumRetention` (and `afterWithdrawal`) | sets the fields to `NULL` in the person's rows |
+| `delete-rows` | after `minimumRetention` | deletes the person's rows (account deletion) |
+| held table | after the legal hold (`keep`) | then anonymises (`NULL`s) or deletes, as `then` says |
+| `processor-erase` | after `minimumRetention` | calls the processor's `erase` hook (Section 8(7)(b)) |
+
+- **Safe to run from several servers.** Each task is claimed atomically, so it runs once.
+- **Failures are retried**, up to 5 times. `lastError` keeps the database's message for developers, for example when a column is `NOT NULL`.
+- **A processor with no hook** gives a `manual` task. Handle it yourself (email their support), then `retention.markDone(taskId, "ticket 4411")`.
+- **Consent records are never erased.** Section 6(10) makes you prove consent, and Rule 8(3) requires keeping records of processing.
+- **Erasure sets columns to `NULL`**, so erasable columns must be nullable. Data access currently covers Postgres.
+
+## 5. Rights requests
+
+People can ask to see their data (Section 11), correct or erase it (Section 12), raise a grievance (Section 13) or name a nominee (Section 14). Each request is recorded with a due date:
+
+```ts
+const request = await dpdp.rights.open(userId, "grievance", { text: "I keep getting promo SMS" });
+// request.dueAt is 90 days out: Rule 14(3) caps grievance responses at ninety days
+
+await dpdp.rights.list({ overdue: true });               // your inbox of late answers
+await dpdp.rights.resolve(request.id, "Promo SMS turned off");
+await dpdp.rights.reject(otherId, "Duplicate of an earlier grievance");
+```
+
+**Access (Section 11):** `summary()` reads the person's personal fields from your tables, with the purposes each is held for, their consents, and the processors their data goes to:
+
+```ts
+const summary = await dpdp.rights.summary(userId);
+// { data: [{ table: "users", fields: [...], rows: [{ phone: "98…", name: "Asha" }] }],
+//   consents: ["order_updates"], legitimateUses: ["account"],
+//   sharedWith: [{ name: "msg91", purposes: ["order_updates"] }] }
+```
+
+**Erasure (Section 12(3)):** every purpose ends except those you still need for the specified purpose. Legal holds and `minimumRetention` still apply:
+
+```ts
+await dpdp.rights.erase(userId, { keepFor: ["account"], requestId: request.id }); // schedules, resolves the request
+```
+
+Corrections and nominations are recorded with the request (`details`); your app applies them, then calls `resolve()`. Set your own answer times in the config. The Rules set ninety days for grievances only, and the audit fails above that:
+
+```ts
+rights: { responseWithin: { grievance: "30d", access: "30d" } },
+```
+
+## 6. Guard routes
 
 ```ts
 // Express
@@ -193,18 +255,22 @@ Without consent, the middleware responds `403 { error: "consent_required", purpo
 
 ### Drizzle (Postgres)
 
-Add the table to your schema so drizzle-kit creates it:
+Add the tables to your schema so drizzle-kit creates them:
 
 ```ts
 // schema.ts
-export { consentEvents } from "dpdp-kit/drizzle";
+export { consentEvents, erasureTasks, rightsRequests } from "dpdp-kit/drizzle";
 ```
 
-If you don't use drizzle-kit, run `CONSENT_EVENTS_DDL` (exported from `dpdp-kit/drizzle`). This works with any Drizzle Postgres driver: node-postgres, postgres.js, Neon, PGlite.
+If you don't use drizzle-kit, run `DPDP_DDL` (exported from `dpdp-kit/drizzle`). This works with any Drizzle Postgres driver: node-postgres, postgres.js, Neon, PGlite.
+
+> **Upgrading from 0.1.x?** Add `rightsRequests` and `erasureTasks` to your schema and generate a migration, or run `RECORDS_DDL`. `withdraw()` now schedules erasure tasks, so it needs the `dpdp_erasure_tasks` table.
+
+`drizzleData(db, { schema })` reaches your own tables. Pass your schema module when the data map uses Drizzle property names (`userId`) rather than column names (`user_id`).
 
 ### Anything else
 
-Implement `ConsentStore`: three methods (`lastEvent`, `insert`, `events`). `insert` must throw `SeqConflictError` on a duplicate `(subjectId, seq)`; a primary key on those columns does that. `memoryStore()` is included for tests.
+Implement `DpdpStore`: consent events (`lastEvent`, `insert`, `events`), requests and tasks (see `RequestStore` and `TaskStore`). `insert` must throw `SeqConflictError` on a duplicate `(subjectId, seq)`, and `claimTask` must be atomic. A store with only the three consent methods still works for consent; rights and retention then throw `store-unsupported`. Implement `DataAccess` (`read`, `eraseFields`, `deleteRows`) for another database. `memoryStore()` and `memoryData()` are included for tests.
 
 ## How the consent record works
 
@@ -221,7 +287,8 @@ Section 6(10) puts the burden on you: if consent is questioned in a proceeding, 
 |---|---|
 | **v0.1** | Config and types, `audit` + CLI, consent records, erasure plans, Drizzle store, Express/Hono guards |
 | **v0.1.2** | Schema drift check: `audit --schema`, `checkSchema`, `drizzleSchema`, `notPersonal` |
-| v0.2 | User rights requests (Sections 11–14, Rule 14; grievances answered within 90 days, Rule 14(3)), recording objections to a Section 7(a) use, applying erasure plans, processor hooks, React notice that meets Rule 3 + privacy centre |
+| **next** | Rights requests (Sections 11–14, Rule 14), retention runner that carries out erasure (Section 8(7), Rule 8(3), legal holds), processor hooks, `drizzleData` |
+| later | Recording objections to a Section 7(a) use, React notice that meets Rule 3 + privacy centre, MySQL and SQLite data access |
 | v0.3 | Breach records with deadlines (Section 8(6), Rule 7: people and the Board without delay, detailed report to the Board within 72 hours), children and guardian consent (Section 9, Rule 10), inactivity erasure with 48 hours' warning for large e-commerce, gaming and social media platforms (Rule 8(1)–(2), Third Schedule), Consent Manager interop (Sections 6(7)–6(9), Rule 4), Prisma store |
 
 ## When the Rules apply
