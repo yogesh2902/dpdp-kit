@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { audit, type Issue } from "./audit.js";
 import type { DpdpConfig } from "./config.js";
@@ -43,6 +43,28 @@ export function formatIssues(issues: readonly Issue[]): string {
   return lines.join("\n");
 }
 
+const escapeData = (text: string) => text.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+const escapeProperty = (text: string) => escapeData(text).replace(/:/g, "%3A").replace(/,/g, "%2C");
+
+/**
+ * GitHub Actions workflow commands, so each problem shows as an annotation on the pull request.
+ * Schema issues point at the schema file and the rest at the config file, relative to the
+ * repository root (`GITHUB_WORKSPACE`).
+ */
+export function formatGithubAnnotations(
+  issues: readonly Issue[],
+  files: { config: string; schema?: string | undefined },
+  root: string,
+): string {
+  return issues
+    .map((issue) => {
+      const file = issue.path.startsWith("schema.") && files.schema ? files.schema : files.config;
+      const props = [`file=${escapeProperty(relative(root, file))}`, `title=${escapeProperty(`dpdp-kit: ${issue.path}`)}`];
+      return `::${issue.level} ${props.join(",")}::${escapeData(issue.message)}`;
+    })
+    .join("\n");
+}
+
 /** Load a Drizzle schema file and read its tables. */
 export async function loadDrizzleSchema(file: string): Promise<Schema> {
   const mod = await loadModule(file);
@@ -69,6 +91,11 @@ export async function runAudit(argv: readonly string[], cwd: string, log: (line:
   const explicit = flagValue(argv, "--config");
   const schemaFlag = flagValue(argv, "--schema");
   const strict = argv.includes("--strict");
+  const format = flagValue(argv, "--format") ?? "text";
+  if (format !== "text" && format !== "github") {
+    log(`Unknown --format ${JSON.stringify(format)}. Use "text" or "github".`);
+    return 1;
+  }
   const file = findConfig(cwd, explicit);
   if (!file || !existsSync(file)) {
     log(explicit ? `Config file not found: ${explicit}` : `No config found. Create one of: ${CONFIG_FILES.join(", ")}`);
@@ -82,6 +109,9 @@ export async function runAudit(argv: readonly string[], cwd: string, log: (line:
   const config = await loadConfig(file);
   const issues = audit(config);
   if (schemaFile) issues.push(...checkSchema(config, await loadDrizzleSchema(schemaFile)));
+  if (format === "github" && issues.length > 0) {
+    log(formatGithubAnnotations(issues, { config: file, schema: schemaFile }, process.env.GITHUB_WORKSPACE ?? cwd));
+  }
   log(formatIssues(issues));
   const failing = issues.filter((i) => i.level === "error" || (strict && i.level === "warning"));
   return failing.length > 0 ? 1 : 0;

@@ -73,4 +73,24 @@ describe("dpdp-kit audit", () => {
     expect((await audit(["--config", "config.ts", "--schema", "nope.ts"], fixtures)).code).toBe(1);
     await expect(audit(["--config", "config.ts", "--schema", "config.ts"], fixtures)).rejects.toThrow(/no Drizzle tables/);
   });
+
+  it("--format github prints annotations on the right files, escaped", async () => {
+    const { formatGithubAnnotations } = await import("../src/run-audit.js");
+    const text = formatGithubAnnotations(
+      [
+        { level: "error", code: "unknown-column", path: "data.users.fields.x", message: "100% wrong,\nreally" },
+        { level: "warning", code: "unmapped-personal-column", path: "schema.users.gender", message: "Looks personal" },
+      ],
+      { config: "/repo/app/dpdp.config.ts", schema: "/repo/app/db/schema.ts" },
+      "/repo",
+    );
+    expect(text.split("\n")).toEqual([
+      "::error file=app/dpdp.config.ts,title=dpdp-kit%3A data.users.fields.x::100%25 wrong,%0Areally",
+      "::warning file=app/db/schema.ts,title=dpdp-kit%3A schema.users.gender::Looks personal",
+    ]);
+    const { code, out } = await audit(["--config", "config.ts", "--format", "yaml"], fixtures);
+    expect(code).toBe(1);
+    expect(out).toContain('Unknown --format "yaml"');
+  });
 });
+
