@@ -7,7 +7,14 @@ export type DpdpErrorCode =
   | "not-a-consent-purpose"
   | "no-purposes"
   | "invalid-language"
-  | "write-conflict";
+  | "write-conflict"
+  | "store-unsupported"
+  | "no-data-access"
+  | "invalid-request-type"
+  | "request-not-found"
+  | "request-closed"
+  | "task-not-found"
+  | "task-not-manual";
 
 /** Thrown for mistakes in how the library is called. Messages are for developers, not end users. */
 export class DpdpError extends Error {
