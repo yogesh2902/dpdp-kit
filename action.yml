@@ -47,7 +47,9 @@ runs:
         DPDP_STRICT: ${{ inputs.strict }}
         DPDP_VERSION: ${{ inputs.version }}
       run: |
-        set -uo pipefail
+        # GitHub runs bash with -e; turn it off so a failing audit still writes outputs and the summary.
+        # The audit's own exit code is passed through at the end.
+        set +e -uo pipefail
         args=(audit --format github)
         [ -n "$DPDP_CONFIG" ] && args+=(--config "$DPDP_CONFIG")
         [ -n "$DPDP_SCHEMA" ] && args+=(--schema "$DPDP_SCHEMA")
