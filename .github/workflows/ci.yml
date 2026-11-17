@@ -80,8 +80,8 @@ jobs:
           mkdir .action-sample
           cp test/action/* .action-sample/
           cd .action-sample
-          npm init -y > /dev/null
-          npm pkg set type=module
+          # npm init would name it after the folder, and ".action-sample" isn't a valid package name
+          echo '{"name":"dpdp-action-sample","private":true,"type":"module"}' > package.json
           npm install "$RUNNER_TEMP"/dpdp-kit-*.tgz drizzle-orm@0.45.4
 
       - name: Matching schema passes
