@@ -1,0 +1,86 @@
+name: DPDP Kit Audit
+description: Check your DPDP Act data map, purposes and Drizzle schema for drift with dpdp-kit, and annotate the pull request.
+author: dpdp-kit
+branding:
+  icon: shield
+  color: green
+
+inputs:
+  config:
+    description: Config file. Default is dpdp.config.ts / .mts / .js / .mjs in working-directory.
+    required: false
+    default: ""
+  schema:
+    description: Drizzle schema file to check for drift, e.g. src/db/schema.ts. Leave empty to skip the drift check.
+    required: false
+    default: ""
+  strict:
+    description: Fail on warnings too ("true" or "false").
+    required: false
+    default: "false"
+  working-directory:
+    description: Folder with your package.json, relative to the repository root.
+    required: false
+    default: "."
+  version:
+    description: dpdp-kit version to run when it isn't installed in working-directory. Default is latest.
+    required: false
+    default: "latest"
+
+outputs:
+  errors:
+    description: Number of errors found.
+    value: ${{ steps.audit.outputs.errors }}
+  warnings:
+    description: Number of warnings found.
+    value: ${{ steps.audit.outputs.warnings }}
+
+runs:
+  using: composite
+  steps:
+    - id: audit
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        DPDP_CONFIG: ${{ inputs.config }}
+        DPDP_SCHEMA: ${{ inputs.schema }}
+        DPDP_STRICT: ${{ inputs.strict }}
+        DPDP_VERSION: ${{ inputs.version }}
+      run: |
+        set -uo pipefail
+        args=(audit --format github)
+        [ -n "$DPDP_CONFIG" ] && args+=(--config "$DPDP_CONFIG")
+        [ -n "$DPDP_SCHEMA" ] && args+=(--schema "$DPDP_SCHEMA")
+        [ "$DPDP_STRICT" = "true" ] && args+=(--strict)
+
+        # Prefer the version the project installed, so the config's own `import "dpdp-kit"` matches.
+        if [ -x node_modules/.bin/dpdp-kit ]; then
+          cmd=(node_modules/.bin/dpdp-kit)
+        else
+          echo "::notice title=dpdp-kit::dpdp-kit isn't installed here; running dpdp-kit@${DPDP_VERSION} with npx. Install your dependencies first so your config file can import dpdp-kit."
+          cmd=(npx --yes "dpdp-kit@${DPDP_VERSION}")
+        fi
+
+        out="$(mktemp)"
+        "${cmd[@]}" "${args[@]}" 2>&1 | tee "$out"
+        code=${PIPESTATUS[0]}
+
+        errors=$(grep -c '^::error ' "$out" || true)
+        warnings=$(grep -c '^::warning ' "$out" || true)
+        echo "errors=$errors" >> "$GITHUB_OUTPUT"
+        echo "warnings=$warnings" >> "$GITHUB_OUTPUT"
+
+        {
+          echo "### DPDP audit"
+          if [ "$code" -eq 0 ] && [ "$errors" -eq 0 ] && [ "$warnings" -eq 0 ]; then
+            echo "No problems found."
+          else
+            echo "$errors error(s), $warnings warning(s)."
+          fi
+          echo
+          echo '```'
+          grep -v '^::' "$out"
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        exit "$code"
