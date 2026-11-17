@@ -1,0 +1,213 @@
+<section class="hero">
+  <div class="wrap">
+    <span class="label reveal">Open source · MIT · Node.js</span>
+    <h1 class="reveal">India's DPDP Act, <em>built into</em> your Node.js backend.</h1>
+    <p class="lede reveal">Declare why you hold each piece of personal data in one typed file. dpdp-kit keeps consent records you can prove, carries out erasure on time, tracks rights requests, and fails CI the moment your schema drifts.</p>
+    <div class="cta reveal">
+      <span class="install"><span><span class="d">$</span> npm i dpdp-kit</span><button class="copy" data-copy="npm i dpdp-kit" aria-label="Copy the install command">{{icon:copy}}</button></span>
+      <a class="btn primary" href="{{base}}docs/">Read the docs <span aria-hidden="true">→</span></a>
+      <a class="btn" href="https://github.com/yogesh2902/dpdp-kit">{{icon:github}} Star on GitHub</a>
+    </div>
+    <div class="facts reveal">
+      <span><b>₹250 crore</b> maximum penalty</span>
+      <span>Most Rules start <b>May 2027</b></span>
+      <span><b>No SaaS</b>, no API key, your own Postgres</span>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="drift">
+  <div class="wrap">
+    <span class="label reveal">Compliance that can't quietly drift</span>
+    <h2 class="reveal">Someone adds a column. <em>CI notices.</em></h2>
+    <p class="intro reveal">Most teams keep their data map in a spreadsheet, and six months later it's wrong. dpdp-kit reads your real Drizzle schema and fails the build when a personal-looking column has no declared purpose, or when the map points at columns that are gone.</p>
+    <div class="demo reveal" id="demo">
+      <div class="win">
+        <div class="bar"><i></i><i></i><i></i><span class="tab on" data-tab="schema">src/db/schema.ts</span><span class="tab" data-tab="config">dpdp.config.ts</span></div>
+        <pre id="demo-code" aria-live="off"></pre>
+      </div>
+      <div class="win term">
+        <div class="bar"><i></i><i></i><i></i><span class="tab on">CI · pull request #142</span></div>
+        <pre id="demo-term" aria-live="off"></pre>
+      </div>
+    </div>
+    <div class="demo-steps reveal" id="demo-steps" aria-hidden="true">
+      <span>1 · A column is added</span><span>2 · The audit fails</span><span>3 · Give it a purpose</span><span>4 · The audit passes</span>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="law">
+  <div class="wrap">
+    <span class="label reveal">What the law asks of your code</span>
+    <h2 class="reveal">Every duty, <em>mapped</em> to code.</h2>
+    <p class="intro reveal">Each Section and Rule below was checked against the official Gazette texts of the Act, the Rules and their corrigendum.</p>
+    <table class="law reveal">
+      <thead><tr><th>The law says</th><th>Where</th><th>dpdp-kit</th></tr></thead>
+      <tbody>
+        <tr><td>Process data only for a stated purpose, with consent or a legitimate use</td><td>Sections 4, 6, 7</td><td>A typed data map: every field lists its purposes</td></tr>
+        <tr><td>Prove that a notice was given and consent was given</td><td>Section 6(10)</td><td>Hash-chained consent records with the notice version and language</td></tr>
+        <tr><td>A notice in English or any Eighth Schedule language</td><td>Sections 5(3), 6(3)</td><td>All 22 languages built in</td></tr>
+        <tr><td>Erase on withdrawal or when the purpose ends, unless another law says keep it</td><td>Section 8(7)</td><td>Erasure plans and a retention runner, with legal holds</td></tr>
+        <tr><td>Keep data, traffic data and logs of processing for at least a year</td><td>Rule 8(3)</td><td><code>minimumRetention</code>, enforced by the audit</td></tr>
+        <tr><td>Answer access, correction, erasure, grievance and nomination requests</td><td>Sections 11–14</td><td>Rights requests with due dates</td></tr>
+        <tr><td>Answer grievances within 90 days</td><td>Rule 14(3)</td><td>A default due date, enforced by the audit</td></tr>
+        <tr><td>Tell processors to stop, and to erase</td><td>Sections 6(6), 8(7)(b)</td><td>Processor hooks, or a manual task when there's no hook</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="block" id="features">
+  <div class="wrap">
+    <span class="label reveal">How it works</span>
+    <h2 class="reveal">One config. <em>Five</em> things it does for you.</h2>
+    <div class="features" style="margin-top:56px">
+
+      <div class="feature reveal">
+        <div class="copytext">
+          <div class="n">i.</div>
+          <h3>Say why you hold <em>each field</em>.</h3>
+          <p>Purposes, their legal basis and how long you keep the data live in one file. Purposes are typed, so a misspelt one is an error in your editor, and the audit catches the rest.</p>
+          <a class="more" href="{{base}}docs/config/">The config, field by field →</a>
+        </div>
+<pre data-lang="ts">// dpdp.config.ts
+import { defineConfig } from "dpdp-kit";
+
+export default defineConfig({
+  fiduciary: { name: "Acme Pvt Ltd", grievanceUrl: "https://acme.in/grievance" },
+  purposes: {
+    account:       { basis: "legitimate-use", retain: "while-active" },
+    marketing_sms: { basis: "consent", retain: { afterWithdrawal: "0d" } },
+  },
+  data: {
+    users: {
+      table: "users",
+      subject: "id",
+      fields: { phone: { category: "contact", purposes: ["account", "marketing_sms"] } },
+    },
+  },
+  minimumRetention: "1y", // Rule 8(3)
+});</pre>
+      </div>
+
+      <div class="feature reveal">
+        <div class="copytext">
+          <div class="n">ii.</div>
+          <h3>Consent you can <em>prove</em>.</h3>
+          <p>Section 6(10) puts the burden of proof on you. Every grant and withdrawal is stored with the notice version, language and channel, in a per-person SHA-256 hash chain.</p>
+          <p><code>verify()</code> catches an edited, deleted or reordered event.</p>
+          <a class="more" href="{{base}}docs/consent/">How the record works →</a>
+        </div>
+<pre data-lang="ts">await dpdp.consent.grant(userId, ["marketing_sms"], {
+  noticeVersion: "2026-11",
+  language: "hi",      // English or any of the 22 Eighth Schedule languages
+  channel: "android",
+});
+
+await dpdp.consent.has(userId, "marketing_sms"); // true
+await dpdp.consent.verify(userId);               // { ok: true, events: 1 }</pre>
+      </div>
+
+      <div class="feature reveal">
+        <div class="copytext">
+          <div class="n">iii.</div>
+          <h3>Erasure that <em>actually happens</em>.</h3>
+          <ul>
+            <li>Processors are told to stop straight away.</li>
+            <li>A field is erased only when none of its purposes remain.</li>
+            <li>Rule 8(3)'s one-year minimum is respected.</li>
+            <li>Legal holds win: GST invoices wait 8 years, then get anonymised.</li>
+            <li>Safe with several servers: tasks are claimed atomically.</li>
+          </ul>
+          <a class="more" href="{{base}}docs/erasure/">Erasure and retention →</a>
+        </div>
+<pre data-lang="ts">// a withdrawal schedules the erasure as dated tasks
+await dpdp.consent.withdraw(userId, ["marketing_sms"]);
+
+// an account deletion, with legal holds applied
+await dpdp.erasure.deleteAccount(userId);
+
+// then, from a daily cron:
+const report = await dpdp.retention.run(); // { done, failed, manual }</pre>
+      </div>
+
+      <div class="feature reveal">
+        <div class="copytext">
+          <div class="n">iv.</div>
+          <h3>Rights requests, <em>on a clock</em>.</h3>
+          <p>Access, correction, erasure, grievance and nomination requests (Sections 11–14) are recorded with a due date. Grievances default to the 90 days of Rule 14(3).</p>
+          <a class="more" href="{{base}}docs/rights/">Rights requests →</a>
+        </div>
+<pre data-lang="ts">const request = await dpdp.rights.open(userId, "grievance", {
+  text: "I keep getting promo SMS",
+}); // due in 90 days
+
+await dpdp.rights.list({ overdue: true }); // your inbox of late answers
+await dpdp.rights.summary(userId);         // Section 11: what you hold and why</pre>
+      </div>
+
+      <div class="feature reveal">
+        <div class="copytext">
+          <div class="n">v.</div>
+          <h3>A GitHub Action that <em>comments where it hurts</em>.</h3>
+          <p>Each problem lands on the pull request as an annotation, with a summary on the run page and <code>errors</code> / <code>warnings</code> outputs.</p>
+          <a class="more" href="{{base}}docs/audit/#in-github-actions">Set it up →</a>
+        </div>
+<pre data-lang="yaml"># .github/workflows/dpdp.yml
+on: [pull_request]
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - uses: yogesh2902/dpdp-kit@main
+        with:
+          schema: src/db/schema.ts</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="native">
+  <div class="wrap">
+    <span class="label reveal">Node-native</span>
+    <h2 class="reveal">A library, <em>not a service.</em></h2>
+    <p class="intro reveal">dpdp-kit runs inside your Node.js process. Personal data never leaves your infrastructure.</p>
+    <div class="grid4">
+      <div class="card reveal"><h4>No server</h4><p>Nothing to deploy, no sidecar to keep running, no REST API between your code and your consent records.</p></div>
+      <div class="card reveal"><h4>No account</h4><p>No API key and no network calls. Install it from npm and it works offline.</p></div>
+      <div class="card reveal"><h4>Your Postgres</h4><p>Records go into your own database through the Drizzle setup you already have: node-postgres, postgres.js, Neon or PGlite.</p></div>
+      <div class="card reveal"><h4>Your stack</h4><p>Typed config, Express and Hono middleware, a CLI for CI. ESM, <code>require()</code> and TypeScript.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="timeline">
+  <div class="wrap">
+    <span class="label reveal">When the Rules apply</span>
+    <h2 class="reveal">The clock is <em>already</em> running.</h2>
+    <p class="intro reveal">The DPDP Rules, 2025 were published on 13 November 2025 and start in phases (Rule 1). Building this in now leaves time to test.</p>
+    <div class="timeline reveal">
+      <div class="t"><div class="when">11 Aug 2023</div><div class="what">The Act is passed</div><div class="sub">Digital Personal Data Protection Act, No. 22 of 2023</div></div>
+      <div class="t"><div class="when">13 Nov 2025</div><div class="what">The Rules are notified</div><div class="sub">G.S.R. 846(E)</div></div>
+      <div class="t"><div class="when">Nov 2026</div><div class="what">Consent Managers</div><div class="sub">Rule 4, one year after publication</div></div>
+      <div class="t now"><div class="when">May 2027</div><div class="what">Most duties begin</div><div class="sub">Notices, safeguards, breaches, erasure, children, rights: Rules 3, 5–16, 22, 23</div></div>
+    </div>
+    <p class="note reveal" style="margin-top:64px"><strong>Not legal advice.</strong> dpdp-kit helps you put compliance into practice; it doesn't make an app compliant on its own. Section and Rule references point you to the text so you can check them. Have your own lawyer review your purposes, notices and retention periods.</p>
+  </div>
+</section>
+
+<section class="closing">
+  <div class="wrap">
+    <span class="label reveal">Get started</span>
+    <h2 class="reveal">Start before <em>May 2027</em>.</h2>
+    <div class="cta reveal">
+      <span class="install"><span><span class="d">$</span> npm i dpdp-kit</span><button class="copy" data-copy="npm i dpdp-kit" aria-label="Copy the install command">{{icon:copy}}</button></span>
+      <a class="btn primary" href="{{base}}docs/quick-start/">Quick start <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+</section>
