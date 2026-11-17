@@ -60,3 +60,52 @@ jobs:
           name: dist
           path: dist
       - run: node scripts/smoke.mjs
+
+  action:
+    name: GitHub Action on a sample project
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build and pack this version
+        run: pnpm build && pnpm pack --pack-destination "$RUNNER_TEMP"
+      - name: Create a sample project that installs it, like a user's repo
+        run: |
+          mkdir .action-sample
+          cp test/action/* .action-sample/
+          cd .action-sample
+          npm init -y > /dev/null
+          npm pkg set type=module
+          npm install "$RUNNER_TEMP"/dpdp-kit-*.tgz drizzle-orm@0.45.4
+
+      - name: Matching schema passes
+        id: clean
+        uses: ./
+        with:
+          working-directory: .action-sample
+          schema: schema.ts
+
+      - name: Drifted schema fails
+        id: drift
+        continue-on-error: true
+        uses: ./
+        with:
+          working-directory: .action-sample
+          schema: schema-drift.ts
+
+      - name: Check the outcomes
+        env:
+          CLEAN_ERRORS: ${{ steps.clean.outputs.errors }}
+          DRIFT_OUTCOME: ${{ steps.drift.outcome }}
+          DRIFT_ERRORS: ${{ steps.drift.outputs.errors }}
+        run: |
+          echo "clean errors=$CLEAN_ERRORS, drift outcome=$DRIFT_OUTCOME, drift errors=$DRIFT_ERRORS"
+          test "$CLEAN_ERRORS" = "0"
+          test "$DRIFT_OUTCOME" = "failure"
+          test "$DRIFT_ERRORS" = "1"
