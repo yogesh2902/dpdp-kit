@@ -149,7 +149,7 @@ jobs:
           # working-directory: apps/api   # for monorepos
 ```
 
-The Action runs the dpdp-kit your project installed, falling back to `npx dpdp-kit@latest`. It sets `errors` and `warnings` outputs. Annotations need a dpdp-kit release newer than 0.1.2; with 0.1.2 the check still runs and fails the build, without annotations. Outside GitHub, `npx dpdp-kit audit --format github` prints the same annotation lines.
+The Action runs the dpdp-kit your project installed, falling back to `npx dpdp-kit@latest`. It sets `errors` and `warnings` outputs. Annotations need dpdp-kit 0.2.0 or later; with 0.1.x the check still runs and fails the build, without annotations. Outside GitHub, `npx dpdp-kit audit --format github` prints the same annotation lines.
 
 ## 3. Record consent
 
@@ -314,7 +314,7 @@ Section 6(10) puts the burden on you: if consent is questioned in a proceeding, 
 |---|---|
 | **v0.1** | Config and types, `audit` + CLI, consent records, erasure plans, Drizzle store, Express/Hono guards |
 | **v0.1.2** | Schema drift check: `audit --schema`, `checkSchema`, `drizzleSchema`, `notPersonal` |
-| **next** | Rights requests (Sections 11–14, Rule 14), retention runner that carries out erasure (Section 8(7), Rule 8(3), legal holds), processor hooks, `drizzleData` |
+| **v0.2.0** | Rights requests (Sections 11–14, Rule 14), retention runner that carries out erasure (Section 8(7), Rule 8(3), legal holds), processor hooks, `drizzleData`, GitHub Action with pull request annotations |
 | later | Recording objections to a Section 7(a) use, React notice that meets Rule 3 + privacy centre, MySQL and SQLite data access |
 | v0.3 | Breach records with deadlines (Section 8(6), Rule 7: people and the Board without delay, detailed report to the Board within 72 hours), children and guardian consent (Section 9, Rule 10), inactivity erasure with 48 hours' warning for large e-commerce, gaming and social media platforms (Rule 8(1)–(2), Third Schedule), Consent Manager interop (Sections 6(7)–6(9), Rule 4), Prisma store |
 
