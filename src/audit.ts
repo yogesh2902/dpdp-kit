@@ -1,5 +1,6 @@
 import type { DpdpConfig, Retention } from "./config.js";
 import { durationMs, isDuration } from "./duration.js";
+import { REQUEST_TYPES } from "./records.js";
 
 export type IssueLevel = "error" | "warning";
 
@@ -24,7 +25,9 @@ export interface Issue {
     | "unknown-table"
     | "unknown-column"
     | "unmapped-personal-column"
-    | "stale-not-personal";
+    | "stale-not-personal"
+    | "grievance-response-too-long"
+    | "invalid-request-type";
   /** Where in the config (`data.users.fields.phone`), or in the schema (`schema.users.phone`). */
   path: string;
   message: string;
@@ -191,6 +194,32 @@ export function audit(config: DpdpConfig<string>): Issue[] {
         path: "notPersonal",
         message: `${JSON.stringify(entry)} should be "table.column" or "table.*".`,
       });
+    }
+  }
+
+  const within = config.rights?.responseWithin;
+  if (within !== undefined) {
+    const entries: [string, unknown][] =
+      typeof within === "string" ? [["", within]] : Object.entries(within as Record<string, unknown>);
+    for (const [type, value] of entries) {
+      const path = type ? `rights.responseWithin.${type}` : "rights.responseWithin";
+      if (type && !(REQUEST_TYPES as readonly string[]).includes(type)) {
+        issues.push({
+          level: "error",
+          code: "invalid-request-type",
+          path,
+          message: `Unknown request type. Use one of: ${REQUEST_TYPES.join(", ")}.`,
+        });
+      } else if (!isDuration(value)) {
+        issues.push({ level: "error", code: "invalid-duration", path, message: `${JSON.stringify(value)} is not a duration. Use e.g. "30d".` });
+      } else if ((type === "" || type === "grievance") && durationMs(value) > durationMs("90d")) {
+        issues.push({
+          level: "error",
+          code: "grievance-response-too-long",
+          path,
+          message: 'Rule 14(3) of the DPDP Rules requires answering grievances within ninety days. Use at most "90d".',
+        });
+      }
     }
   }
 

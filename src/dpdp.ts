@@ -1,10 +1,22 @@
+import { randomUUID } from "node:crypto";
 import { audit, hasErrors } from "./audit.js";
 import type { DpdpConfig } from "./config.js";
+import type { DataAccess } from "./data-access.js";
 import { type ErasurePlan, planErasure } from "./erasure.js";
 import { DpdpError, SeqConflictError } from "./errors.js";
 import { canonicalJson, sha256 } from "./hash.js";
 import { isNoticeLanguage, type NoticeLanguage } from "./languages.js";
-import type { ConsentAction, ConsentEvent, ConsentStore } from "./store.js";
+import {
+  type ErasureTask,
+  REQUEST_TYPES,
+  type RequestFilter,
+  type RequestType,
+  type RightsRequest,
+  type TaskFilter,
+} from "./records.js";
+import { type ProcessorHooks, type RunReport, runDueTasks, tasksFromPlan } from "./retention.js";
+import { type AccessSummary, buildAccessSummary, dueAt } from "./rights.js";
+import { type ConsentAction, type ConsentEvent, type ConsentStore, type DpdpStore, isDpdpStore } from "./store.js";
 
 export interface ConsentMeta {
   noticeVersion?: string;
@@ -19,7 +31,15 @@ export type VerifyResult =
 
 export interface DpdpOptions<P extends string> {
   config: DpdpConfig<P>;
+  /** `memoryStore()`, `drizzleStore(db)`, or your own. Rights and retention need a full `DpdpStore`. */
   store: ConsentStore;
+  /**
+   * How to reach the personal data in your tables, for access summaries and erasure:
+   * `drizzleData(db)` from `dpdp-kit/drizzle`, or your own `DataAccess`.
+   */
+  data?: DataAccess;
+  /** Hooks for each processor in `config.processors`, to stop or erase on their side. */
+  processors?: Partial<Record<string, ProcessorHooks>>;
   /** Clock, for tests. */
   now?: () => Date;
   /** Attempts when two writes for the same person race. Default 5. */
@@ -32,14 +52,14 @@ export interface Dpdp<P extends string> {
     /** Record that the person agreed to these consent purposes. */
     grant(subjectId: string, purposes: readonly P[], meta?: ConsentMeta): Promise<ConsentEvent>;
     /**
-     * Record that the person withdrew consent. Returns what must now be erased; nothing is
-     * erased for you in v0.1.
+     * Record that the person withdrew consent. Returns the erasure plan and, when the store keeps
+     * tasks, schedules it: `retention.run()` carries the tasks out when they're due.
      */
     withdraw(
       subjectId: string,
       purposes: readonly P[],
       meta?: ConsentMeta,
-    ): Promise<{ event: ConsentEvent; erasure: ErasurePlan }>;
+    ): Promise<{ event: ConsentEvent; erasure: ErasurePlan; tasks: ErasureTask[] }>;
     /**
      * Whether you hold consent, or don't need it, for this purpose. For consent purposes: true when
      * the person's latest choice was a grant. For legitimate-use purposes: always true, because
@@ -56,6 +76,40 @@ export interface Dpdp<P extends string> {
   readonly erasure: {
     /** What deleting this person's account would erase, delete or hold. Changes nothing. */
     plan(subjectId: string, input: { reason: "account-deletion" }): Promise<ErasurePlan>;
+    /** Turn a plan into dated tasks for `retention.run()`. */
+    schedule(plan: ErasurePlan): Promise<ErasureTask[]>;
+    /** Plan and schedule erasure for a deleted account. */
+    deleteAccount(subjectId: string): Promise<{ plan: ErasurePlan; tasks: ErasureTask[] }>;
+  };
+  readonly retention: {
+    /**
+     * Carry out every due erasure task: null out or delete rows through `data`, and call processor
+     * hooks. Run it on a schedule (a daily cron is plenty). Safe to run from several processes.
+     */
+    run(input?: { limit?: number }): Promise<RunReport>;
+    tasks(filter?: TaskFilter): Promise<ErasureTask[]>;
+    /** Mark a `manual` or `failed` task as handled by a person. */
+    markDone(taskId: string, note: string): Promise<ErasureTask>;
+  };
+  readonly rights: {
+    /** Record a request (Sections 11–14). It's due after `config.rights.responseWithin` (default 90 days). */
+    open(subjectId: string, type: RequestType, details?: Record<string, unknown>): Promise<RightsRequest>;
+    get(id: string): Promise<RightsRequest | undefined>;
+    /** Requests, oldest first. `overdue: true` gives open requests past their due date. */
+    list(filter?: RequestFilter & { overdue?: boolean }): Promise<RightsRequest[]>;
+    resolve(id: string, note?: string): Promise<RightsRequest>;
+    reject(id: string, reason: string): Promise<RightsRequest>;
+    /** What you hold about the person and who you shared it with (Section 11(1)). Needs `data`. */
+    summary(subjectId: string): Promise<AccessSummary>;
+    /**
+     * Erase on request (Section 12(3)): every purpose ends except those in `keepFor`, which you still
+     * need for the specified purpose. Legal holds and `minimumRetention` still apply. Pass the
+     * request id to resolve it.
+     */
+    erase(
+      subjectId: string,
+      input?: { keepFor?: readonly P[]; requestId?: string },
+    ): Promise<{ plan: ErasurePlan; tasks: ErasureTask[] }>;
   };
 }
 
@@ -174,6 +228,66 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
     return [...grantedFrom(await store.events(subjectId))] as P[];
   }
 
+  const nowIso = () => now().toISOString();
+  const processorHooks = (options.processors ?? {}) as Record<string, ProcessorHooks>;
+
+  function fullStore(feature: string): DpdpStore {
+    if (!isDpdpStore(store)) {
+      throw new DpdpError(
+        "store-unsupported",
+        `${feature} needs a store that keeps requests and tasks: memoryStore(), drizzleStore(db), or a full DpdpStore`,
+      );
+    }
+    return store;
+  }
+
+  function dataAccess(): DataAccess {
+    if (!options.data) {
+      throw new DpdpError("no-data-access", "Pass `data` to createDpdp (e.g. drizzleData(db)) to read or erase personal data");
+    }
+    return options.data;
+  }
+
+  async function schedule(plan: ErasurePlan): Promise<ErasureTask[]> {
+    const tasks = tasksFromPlan(config, plan, nowIso());
+    if (tasks.length > 0) await fullStore("Scheduling erasure").insertTasks(tasks);
+    return tasks;
+  }
+
+  async function requireRequest(id: string): Promise<RightsRequest> {
+    const request = await fullStore("Rights requests").getRequest(id);
+    if (!request) throw new DpdpError("request-not-found", `No rights request with id ${JSON.stringify(id)}`);
+    return request;
+  }
+
+  async function close(id: string, status: "resolved" | "rejected", note?: string): Promise<RightsRequest> {
+    const request = await requireRequest(id);
+    if (request.status !== "open") {
+      throw new DpdpError("request-closed", `Request ${id} is already ${request.status}`);
+    }
+    const at = nowIso();
+    const closed: RightsRequest = {
+      ...request,
+      status,
+      closedAt: at,
+      history: [...request.history, { at, status, ...(note !== undefined ? { note } : {}) }],
+    };
+    await fullStore("Rights requests").updateRequest(closed);
+    return closed;
+  }
+
+  function accountPlan(subjectId: string, reason: "account-deletion" | "erasure-request", keepFor: readonly string[]) {
+    for (const p of keepFor) {
+      if (!purposes[p]) throw new DpdpError("unknown-purpose", `Unknown purpose ${JSON.stringify(p)}`);
+    }
+    return planErasure(config, {
+      subjectId,
+      reason,
+      ended: Object.keys(purposes).filter((p) => !keepFor.includes(p)),
+      remaining: [...keepFor],
+    });
+  }
+
   return {
     config,
     consent: {
@@ -188,7 +302,8 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
           ended: event.purposes,
           remaining: [...legitimate, ...stillGranted],
         });
-        return { event, erasure };
+        const tasks = isDpdpStore(store) ? await schedule(erasure) : [];
+        return { event, erasure, tasks };
       },
 
       async has(subjectId, purpose) {
@@ -230,12 +345,107 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
     erasure: {
       async plan(subjectId, input) {
         checkSubject(subjectId);
-        return planErasure(config, {
-          subjectId,
-          reason: input.reason,
-          ended: Object.keys(purposes),
-          remaining: [],
+        return accountPlan(subjectId, input.reason, []);
+      },
+
+      schedule,
+
+      async deleteAccount(subjectId) {
+        checkSubject(subjectId);
+        const plan = accountPlan(subjectId, "account-deletion", []);
+        return { plan, tasks: await schedule(plan) };
+      },
+    },
+
+    retention: {
+      async run(input = {}) {
+        return runDueTasks({
+          config,
+          store: fullStore("The retention runner"),
+          data: options.data,
+          processors: processorHooks,
+          now: nowIso(),
+          limit: input.limit ?? 500,
         });
+      },
+
+      async tasks(filter = {}) {
+        return fullStore("Erasure tasks").listTasks(filter);
+      },
+
+      async markDone(taskId, note) {
+        const tasks = fullStore("Erasure tasks");
+        const task = await tasks.getTask(taskId);
+        if (!task) throw new DpdpError("task-not-found", `No erasure task with id ${JSON.stringify(taskId)}`);
+        if (task.status !== "manual" && task.status !== "failed") {
+          throw new DpdpError("task-not-manual", `Task ${taskId} is ${task.status}; only manual or failed tasks can be marked done`);
+        }
+        const done: ErasureTask = { ...task, status: "done", doneAt: nowIso(), note };
+        await tasks.updateTask(done);
+        return done;
+      },
+    },
+
+    rights: {
+      async open(subjectId, type, details) {
+        checkSubject(subjectId);
+        if (!REQUEST_TYPES.includes(type)) {
+          throw new DpdpError("invalid-request-type", `Unknown request type ${JSON.stringify(type)}`);
+        }
+        const openedAt = nowIso();
+        const request: RightsRequest = {
+          id: randomUUID(),
+          subjectId,
+          type,
+          status: "open",
+          openedAt,
+          dueAt: dueAt(config, type, openedAt),
+          ...(details !== undefined ? { details: structuredClone(details) } : {}),
+          history: [{ at: openedAt, status: "open" }],
+        };
+        await fullStore("Rights requests").insertRequest(request);
+        return request;
+      },
+
+      get: (id) => fullStore("Rights requests").getRequest(id),
+
+      async list(filter = {}) {
+        const { overdue, ...rest } = filter;
+        const list = await fullStore("Rights requests").listRequests(overdue ? { ...rest, status: "open" } : rest);
+        if (!overdue) return list;
+        const at = nowIso();
+        return list.filter((r) => r.dueAt < at);
+      },
+
+      resolve: (id, note) => close(id, "resolved", note),
+
+      reject: (id, reason) => close(id, "rejected", reason),
+
+      async summary(subjectId) {
+        checkSubject(subjectId);
+        return buildAccessSummary({
+          config,
+          data: dataAccess(),
+          subjectId,
+          consents: await activeFor(subjectId),
+          now: nowIso(),
+        });
+      },
+
+      async erase(subjectId, input = {}) {
+        checkSubject(subjectId);
+        if (input.requestId) {
+          const request = await requireRequest(input.requestId);
+          if (request.subjectId !== subjectId) {
+            throw new DpdpError("request-not-found", `Request ${input.requestId} belongs to a different person`);
+          }
+        }
+        const plan = accountPlan(subjectId, "erasure-request", input.keepFor ?? []);
+        const tasks = await schedule(plan);
+        if (input.requestId) {
+          await close(input.requestId, "resolved", `Erasure scheduled: ${tasks.length} task(s)`);
+        }
+        return { plan, tasks };
       },
     },
   };

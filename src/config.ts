@@ -1,4 +1,5 @@
 import type { Duration } from "./duration.js";
+import type { RequestType } from "./records.js";
 
 /**
  * Why you may process data for a purpose.
@@ -79,6 +80,15 @@ export interface ProcessorDef<P extends string = string> {
   description?: string;
 }
 
+export interface RightsConfig {
+  /**
+   * How long you give yourself to answer a rights request, from when it's raised. One duration for
+   * every type, or one per type. Default `"90d"`. Rule 14(3) of the DPDP Rules caps grievance
+   * responses at ninety days; the Rules set no period for the other types, so pick one you can keep.
+   */
+  responseWithin?: Duration | Partial<Record<RequestType, Duration>>;
+}
+
 export interface FiduciaryDef {
   name: string;
   /**
@@ -112,6 +122,7 @@ export interface DpdpConfig<P extends string = string> {
    * or `"products.*"` for a whole table. Use database table and column names.
    */
   notPersonal?: readonly string[];
+  rights?: RightsConfig;
 }
 
 /** Purpose names of a config, e.g. `"account" | "marketing_sms"`. */
