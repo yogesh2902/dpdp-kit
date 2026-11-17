@@ -1,7 +1,8 @@
 import type { DpdpConfig, LegalHold } from "./config.js";
 import { type Duration, maxDuration } from "./duration.js";
 
-export type ErasureReason = "withdrawal" | "account-deletion";
+/** Why erasure is happening. An `"erasure-request"` (Section 12(3)) is handled like an account deletion, minus any purposes still needed. */
+export type ErasureReason = "withdrawal" | "account-deletion" | "erasure-request";
 
 export interface FieldPlan {
   field: string;
@@ -110,7 +111,7 @@ export function planErasure(config: DpdpConfig<string>, input: PlanInput): Erasu
       fields.length === Object.keys(table.fields).length && fields.every((f) => f.action !== "keep");
     let action: TablePlan["action"];
     if (fields.some((f) => f.action === "hold")) action = "hold";
-    else if (input.reason === "account-deletion" && allFieldsGo) action = "delete-rows";
+    else if (input.reason !== "withdrawal" && allFieldsGo) action = "delete-rows";
     else if (fields.some((f) => f.action === "erase")) action = "erase-fields";
     else action = "keep";
 
