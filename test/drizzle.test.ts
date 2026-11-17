@@ -1,7 +1,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { CONSENT_EVENTS_DDL, drizzleStore } from "../src/drizzle.js";
+import { DPDP_DDL, drizzleStore } from "../src/drizzle.js";
 import { createDpdp, SeqConflictError } from "../src/index.js";
 import { config } from "./fixtures/config.js";
 
@@ -12,7 +12,7 @@ describe("drizzle store (Postgres via PGlite)", () => {
   const dpdp = createDpdp({ config, store });
 
   beforeAll(async () => {
-    await client.exec(CONSENT_EVENTS_DDL);
+    await client.exec(DPDP_DDL);
   });
   afterAll(async () => {
     await client.close();

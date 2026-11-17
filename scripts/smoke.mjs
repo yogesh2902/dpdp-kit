@@ -67,4 +67,19 @@ if (drifted.code !== 1 || !drifted.stdout.includes("schema.users.aadhaar_number"
 }
 console.log("✔ dpdp-kit audit --schema");
 
+// 5. Rights request + erasure running through the built package
+{
+  const { memoryData } = await import("dpdp-kit");
+  let t = Date.parse("2026-11-17T00:00:00Z");
+  const data = memoryData({ users: [{ id: "u1", phone: "98xxxxxx01" }] });
+  const kit = createDpdp({ config, store: memoryStore(), data, now: () => new Date(t) });
+  const request = await kit.rights.open("u1", "erasure");
+  await kit.rights.erase("u1", { requestId: request.id });
+  t += 366 * 24 * 60 * 60 * 1000;
+  const report = await kit.retention.run();
+  if (report.failed.length > 0 || data.tables.users.length !== 0) fail("erasure did not run");
+  if ((await kit.rights.get(request.id)).status !== "resolved") fail("erasure request not resolved");
+}
+console.log("✔ rights + retention");
+
 console.log(`All smoke checks passed on Node ${process.version}`);
