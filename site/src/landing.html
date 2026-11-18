@@ -11,14 +11,14 @@
     <div class="facts reveal">
       <span><b>₹250 crore</b> maximum penalty</span>
       <span>Most Rules start <b>May 2027</b></span>
-      <span><b>No SaaS</b>, no API key, your own Postgres</span>
+      <span><b>No SaaS</b>, no API key, your own Postgres or MongoDB</span>
     </div>
   </div>
 </section>
 
 <section class="stats">
   <div class="wrap">
-    <div class="stat reveal"><b>145</b><span>tests, including real Postgres and Fastify</span></div>
+    <div class="stat reveal"><b>250+</b><span>tests, on real Postgres, Prisma and MongoDB</span></div>
     <div class="stat reveal"><b>22<small>+1</small></b><span>notice languages: the Eighth Schedule and English</span></div>
     <div class="stat reveal"><b>0</b><span>network calls; data stays on your servers</span></div>
     <div class="stat reveal"><b>MIT</b><span>free and open source, no paid tier</span></div>
@@ -48,7 +48,7 @@
   <div class="wrap">
     <span class="label reveal">Compliance that can't quietly drift</span>
     <h2 class="reveal">Someone adds a column. <em>CI notices.</em></h2>
-    <p class="intro reveal">Most teams keep their data map in a spreadsheet, and six months later it's wrong. dpdp-kit reads your real Drizzle schema and fails the build when a personal-looking column has no declared purpose, or when the map points at columns that are gone.</p>
+    <p class="intro reveal">Most teams keep their data map in a spreadsheet, and six months later it's wrong. dpdp-kit reads your real Drizzle, Prisma or Mongoose schema and fails the build when a personal-looking column has no declared purpose, or when the map points at columns that are gone.</p>
     <div class="demo reveal" id="demo">
       <div class="win">
         <div class="bar"><i></i><i></i><i></i><span class="tab on" data-tab="schema">src/db/schema.ts</span><span class="tab" data-tab="config">dpdp.config.ts</span></div>
@@ -225,10 +225,10 @@ jobs:
     </div>
     <div class="grid3" style="margin-top:56px">
       <div class="card reveal"><div class="ico">{}</div><h4>Compliance as code</h4><p>One typed config is the single source of truth. The audit, the guards, erasure and rights requests all read it.</p></div>
-      <div class="card reveal"><div class="ico">⌁</div><h4>Drift-proof</h4><p>The audit reads your real Drizzle schema in both directions, so the data map can't quietly fall out of date.</p></div>
-      <div class="card reveal"><div class="ico">◎</div><h4>Node-native, no SaaS</h4><p>A library inside your process. No server to run, no account, no API key, and your own Postgres.</p></div>
+      <div class="card reveal"><div class="ico">⌁</div><h4>Drift-proof</h4><p>The audit reads your real Drizzle, Prisma or Mongoose schema in both directions, so the data map can't quietly fall out of date.</p></div>
+      <div class="card reveal"><div class="ico">◎</div><h4>Node-native, no SaaS</h4><p>A library inside your process. No server to run, no account, no API key, and your own Postgres or MongoDB.</p></div>
       <div class="card reveal"><div class="ico">§</div><h4>Checked against the law</h4><p>Every Section and Rule reference was checked against the official Gazette texts. A wrong reference is treated as a bug.</p></div>
-      <div class="card reveal"><div class="ico">✓</div><h4>Tested like infrastructure</h4><p>145 tests, including full flows on real Postgres and three runners racing for the same tasks. CI on Node 20.19, 22 and 24.</p></div>
+      <div class="card reveal"><div class="ico">✓</div><h4>Tested like infrastructure</h4><p>250+ tests, on real Postgres in IST, Prisma and MongoDB, with runners racing for the same tasks. Example apps go through a year of customers on every change.</p></div>
       <div class="card reveal"><div class="ico">↗</div><h4>Open, no lock-in</h4><p>MIT licensed. Your records live in your own tables, and every store and data-access layer is an interface you can replace.</p></div>
     </div>
   </div>
@@ -272,10 +272,12 @@ jobs:
     <p class="intro reveal">dpdp-kit is growing from a backend toolkit into a full-stack one: the same config will drive the screens people see, on the web and on mobile.</p>
     <div class="board">
       <div class="col reveal">
-        <div class="col-head"><span class="pill done">Shipped</span><span class="ver">0.1 – 0.3</span></div>
+        <div class="col-head"><span class="pill done">Shipped</span><span class="ver">0.1 – 0.4</span></div>
         <ul>
           <li><b>Typed config and audit CLI</b>purposes, data map, checks</li>
-          <li><b>Schema drift check</b>Drizzle: Postgres, MySQL, SQLite</li>
+          <li><b>Schema drift check</b>Drizzle, Prisma and Mongoose</li>
+          <li><b>Your database</b>Drizzle, Prisma, MongoDB and Mongoose, or any Postgres client</li>
+          <li><b>Breach records</b>Section 8(6), Rule 7: who to tell, and the Board's 72-hour report</li>
           <li><b>Consent records</b>hash-chained, 22 languages + English</li>
           <li><b>Erasure and retention runner</b>legal holds, Rule 8(3), NOT NULL replacements</li>
           <li><b>Rights requests</b>Sections 11–14, Rule 14 due dates</li>
@@ -283,25 +285,23 @@ jobs:
           <li><b>Guards for every framework</b>Express, Hono, Fastify, NestJS</li>
           <li><b>Events and daily upkeep</b><code>dpdp.on</code>, <code>dpdp.daily()</code></li>
           <li><b>GitHub Action</b>annotations on pull requests</li>
+          <li><b>Example apps</b>Prisma and Mongoose, a year of customers in CI</li>
         </ul>
       </div>
       <div class="col now reveal">
-        <div class="col-head"><span class="pill building"><i></i>Building now</span><span class="ver">0.4</span></div>
-        <ul>
-          <li><b>Prisma</b>store, data access, and a drift check on your Prisma schema</li>
-          <li><b>MongoDB</b>store and data access for MongoDB and Mongoose</li>
-          <li><b>Breach records ✓ built</b>Section 8(6), Rule 7: who to tell, and the Board's 72-hour report</li>
-        </ul>
-      </div>
-      <div class="col reveal">
-        <div class="col-head"><span class="pill next">Next</span><span class="ver">0.5 – 0.6</span></div>
+        <div class="col-head"><span class="pill building"><i></i>Building now</span><span class="ver">0.5</span></div>
         <ul>
           <li><b>Rule 3 notices from the config</b>in every offered language, with an automatic version</li>
           <li><b>Objections to a legitimate use</b>Section 7(a)</li>
           <li><b>HTTP API</b>Express, Hono and Next.js adapters</li>
+          <li><b>Rights requests and transfers</b>corrections applied, cross-border records (Section 16)</li>
+        </ul>
+      </div>
+      <div class="col reveal">
+        <div class="col-head"><span class="pill next">Next</span><span class="ver">0.6</span></div>
+        <ul>
           <li><b>MySQL and SQLite</b>data access</li>
           <li><b>React and React Native</b>a consent notice and a privacy centre</li>
-          <li><b>Rights requests and transfers</b>corrections applied, cross-border records (Section 16)</li>
         </ul>
       </div>
       <div class="col reveal">
@@ -328,7 +328,7 @@ jobs:
       <details class="reveal"><summary>Does dpdp-kit make my app compliant?</summary><p>No tool can do that on its own. dpdp-kit puts the obligations into practice in your code: declared purposes, consent records, erasure and rights requests. Your company still writes its notices, signs its vendor contracts, runs access control and backups, and has its own lawyer review its purposes and retention periods. <a href="{{base}}docs/responsibility/">Who does what</a> lists every duty in the Act and Rules, and which side does it.</p></details>
       <details class="reveal"><summary>Is it free?</summary><p>Yes. It's MIT licensed, with no paid tier and no account. You can use it in commercial products.</p></details>
       <details class="reveal"><summary>Do I need to run a server or sign up for anything?</summary><p>No. It's a library that runs inside your Node.js process and writes to your own database. There's no API key, and it makes no network calls.</p></details>
-      <details class="reveal"><summary>Which databases and frameworks does it support?</summary><p>Storage and data access work with Postgres through Drizzle (node-postgres, postgres.js, Neon, PGlite). The schema drift check reads Drizzle schemas for Postgres, MySQL and SQLite. Guards are included for Express, Hono, Fastify and NestJS. Every store is an interface, so you can add another database. Prisma and MongoDB are coming in 0.4, MySQL and SQLite after that.</p></details>
+      <details class="reveal"><summary>Which databases and frameworks does it support?</summary><p>Storage and data access work with Postgres through Drizzle, Prisma or any Postgres client (node-postgres, postgres.js, Kysely, Knex), and with MongoDB and Mongoose. The schema drift check reads Drizzle schemas (Postgres, MySQL, SQLite), Prisma schemas and Mongoose models. Guards are included for Express, Hono, Fastify and NestJS. Every store is an interface, so you can add another database. MySQL and SQLite data access come in 0.6.</p></details>
       <details class="reveal"><summary>Which Node.js versions?</summary><p>Node.js 20.19 or later. The package is ESM-only, and <code>require("dpdp-kit")</code> also works on those versions.</p></details>
       <details class="reveal"><summary>When do I need to have this in place?</summary><p>The DPDP Rules were notified on 13 November 2025. Most obligations, including notices, erasure, breaches, children and rights requests, start in May 2027 (Rule 1). Starting now leaves time to test.</p></details>
       <details class="reveal"><summary>What if a legal reference is wrong?</summary><p>Every reference was checked against the official texts of the Act, the Rules and their corrigendum, but laws change. Report it as a <a href="https://github.com/yogesh2902/dpdp-kit/issues">GitHub issue</a>; it's treated as a bug.</p></details>

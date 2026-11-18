@@ -13,14 +13,9 @@ dpdp-kit is growing from a backend toolkit into a full-stack one: the same `dpdp
 | **0.1.2** | Schema drift check: `audit --schema`, `checkSchema`, `drizzleSchema`, `notPersonal` |
 | **0.2.0** | Rights requests (Sections 11–14, Rule 14), the retention runner that carries out erasure (Section 8(7), Rule 8(3), legal holds), processor hooks, `drizzleData`, and the GitHub Action with pull request annotations |
 | **0.3.0** | [Security safeguards and access logs](../security/) (Rule 6), Fastify and NestJS [guards](../guards/), [events](../events/), `erase` replacements for `NOT NULL` columns, and [daily upkeep](../daily/) |
+| **0.4.0** | [Breach records](../breaches/) (Section 8(6), Rule 7) with the 72-hour Board report; [Prisma, MongoDB and Mongoose](../storage/) stores and data access; drift checks on Prisma schemas and Mongoose models; [example apps](https://github.com/yogesh2902/dpdp-kit/tree/main/examples) run in CI |
 
-## Building now: 0.4
-
-- **Prisma**: a store and data access for Prisma, and a drift check that reads your Prisma schema, so the audit catches unmapped personal columns there too.
-- **MongoDB**: a store and data access for MongoDB and Mongoose, for MERN-stack apps.
-- **Breach records** (Section 8(6), Rule 7): record a personal data breach, track who must be told and by when, including the detailed report to the Board within 72 hours, and get reminded before each deadline.
-
-## Next: 0.5
+## Building now: 0.5
 
 - **Notices that meet Rule 3**, built from the config: per-language text for each purpose, labels for each field, your Data Protection Officer's contact and how to complain to the Board, with an automatic notice version.
 - **Objections to a legitimate use** (Section 7(a)): a new `object` action in the consent ledger, respected by `has()`.
@@ -28,11 +23,11 @@ dpdp-kit is growing from a backend toolkit into a full-stack one: the same `dpdp
 - **Rights requests, completed**: corrections applied, an identity-check hook, and acknowledgements.
 - **Cross-border transfers** (Section 16): which country each processor stores data in, checked by the audit.
 
-## After that: 0.6
+## Next: 0.6
 
 - **MySQL and SQLite** data access.
 - **React and React Native** components: a consent notice with every toggle off by default, and a privacy centre.
-- **Example apps** for Next.js and Expo, run in CI.
+- **Example apps** for Next.js and Expo, run in CI like the Prisma and Mongoose ones.
 
 ## Later
 

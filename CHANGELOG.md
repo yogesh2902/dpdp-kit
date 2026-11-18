@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.4.0
+
+**Prisma, MongoDB and Mongoose, and breach records (Section 8(6), Rule 7).** dpdp-kit now runs on the database you already have, and it records a personal data breach against the Board's 72-hour deadline.
+
+### Added
+
+- **Breach records** (Section 8(6), Rule 7): `dpdp.breach.open()` starts the 72-hour clock from when you became aware.
+  - Record who is affected (`addAffected`), or everyone a compromised account read (`addAffectedFromAccessLog`).
+  - `notice()` drafts the message to each person, Rule 7(1)(a)–(e), with your DPO as the contact.
+  - `markNotified()`, `boardNotified()`, `updateReport()` and `boardReport()` cover the detailed report to the Board, Rule 7(2)(b)(i)–(vi). `reportSent()` records sending it, and `extend()` records the Board's written extension.
+  - `status()` says what's left to do. `daily()` includes every open breach.
+  - New events: `breach.opened`, `breach.reported` and `breach.closed`.
+  - Changes made at the same time are all kept, and a closed breach can't change.
+- **`dpdp-kit/prisma`**:
+  - `prismaStore(prisma)` keeps consent, requests, tasks, the access log and breaches. `prismaData(prisma, { schema })` reaches your own tables.
+  - `prismaSchema(text)` reads `schema.prisma`: models, `@map` and `@@map`, native types, enums and lists.
+  - `PRISMA_MODELS` holds dpdp-kit's tables as Prisma models. `prisma migrate diff` finds no difference from `DPDP_DDL`.
+  - Works inside `prisma.$transaction` with `prismaStore(tx)`. Tested on Prisma 7 with `@prisma/adapter-pg`.
+- **`dpdp-kit/postgres`**: the same store and data access for any client that runs a `$1`-parameterised query: node-postgres, postgres.js, Kysely, Knex. Also exports `DPDP_DDL` without needing `drizzle-orm`.
+- **`dpdp-kit/mongodb`**:
+  - `mongoStore(db)` keeps dpdp-kit's records in `dpdp_*` collections and creates its indexes itself.
+  - `mongoData(db, { schema, ObjectId })` reaches your own collections, including nested fields and fields inside arrays of subdocuments.
+  - `mongooseSchema(models)` feeds the drift check.
+  - Accepts the driver's `Db`, or `() => mongoose.connection.db` so dpdp can be created before Mongoose connects.
+- **`audit --schema` reads Prisma and Mongoose:**
+  - `--schema prisma/schema.prisma`, or a folder of `.prisma` files.
+  - `--schema src/models.ts` for a file that exports Mongoose models.
+  - The data map and `notPersonal` can use model and field names (`User`, `phoneNumber`) as well as the database's names.
+- **A `contact-missing` audit warning** when `fiduciary.dpo` isn't set. Section 8(9) requires publishing it, and every breach notice needs it (Rule 7(1)(e)).
+- **Example apps** in `examples/`: the same shop on Express + Prisma + Postgres and on Express + Mongoose + MongoDB. `examples/journey.mjs` takes them through a year: consent, a blocked promo, access logs, a data request, withdrawal, a grievance, deletion, a breach and erasure. CI runs the journey on every change.
+
+### Fixed
+
+- **Timestamps on a server in IST.** Prisma's pg adapter shifts `timestamptz` values by the server's time zone. The SQL store reads timestamps back as UTC text, so consent records, deadlines and summaries are exact on a server set to `Asia/Kolkata`. CI now runs its Postgres in IST.
+
+### Upgrading from 0.3.x
+
+1. **New tables.**
+   - Drizzle: add `breaches` and `breachNotices` to your schema and generate a migration, or run `BREACH_DDL`.
+   - Prisma: add `PRISMA_MODELS`.
+   - MongoDB: nothing to do; the collections are created on first use.
+2. **New audit warning.** If you run `dpdp-kit audit --strict`, set `fiduciary.dpo` (your Data Protection Officer, or a contact person, with their business contact) first.
+3. **Custom stores.**
+   - Breach records need `BreachStore`. Without it, `dpdp.breach` throws `store-unsupported` and `daily()` skips breaches.
+   - `updateBreach` must save only over the version it read, and return `false` otherwise (see `BreachStore`).
+   - `AccessLogStore.accessSubjects` is optional and new.
+
 ## 0.3.0
 
 **Security safeguards and access logs (Rule 6 of the DPDP Rules)**, plus Fastify and NestJS guards, events, `NOT NULL` erasure and daily upkeep.

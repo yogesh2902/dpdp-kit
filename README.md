@@ -35,6 +35,15 @@ npm install dpdp-kit
 
 Node.js 20.19 or later. The package is ESM-only; `require("dpdp-kit")` also works on those Node versions.
 
+| Your stack | Store and data access | Drift check |
+|---|---|---|
+| Drizzle (Postgres) | `dpdp-kit/drizzle` | `--schema src/db/schema.ts` |
+| Prisma (Postgres) | `dpdp-kit/prisma` | `--schema prisma/schema.prisma` |
+| MongoDB or Mongoose | `dpdp-kit/mongodb` | `--schema src/models.ts` |
+| Any other Postgres client | `dpdp-kit/postgres` | |
+
+**Start from a working app:** [`examples/`](examples/) has the same shop on Express + Prisma + Postgres and on Express + Mongoose + MongoDB. A script takes each one through a year of customers, support, a breach and erasure. CI runs it on every change.
+
 ## 1. Declare your data
 
 ```ts
@@ -527,9 +536,9 @@ Section 6(10) puts the burden on you: if consent is questioned in a proceeding, 
 | **v0.1.2** | Schema drift check: `audit --schema`, `checkSchema`, `drizzleSchema`, `notPersonal` |
 | **v0.2.0** | Rights requests (Sections 11–14, Rule 14), retention runner that carries out erasure (Section 8(7), Rule 8(3), legal holds), processor hooks, `drizzleData`, GitHub Action with pull request annotations |
 | **v0.3.0** | Security safeguards (Rule 6): access log with review and one-year retention, `dpdp-kit/protect` (encryption, virtual tokens, masking), `protect` / `contract` / `security` in the config, `dpdp-kit safeguards`; Fastify and NestJS guards; `logAccess` for every framework; events (`dpdp.on`); `erase` replacements for `NOT NULL` columns; `dpdp.daily()` and `startDaily` |
-| next (0.4) | **Prisma and MongoDB** stores and data access (with a Prisma schema drift check); **breach records** with the deadlines of Section 8(6) and Rule 7 |
-| then (0.5) | Notices that meet Rule 3 from the config, recording objections to a Section 7(a) use, an HTTP API with Express, Hono and Next.js adapters, completing rights requests, cross-border transfer records (Section 16) |
-| after (0.6) | MySQL and SQLite data access, React and React Native consent screens, example apps |
+| **v0.4.0** | **Breach records** (Section 8(6), Rule 7) with the 72-hour Board report; **Prisma**, **MongoDB and Mongoose** and plain-SQL Postgres stores and data access; drift checks on Prisma schemas and Mongoose models; example apps run in CI |
+| next (0.5) | Notices that meet Rule 3 from the config, recording objections to a Section 7(a) use, an HTTP API with Express, Hono and Next.js adapters, completing rights requests, cross-border transfer records (Section 16) |
+| after (0.6) | MySQL and SQLite data access, React and React Native consent screens, Next.js and Expo example apps |
 | later | Children and guardian consent (Section 9, Rule 10), inactivity erasure (Rule 8(1)–(2), Third Schedule), erasure beyond SQL (files, caches, search indexes), Consent Manager interop (Sections 6(7)–6(9), Rule 4) |
 
 ## When the Rules apply

@@ -79,6 +79,8 @@ export const dpdp = createDpdp({
 
 Using Prisma? Add `PRISMA_MODELS` from `dpdp-kit/prisma` to `schema.prisma`, run `prisma migrate dev`, and pass `store: prismaStore(prisma)` and `data: prismaData(prisma, { schema: prismaSchema(text) })`. See [Storage](../storage/#prisma-postgres).
 
+Prefer to start from a working app? The [example apps](https://github.com/yogesh2902/dpdp-kit/tree/main/examples) run the same shop on Express + Prisma + Postgres and on Express + Mongoose + MongoDB.
+
 Using MongoDB or Mongoose? Pass `store: mongoStore(db)` and `data: mongoData(db, { ObjectId })` from `dpdp-kit/mongodb`. See [Storage](../storage/#mongodb-and-mongoose).
 
 ## 5. Record consent, and run the retention runner
