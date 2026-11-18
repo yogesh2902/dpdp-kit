@@ -52,6 +52,10 @@
       "types": "./dist/hono.d.ts",
       "default": "./dist/hono.js"
     },
+    "./protect": {
+      "types": "./dist/protect.d.ts",
+      "default": "./dist/protect.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

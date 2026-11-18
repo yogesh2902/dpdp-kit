@@ -8,6 +8,7 @@ export default defineConfig({
     drizzle: "src/drizzle.ts",
     express: "src/express.ts",
     hono: "src/hono.ts",
+    protect: "src/protect.ts",
     cli: "src/cli.ts",
   },
   format: ["esm"],

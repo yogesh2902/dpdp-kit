@@ -14,7 +14,13 @@ export type DpdpErrorCode =
   | "request-not-found"
   | "request-closed"
   | "task-not-found"
-  | "task-not-manual";
+  | "task-not-manual"
+  | "invalid-actor"
+  | "unknown-field"
+  | "out-of-purpose"
+  | "invalid-key"
+  | "invalid-input"
+  | "decrypt-failed";
 
 /** Thrown for mistakes in how the library is called. Messages are for developers, not end users. */
 export class DpdpError extends Error {
