@@ -46,3 +46,9 @@ jobs:
           node scripts/release-notes.mjs "$version" > notes.md
           gh release create "$tag" --title "dpdp-kit $version" --notes-file notes.md --target "$GITHUB_SHA" --latest
           echo "Released $tag: $(gh release view "$tag" --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"
+          # Workflows use the action as yogesh2902/dpdp-kit@v0 (the latest 0.x), so move that tag too.
+          major="v${version%%.*}"
+          git fetch --tags --quiet
+          git tag -f "$major" "$tag^{}"
+          git push -f origin "refs/tags/$major"
+          echo "Moved $major to $tag." >> "$GITHUB_STEP_SUMMARY"

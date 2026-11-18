@@ -1,5 +1,5 @@
 name: DPDP Kit Audit
-description: Check your DPDP Act data map, purposes and Drizzle schema for drift with dpdp-kit, and annotate the pull request.
+description: Fail the build when personal data isn't mapped to a purpose under India's DPDP Act. Checks Drizzle, Prisma and Mongoose schemas, and annotates the pull request.
 author: dpdp-kit
 branding:
   icon: shield
@@ -11,7 +11,7 @@ inputs:
     required: false
     default: ""
   schema:
-    description: Drizzle schema file to check for drift, e.g. src/db/schema.ts. Leave empty to skip the drift check.
+    description: Schema to check for drift. A Drizzle schema (src/db/schema.ts), a Prisma schema (prisma/schema.prisma, or a folder of .prisma files), or a file that exports Mongoose models (src/models.ts). Leave empty to skip the drift check.
     required: false
     default: ""
   strict:
