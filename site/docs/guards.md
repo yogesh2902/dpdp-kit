@@ -35,7 +35,7 @@ import { consentGuard } from "dpdp-kit/nestjs";
 sendPromo() {}
 ```
 
-Without `onDenied`, the NestJS guard returns `false` and NestJS answers its standard 403.
+Without `onDenied`, the NestJS guard returns `false` and NestJS answers its standard 403. The guards read HTTP requests; for GraphQL, pass `request: (ctx) => GqlExecutionContext.create(ctx).getContext().req`. In Fastify, if your `onDenied` sends nothing, the default 403 is sent so the request never hangs.
 
 `subject` tells the guard who the person is, from your own session or auth. The guard never reads it from the request body.
 

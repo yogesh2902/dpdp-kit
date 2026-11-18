@@ -13,7 +13,9 @@
 - **Guards**: `dpdp-kit/fastify` (`requireConsent`, `logAccess` as `preHandler` hooks) and `dpdp-kit/nestjs` (`consentGuard`, `accessLogGuard`), plus `logAccess` for Express and Hono.
 - **Events**: `dpdp.on()` for `consent.granted`, `consent.withdrawn`, `erasure.scheduled`, `retention.ran`, `rights.opened`, `rights.closed`, `access.logged`, `daily.ran`.
 - **`erase` on fields**: `"null"` (default), `"redact"` or `{ value }` (fixed or a function), so `NOT NULL` and `UNIQUE` columns can be erased.
-- **Daily upkeep**: `dpdp.daily()` (erasure, access-log pruning and review, overdue requests) and `startDaily()` in `dpdp-kit/schedule`.
+- **Daily upkeep**: `dpdp.daily()` (erasure, access-log pruning and review, overdue requests) and `startDaily()` in `dpdp-kit/schedule`. Each step runs even if another fails (failures are in `report.errors`), and `startDaily` starts each review where the last successful one ended, so a failed night isn't skipped.
+- **`audit --schema` checks erase settings against the columns**: `erase-not-null` when a `NOT NULL` column would be erased to `NULL`, `erase-type-mismatch` when the replacement doesn't fit the column. Without it, such a mistake shows up only when the task runs, often a year later.
+- NestJS guards take a `request` option for GraphQL and other non-HTTP contexts; the Fastify guard falls back to 403 if `onDenied` sends nothing; event listeners each get their own copy of the payload; concurrent consent writes for one person back off with jitter.
 
 ### Upgrading from 0.2.x
 

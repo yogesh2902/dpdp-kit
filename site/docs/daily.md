@@ -16,6 +16,8 @@ const report = await dpdp.daily();
 // }
 ```
 
+Each step runs even if another fails: failures are listed in `report.errors` (with the step and message), so a missing table or a timeout in one part never stops erasure.
+
 It's safe to run from several servers at once: erasure tasks are claimed atomically, and pruning is idempotent. A part your store can't do (a custom store without the access log, say) is listed in `skipped`. It also fires the `daily.ran` [event](../events/).
 
 Pass review options through:
@@ -40,7 +42,7 @@ const schedule = startDaily(dpdp, {
 // schedule.runNow(), schedule.nextRunAt(), schedule.stop()
 ```
 
-Runs never overlap, a failed run is reported to `onError` (default `console.error`) and the next day's still happens, and the timer doesn't keep the process alive on its own. Each server that calls it runs the job; that's safe, but you get one report per server.
+Runs never overlap, a failed run or step is reported to `onError` (default `console.error`) and the next day's still happens, each access review starts where the last successful one ended (up to a week back), and the timer doesn't keep the process alive on its own. Each server that calls it runs the job; that's safe, but you get one report per server.
 
 ### node-cron
 

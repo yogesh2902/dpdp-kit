@@ -243,7 +243,7 @@ fields: {
 },
 ```
 
-The replacement must not identify the person: use their internal id, never a hash of their data.
+The replacement must not identify the person: use their internal id, never a hash of their data. `dpdp-kit audit --schema` checks each setting against your columns (a `NOT NULL` column erased to `NULL`, or text into a number column), so a mistake fails CI now instead of the erasure a year from now.
 
 ## 5. Rights requests
 
