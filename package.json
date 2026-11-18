@@ -52,6 +52,14 @@
       "types": "./dist/hono.d.ts",
       "default": "./dist/hono.js"
     },
+    "./fastify": {
+      "types": "./dist/fastify.d.ts",
+      "default": "./dist/fastify.js"
+    },
+    "./nestjs": {
+      "types": "./dist/nestjs.d.ts",
+      "default": "./dist/nestjs.js"
+    },
     "./protect": {
       "types": "./dist/protect.d.ts",
       "default": "./dist/protect.js"
@@ -80,6 +88,7 @@
     "@electric-sql/pglite": "^0.5.16",
     "@types/node": "^26.6.6",
     "drizzle-orm": "^0.45.4",
+    "fastify": "^5.12.8",
     "marked": "^18.2.1",
     "shiki": "^4.6.0",
     "tsup": "^9.0.0",

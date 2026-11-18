@@ -22,7 +22,7 @@ dpdp-kit is a TypeScript library that runs **inside your Node.js process**, not 
 - **No separate server.** There's nothing to deploy, no sidecar to keep running, and no REST API between your code and your consent records.
 - **No hosted service.** No account, no API key, and no network calls. Personal data never leaves your infrastructure.
 - **Your own database.** Consent records go into your own Postgres, through the Drizzle setup you already have, in the same database as the rest of your data.
-- **Fits your Node stack.** Typed config, middleware for Express and Hono, a CLI for CI, and works with ESM, `require()` and TypeScript.
+- **Fits your Node stack.** Typed config, guards for Express, Hono, Fastify and NestJS, a CLI for CI, and works with ESM, `require()` and TypeScript.
 
 > **Not legal advice.** dpdp-kit helps you put compliance into practice; it does not make an app compliant on its own. Section and rule references point you to the text so you can check them. Have your own lawyer review your purposes, notices and retention periods.
 
@@ -344,7 +344,19 @@ import { requireConsent } from "dpdp-kit/hono";
 app.post("/promo", requireConsent(dpdp, "marketing_sms", { subject: (c) => c.get("userId") }), handler);
 ```
 
-Without consent, the middleware responds `403 { error: "consent_required", purpose, message }`. The message is plain enough to show to people. Pass `onDenied` to send your own response.
+```ts
+// Fastify
+import { requireConsent } from "dpdp-kit/fastify";
+app.post("/promo", { preHandler: requireConsent(dpdp, "marketing_sms", { subject: (req) => req.user?.id }) }, handler);
+
+// NestJS
+import { consentGuard } from "dpdp-kit/nestjs";
+@UseGuards(consentGuard(dpdp, "marketing_sms", { subject: (req) => req.user?.id }))
+@Post("promo")
+sendPromo() {}
+```
+
+Without consent, the middleware responds `403 { error: "consent_required", purpose, message }`. The message is plain enough to show to people. Pass `onDenied` to send your own response; in NestJS, return the exception to throw, e.g. `(purpose) => new ForbiddenException(CONSENT_REQUIRED_BODY(purpose))`. Access logging works the same way in every framework: `logAccess` for Express, Hono and Fastify, `accessLogGuard` for NestJS.
 
 ## Storage
 

@@ -8,6 +8,8 @@ export default defineConfig({
     drizzle: "src/drizzle.ts",
     express: "src/express.ts",
     hono: "src/hono.ts",
+    fastify: "src/fastify.ts",
+    nestjs: "src/nestjs.ts",
     protect: "src/protect.ts",
     cli: "src/cli.ts",
   },

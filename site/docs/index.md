@@ -23,7 +23,7 @@ dpdp-kit is a TypeScript library that runs **inside your Node.js process**, not 
 - **No separate server.** Nothing to deploy, no sidecar, no REST API between your code and your consent records.
 - **No hosted service.** No account, no API key, no network calls. Personal data never leaves your infrastructure.
 - **Your own database.** Records go into your own Postgres through the Drizzle setup you already have.
-- **Fits your Node stack.** Typed config, Express and Hono middleware, a CLI for CI. Works with ESM, `require()` and TypeScript.
+- **Fits your Node stack.** Typed config, guards for Express, Hono, Fastify and NestJS, a CLI for CI. Works with ESM, `require()` and TypeScript.
 
 > **Not legal advice.** dpdp-kit helps you put compliance into practice; it does not make an app compliant on its own. Section and Rule references point you to the text so you can check them. Have your own lawyer review your purposes, notices and retention periods.
 
