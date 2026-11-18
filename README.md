@@ -141,7 +141,7 @@ From code, `checkSchema(config, drizzleSchema(schema))` returns the same issues.
 
 ### In GitHub Actions
 
-Add the audit to any workflow. Problems show up as annotations on the pull request, plus a summary on the run page:
+Add the audit to any workflow (it's on the [GitHub Marketplace](https://github.com/marketplace/actions/dpdp-kit-audit) as DPDP Kit Audit). Problems show up as annotations on the pull request, plus a summary on the run page:
 
 ```yaml
 # .github/workflows/dpdp.yml

@@ -184,6 +184,7 @@ await dpdp.rights.summary(userId);         // Section 11: what you hold and why<
           <h3>A GitHub Action that <em>comments where it hurts</em>.</h3>
           <p>Each problem lands on the pull request as an annotation, with a summary on the run page and <code>errors</code> / <code>warnings</code> outputs.</p>
           <a class="more" href="{{base}}docs/audit/#in-github-actions">Set it up →</a>
+          <a class="more" style="margin-left:22px" href="https://github.com/marketplace/actions/dpdp-kit-audit">On the GitHub Marketplace →</a>
         </div>
 <pre data-lang="yaml"># .github/workflows/dpdp.yml
 on: [pull_request]
@@ -195,7 +196,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: npm ci
-      - uses: yogesh2902/dpdp-kit@main
+      - uses: yogesh2902/dpdp-kit@v0
         with:
           schema: src/db/schema.ts</pre>
       </div>
