@@ -85,7 +85,10 @@ export function memoryStore(): DpdpStore &
       return b && structuredClone(b);
     },
     async updateBreach(breach) {
+      const stored = breaches.get(breach.id);
+      if (!stored || stored.history.length !== breach.history.length - 1) return false;
       breaches.set(breach.id, structuredClone(breach));
+      return true;
     },
     async listBreaches(filter) {
       return [...breaches.values()]
@@ -132,6 +135,9 @@ export function memoryStore(): DpdpStore &
 
     async insertAccess(entries) {
       for (const e of entries) accessLog.push(structuredClone(e));
+    },
+    async accessSubjects(filter) {
+      return [...new Set((await this.listAccess(filter)).map((e) => e.subjectId))];
     },
     async listAccess(filter) {
       const list = accessLog

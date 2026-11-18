@@ -10,7 +10,10 @@ export interface SchemaColumn {
   notNull?: boolean;
   /** Kind of value the column holds, when known. Used to check each field's `erase` setting. */
   type?: "string" | "number" | "boolean" | "other";
-  /** The column's SQL type (`integer`, `uuid`, `varchar(255)`…), when known. SQL data access casts parameters to it. */
+  /**
+   * The column's SQL type (`integer`, `uuid`, `varchar(255)`…), when known. SQL data access casts
+   * parameters to it. From `mongooseSchema()`, `array` marks an array, so erasure reaches every element.
+   */
   sqlType?: string;
 }
 

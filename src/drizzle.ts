@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq, getTableColumns, getTableName, gte, inArray, is, lt, lte, max, min, or, type SQL, sql, Table } from "drizzle-orm";
 import { index, integer, jsonb, type PgDatabase, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
-import type { AccessEntry, AccessLogStore } from "./access.js";
+import type { AccessEntry, AccessFilter, AccessLogStore } from "./access.js";
 import type { Breach, BreachNotice, BreachStore } from "./breach.js";
 import type { DataAccess } from "./data-access.js";
 import type { ErasureTask, RequestStatus, RequestType, RightsRequest, TaskKind, TaskStatus } from "./records.js";
@@ -316,7 +316,9 @@ export function drizzleStore(db: AnyPgDatabase): DpdpStore & AccessLogStore & Br
     },
     async updateBreach(breach) {
       const { id, ...rest } = breachRow(breach);
-      await db.update(breaches).set(rest).where(eq(breaches.id, id));
+      const unchanged = sql`jsonb_array_length(${breaches.data}->'history') = ${breach.history.length - 1}`;
+      const rows = await db.update(breaches).set(rest).where(and(eq(breaches.id, id), unchanged)).returning({ id: breaches.id });
+      return rows.length === 1;
     },
     async listBreaches(filter) {
       const rows = await db
@@ -391,15 +393,12 @@ export function drizzleStore(db: AnyPgDatabase): DpdpStore & AccessLogStore & Br
     async insertAccess(entries) {
       if (entries.length > 0) await db.insert(accessLog).values(entries.map(accessToRow));
     },
+    async accessSubjects(filter) {
+      const rows = await db.selectDistinct({ subjectId: accessLog.subjectId }).from(accessLog).where(accessWhere(filter));
+      return rows.map((r) => r.subjectId);
+    },
     async listAccess(filter) {
-      const where = and(
-        filter.subjectId ? eq(accessLog.subjectId, filter.subjectId) : undefined,
-        filter.actor ? eq(accessLog.actor, filter.actor) : undefined,
-        filter.purpose ? eq(accessLog.purpose, filter.purpose) : undefined,
-        filter.from ? gte(accessLog.at, new Date(filter.from)) : undefined,
-        filter.to ? lt(accessLog.at, new Date(filter.to)) : undefined,
-      );
-      const query = db.select().from(accessLog).where(where).orderBy(asc(accessLog.at), asc(accessLog.id));
+      const query = db.select().from(accessLog).where(accessWhere(filter)).orderBy(asc(accessLog.at), asc(accessLog.id));
       const rows = filter.limit === undefined ? await query : await query.limit(filter.limit);
       return rows.map(accessFromRow);
     },
@@ -535,6 +534,16 @@ export function drizzleSchema(module: Record<string, unknown>): Schema {
     tables.set(name, { name, columns });
   }
   return { tables: [...tables.values()] };
+}
+
+function accessWhere(filter: AccessFilter) {
+  return and(
+    filter.subjectId ? eq(accessLog.subjectId, filter.subjectId) : undefined,
+    filter.actor ? eq(accessLog.actor, filter.actor) : undefined,
+    filter.purpose ? eq(accessLog.purpose, filter.purpose) : undefined,
+    filter.from ? gte(accessLog.at, new Date(filter.from)) : undefined,
+    filter.to ? lt(accessLog.at, new Date(filter.to)) : undefined,
+  );
 }
 
 /** Rows from `db.execute()`, whichever Postgres driver Drizzle wraps. */

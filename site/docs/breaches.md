@@ -52,8 +52,11 @@ const notice = await dpdp.breach.notice(breach.id);
 // notice.text: Rule 7(1)(a)–(e) in plain words, with your fiduciary.dpo as the contact
 // notice.missing: parts still to fill in; send only when it's empty
 
-for (const batch of await dpdp.breach.pending(breach.id, 500)) { /* … */ }
-await dpdp.breach.markNotified(breach.id, sentIds, { channel: "email" });
+// in batches: send to the next 500 people not yet told, record them, repeat
+for (let batch = await dpdp.breach.pending(breach.id, 500); batch.length > 0; batch = await dpdp.breach.pending(breach.id, 500)) {
+  const sentIds = await sendBreachEmails(batch.map((n) => n.subjectId), notice.text); // your own sender
+  await dpdp.breach.markNotified(breach.id, sentIds, { channel: "email" });
+}
 ```
 
 The notice comes in English: translate it into each person's language before sending. Rule 7(1) asks for "a concise, clear and plain manner", through their account or a contact they registered with you.

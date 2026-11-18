@@ -459,7 +459,7 @@ const schema = prismaSchema(readFileSync("prisma/schema.prisma", "utf8"));
 const dpdp = createDpdp({ config, store: prismaStore(prisma), data: prismaData(prisma, { schema }) });
 ```
 
-It runs parameterised SQL through `prisma.$queryRawUnsafe`, so it works with Prisma 5, 6 and 7 and any driver adapter, and inside `prisma.$transaction(async (tx) => …)` with `prismaStore(tx)`. The models match `DPDP_DDL`, so either can create the tables.
+It runs parameterised SQL through `prisma.$queryRawUnsafe`, and works inside `prisma.$transaction(async (tx) => …)` with `prismaStore(tx)`. Tested on Prisma 7 with `@prisma/adapter-pg`. Every parameter has an explicit cast, so earlier versions should work too, but they aren't tested. The models match `DPDP_DDL`, so either can create the tables.
 
 ### Any other Postgres client
 

@@ -82,7 +82,12 @@ export interface BreachNotice {
 export interface BreachStore {
   insertBreach(breach: Breach): Promise<void>;
   getBreach(id: string): Promise<Breach | undefined>;
-  updateBreach(breach: Breach): Promise<void>;
+  /**
+   * Replace a stored breach, but only if no one changed it since it was read. Each change adds one
+   * history entry, so save only when the stored history is one entry shorter than `breach.history`.
+   * Returns false when it isn't; dpdp-kit then reads it again and retries.
+   */
+  updateBreach(breach: Breach): Promise<boolean>;
   /** Breaches, newest first. */
   listBreaches(filter: { status?: Breach["status"] }): Promise<Breach[]>;
   /** Add affected people; people already on the breach are left as they are. Returns how many were new. */

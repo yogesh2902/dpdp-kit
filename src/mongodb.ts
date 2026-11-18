@@ -18,7 +18,7 @@ export interface MongoCollectionLike {
   insertMany(docs: Doc[], options?: Doc): Promise<{ insertedCount: number }>;
   findOne(filter: Doc, options?: Doc): Promise<Doc | null>;
   find(filter: Doc, options?: Doc): { toArray(): Promise<Doc[]> };
-  replaceOne(filter: Doc, doc: Doc): Promise<unknown>;
+  replaceOne(filter: Doc, doc: Doc): Promise<{ matchedCount: number }>;
   updateOne(filter: Doc, update: Doc): Promise<{ matchedCount: number; modifiedCount: number }>;
   updateMany(filter: Doc, update: Doc): Promise<{ matchedCount: number; modifiedCount: number }>;
   deleteMany(filter: Doc): Promise<{ deletedCount: number }>;
@@ -229,6 +229,12 @@ export function mongoStore(source: MongoDbSource): DpdpStore & AccessLogStore & 
     async pruneAccess(before) {
       return (await (await col("access")).deleteMany({ at: { $lt: new Date(before) } })).deletedCount;
     },
+    async accessSubjects(f) {
+      const at = clean({ $gte: toDate(f.from), $lt: toDate(f.to) });
+      const filter = clean({ subjectId: f.subjectId, actor: f.actor, purpose: f.purpose, at: Object.keys(at).length ? at : undefined });
+      const groups = await (await col("access")).aggregate([{ $match: filter }, { $group: { _id: "$subjectId" } }]).toArray();
+      return groups.map((g) => String(g._id));
+    },
 
     async insertBreach(b) {
       await (await col("breaches")).insertOne(breachDoc(b));
@@ -238,7 +244,9 @@ export function mongoStore(source: MongoDbSource): DpdpStore & AccessLogStore & 
       return doc ? (doc.data as Breach) : undefined;
     },
     async updateBreach(b) {
-      await (await col("breaches")).replaceOne({ _id: b.id }, breachDoc(b));
+      // Only if no one saved it since it was read: each change adds one history entry.
+      const unchanged = { "data.history": { $size: b.history.length - 1 } };
+      return (await (await col("breaches")).replaceOne({ _id: b.id, ...unchanged }, breachDoc(b))).matchedCount === 1;
     },
     async listBreaches(filter) {
       const docs = await (await col("breaches")).find(clean({ status: filter.status }), { sort: { awareAt: -1, _id: 1 } }).toArray();
@@ -323,13 +331,23 @@ const HEX24 = /^[0-9a-f]{24}$/i;
 export function mongoData(source: MongoDbSource, options: MongoDataOptions = {}): DataAccess {
   const collections = new Map<string, string>();
   const fields = new Map<string, Map<string, string>>();
+  const arrays = new Map<string, Set<string>>();
   for (const t of options.schema?.tables ?? []) {
     const byKey = new Map(t.columns.filter((c) => c.key).map((c) => [c.key!, c.name]));
+    const arrayPaths = new Set(t.columns.filter((c) => c.sqlType === "array").map((c) => c.name));
     for (const name of t.key ? [t.name, t.key] : [t.name]) {
       if (!collections.has(name)) collections.set(name, t.name);
       if (!fields.has(name)) fields.set(name, byKey);
+      if (!arrays.has(name)) arrays.set(name, arrayPaths);
     }
   }
+  /** The path to write: `addresses.$[].phone` when `addresses` is an array, so every element is erased. */
+  const writePath = (table: string, path: string) => {
+    const inArrays = arrays.get(table);
+    if (!inArrays?.size) return path;
+    const parts = path.split(".");
+    return parts.map((part, i) => (i < parts.length - 1 && inArrays.has(parts.slice(0, i + 1).join(".")) ? `${part}.$[]` : part)).join(".");
+  };
   const collection = (table: string) => resolveDb(source).collection(collections.get(table) ?? table);
   /** The stored field for a data map name: `_id` for `id`, with a Mongoose schema. */
   const field = (table: string, name: string) => fields.get(table)?.get(name) ?? name;
@@ -369,8 +387,9 @@ export function mongoData(source: MongoDbSource, options: MongoDataOptions = {})
       const $set: Doc = {};
       const $unset: Doc = {};
       for (const c of columns) {
-        if (Object.hasOwn(replacements, c) && replacements[c] !== null) $set[field(table, c)] = replacements[c];
-        else $unset[field(table, c)] = "";
+        const path = writePath(table, field(table, c));
+        if (Object.hasOwn(replacements, c) && replacements[c] !== null) $set[path] = replacements[c];
+        else $unset[path] = "";
       }
       const result = await collection(table).updateMany(filter(table, subjectColumn, subjectId), clean({ $set: Object.keys($set).length ? $set : undefined, $unset: Object.keys($unset).length ? $unset : undefined }));
       return result.matchedCount;
@@ -384,6 +403,8 @@ export function mongoData(source: MongoDbSource, options: MongoDataOptions = {})
 interface MongooseSchemaTypeLike {
   instance?: string;
   isRequired?: boolean;
+  /** Subdocuments (`home: addressSchema`) and arrays of them (`addresses: [addressSchema]`). */
+  schema?: { paths: Record<string, MongooseSchemaTypeLike> };
 }
 interface MongooseModelLike {
   modelName: string;
@@ -408,8 +429,8 @@ const MONGOOSE_TYPES: Record<string, SchemaColumn["type"]> = { String: "string",
  * Read Mongoose models into the neutral shape `dpdp-kit audit --schema` and `mongoData()` use.
  * Pass the Mongoose instance, `mongoose.models`, an array of models, or a module that exports
  * them. Each model becomes a table named after its collection, with the model name as its `key`;
- * each schema path becomes a column (`address.city` for nested fields), and `_id` has the key
- * `id`. `__v` is skipped.
+ * each schema path becomes a column, including fields in nested objects and subdocuments
+ * (`address.city`, `addresses.phone`), and `_id` has the key `id`. `__v` is skipped.
  */
 export function mongooseSchema(source: unknown): Schema {
   const found = new Map<string, MongooseModelLike>();
@@ -428,12 +449,18 @@ export function mongooseSchema(source: unknown): Schema {
   const tables: SchemaTable[] = [];
   for (const model of found.values()) {
     const columns: SchemaColumn[] = [];
-    for (const [path, type] of Object.entries(model.schema.paths)) {
-      if (path === "__v") continue;
-      // Mongoose apps refer to `_id` as `id` (its virtual), so the data map may use either.
-      const key = path === "_id" && model.schema.virtuals?.id ? { key: "id" } : {};
-      columns.push({ name: path, ...key, notNull: path === "_id" || type.isRequired === true, type: MONGOOSE_TYPES[type.instance ?? ""] ?? "other" });
-    }
+    const addPaths = (paths: Record<string, MongooseSchemaTypeLike>, prefix: string) => {
+      for (const [path, type] of Object.entries(paths)) {
+        if (path === "__v" || (prefix && path === "_id")) continue; // a subdocument's own _id isn't data
+        const name = `${prefix}${path}`;
+        // Mongoose apps refer to `_id` as `id` (its virtual), so the data map may use either.
+        const key = name === "_id" && model.schema.virtuals?.id ? { key: "id" } : {};
+        const array = type.instance === "Array" ? { sqlType: "array" } : {};
+        columns.push({ name, ...key, notNull: name === "_id" || type.isRequired === true, type: MONGOOSE_TYPES[type.instance ?? ""] ?? "other", ...array });
+        if (type.schema?.paths) addPaths(type.schema.paths, `${name}.`); // fields inside subdocuments
+      }
+    };
+    addPaths(model.schema.paths, "");
     const name = model.collection.collectionName;
     tables.push({ name, ...(model.modelName === name ? {} : { key: model.modelName }), columns });
   }

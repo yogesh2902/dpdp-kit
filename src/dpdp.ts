@@ -493,10 +493,19 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
     return breach;
   }
 
-  async function saveBreach(breach: Breach, event: string, note?: string): Promise<Breach> {
-    const next: Breach = { ...breach, history: [...breach.history, { at: nowIso(), event, ...(note !== undefined ? { note } : {}) }] };
-    await breachStore().updateBreach(next);
-    return next;
+  /**
+   * Change an open breach: read it, apply the change, and save it only if no one else saved it in
+   * between (the store compares history lengths). On a clash, read it again and retry, so two
+   * people updating the same breach at once both keep their changes.
+   */
+  async function changeBreach(id: string, change: (breach: Breach) => Breach, event: string, note?: string): Promise<Breach> {
+    for (let attempt = 1; ; attempt++) {
+      const breach = await requireBreach(id, true);
+      const next: Breach = { ...change(breach), history: [...breach.history, { at: nowIso(), event, ...(note !== undefined ? { note } : {}) }] };
+      if ((await breachStore().updateBreach(next)) !== false) return next;
+      if (attempt >= maxRetries) throw new DpdpError("write-conflict", `Gave up after ${maxRetries} conflicting updates to breach ${id}`);
+      await new Promise((r) => setTimeout(r, Math.random() * 5 * attempt));
+    }
   }
 
   function breachFields(keys: readonly string[] | undefined): string[] {
@@ -580,7 +589,8 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
       if (isBreachStore(store)) {
         await step("breaches", async () => {
           const open = await breachStore().listBreaches({ status: "open" });
-          report.breaches = await Promise.all(open.map((b) => api.breach.status(b.id)));
+          const now = nowIso();
+          report.breaches = await Promise.all(open.map(async (b) => breachStatus(b, await breachStore().countNotices(b.id), now)));
         });
       } else {
         report.skipped.push("breaches");
@@ -808,10 +818,10 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
       },
 
       async update(id, input) {
-        const breach = await requireBreach(id, true);
         checkIso(input.occurredAt, "occurredAt");
         const text = Object.fromEntries(BREACH_TEXT.filter((k) => input[k] !== undefined).map((k) => [k, input[k]]));
-        return saveBreach({ ...breach, ...text, ...(input.fields ? { fields: breachFields(input.fields) } : {}) }, "updated");
+        const fields = input.fields ? { fields: breachFields(input.fields) } : {};
+        return changeBreach(id, (breach) => ({ ...breach, ...text, ...fields }), "updated");
       },
 
       get: (id) => breachStore().getBreach(id),
@@ -832,8 +842,14 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
 
       async addAffectedFromAccessLog(id, filter) {
         await requireBreach(id, true);
-        const entries = await accessStore().listAccess(filter);
-        return api.breach.addAffected(id, [...new Set(entries.map((e) => e.subjectId))]);
+        const { limit: _, ...where } = filter as AccessFilter;
+        const access = accessStore();
+        const subjects = access.accessSubjects
+          ? await access.accessSubjects(where)
+          : [...new Set((await access.listAccess(where)).map((e) => e.subjectId))];
+        let added = 0;
+        for (let i = 0; i < subjects.length; i += 5000) added += await api.breach.addAffected(id, subjects.slice(i, i + 5000));
+        return added;
       },
 
       async notice(id) {
@@ -846,23 +862,22 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
       },
 
       async markNotified(id, subjectIds, input = {}) {
-        await requireBreach(id);
+        await requireBreach(id, true);
         checkIso(input.at, "at");
         const at = input.at ? new Date(input.at).toISOString() : nowIso();
         return breachStore().markNotices(id, [...new Set(subjectIds)], at, input.channel);
       },
 
       async boardNotified(id, input = {}) {
-        const breach = await requireBreach(id);
         checkIso(input.at, "at");
-        return saveBreach({ ...breach, boardNotifiedAt: input.at ? new Date(input.at).toISOString() : nowIso() }, "board notified");
+        const at = input.at ? new Date(input.at).toISOString() : nowIso();
+        return changeBreach(id, (breach) => ({ ...breach, boardNotifiedAt: at }), "board notified");
       },
 
       async updateReport(id, parts) {
-        const breach = await requireBreach(id);
         const keys = ["details", "facts", "mitigation", "findings", "remedial"] as const;
         const given = Object.fromEntries(keys.filter((k) => parts[k] !== undefined).map((k) => [k, parts[k]]));
-        return saveBreach({ ...breach, report: { ...breach.report, ...given } }, "report updated");
+        return changeBreach(id, (breach) => ({ ...breach, report: { ...breach.report, ...given } }), "report updated");
       },
 
       async boardReport(id) {
@@ -890,28 +905,24 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
       },
 
       async reportSent(id, input = {}) {
-        const breach = await requireBreach(id);
         checkIso(input.at, "at");
-        const saved = await saveBreach({ ...breach, reportSentAt: input.at ? new Date(input.at).toISOString() : nowIso() }, "report sent");
+        const at = input.at ? new Date(input.at).toISOString() : nowIso();
+        const saved = await changeBreach(id, (breach) => ({ ...breach, reportSentAt: at }), "report sent");
         emit("breach.reported", { breach: saved });
         return saved;
       },
 
       async extend(id, input) {
-        const breach = await requireBreach(id, true);
         checkIso(input.until, "until");
         if (!input.reference) throw new DpdpError("invalid-input", "Record the Board's written permission: reference is required");
         const until = new Date(input.until).toISOString();
-        return saveBreach(
-          { ...breach, reportDueAt: until, extension: { until, reference: input.reference, recordedAt: nowIso() } },
-          "extended",
-          input.reference,
-        );
+        const extension = { until, reference: input.reference, recordedAt: nowIso() };
+        return changeBreach(id, (breach) => ({ ...breach, reportDueAt: until, extension }), "extended", input.reference);
       },
 
       async close(id, note) {
-        const breach = await requireBreach(id, true);
-        const saved = await saveBreach({ ...breach, status: "closed", closedAt: nowIso() }, "closed", note);
+        const closedAt = nowIso();
+        const saved = await changeBreach(id, (breach) => ({ ...breach, status: "closed", closedAt }), "closed", note);
         emit("breach.closed", { breach: saved });
         return saved;
       },

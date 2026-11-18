@@ -1,6 +1,7 @@
 // dpdp-kit on Prisma: the store and data access run plain SQL through `$queryRawUnsafe` (with
-// parameters, never interpolated values), so they work with Prisma 5, 6 and 7 and with any driver
-// adapter. Postgres only. The dpdp-kit tables come from PRISMA_MODELS, added to schema.prisma.
+// parameters, never interpolated values). Tested on Prisma 7 with @prisma/adapter-pg; every
+// parameter is cast explicitly, so earlier versions should work too.
+// Postgres only. The dpdp-kit tables come from PRISMA_MODELS, added to schema.prisma.
 import type { AccessLogStore } from "./access.js";
 import type { BreachStore } from "./breach.js";
 import type { DataAccess } from "./data-access.js";

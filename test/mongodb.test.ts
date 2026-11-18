@@ -294,3 +294,64 @@ describe("Mongoose", () => {
     await m.disconnect();
   });
 });
+
+describe("Mongoose subdocuments", () => {
+  const m = new mongoose.Mongoose();
+  const address = new m.Schema({ phone: String, pincode: String });
+  const Customer = m.model("Customer", new m.Schema({ name: String, home: address, addresses: [address], tags: [String] }), "customers");
+
+  it("mongooseSchema reaches fields inside subdocuments and arrays of them", () => {
+    const [table] = mongooseSchema([Customer]).tables;
+    expect(table!.columns.map((c) => c.name)).toEqual(["name", "home", "home.phone", "home.pincode", "addresses", "addresses.phone", "addresses.pincode", "tags", "_id"]);
+    expect(table!.columns.find((c) => c.name === "addresses")).toMatchObject({ sqlType: "array" });
+    const cfg = defineConfig({
+      fiduciary: { name: "Acme", grievanceUrl: "/g", dpo: "privacy@acme.example" },
+      purposes: { account: { basis: "legitimate-use", retain: "while-active" } },
+      data: { customers: { table: "Customer", subject: "id", fields: { name: { category: "identity", purposes: ["account"] } } } },
+      minimumRetention: "1y",
+    });
+    const flagged = checkSchema(cfg, mongooseSchema([Customer])).map((i) => i.path);
+    expect(flagged).toEqual(expect.arrayContaining(["schema.customers.home.phone", "schema.customers.addresses.phone", "schema.customers.addresses.pincode"]));
+  });
+
+  it("erases a field in every element of an array of subdocuments", async () => {
+    const db = freshDb();
+    const id = new ObjectId();
+    await db.collection("customers").insertOne({
+      _id: id,
+      name: "Asha",
+      home: { phone: "98xxxxxx01", pincode: "411001" },
+      addresses: [
+        { phone: "98xxxxxx02", pincode: "560001" },
+        { phone: "98xxxxxx03", pincode: "600001" },
+      ],
+    });
+    const data = mongoData(db, { schema: mongooseSchema([Customer]), ObjectId });
+    expect(await data.eraseFields("Customer", "id", id.toHexString(), ["home.phone", "addresses.phone"])).toBe(1);
+    expect(await data.read("Customer", "id", id.toHexString(), ["home", "addresses.phone", "addresses.pincode"])).toEqual([
+      { home: { pincode: "411001" }, addresses: [{ pincode: "560001" }, { pincode: "600001" }] },
+    ]);
+  });
+});
+
+describe("mongo store: changes made at once", () => {
+  it("keeps every breach change, and finds distinct people in the access log", async () => {
+    const dpdp = createDpdp({ config: shopConfig, store: mongoStore(freshDb()) });
+    const { id } = await dpdp.breach.open({ description: "Concurrent" });
+    await Promise.all([
+      dpdp.breach.boardNotified(id),
+      dpdp.breach.updateReport(id, { details: "d" }),
+      dpdp.breach.updateReport(id, { facts: "f" }),
+      dpdp.breach.update(id, { measures: "m" }),
+    ]);
+    const breach = (await dpdp.breach.get(id))!;
+    expect(breach).toMatchObject({ measures: "m", report: { details: "d", facts: "f" } });
+    expect(breach.boardNotifiedAt).toBeDefined();
+    expect(breach.history).toHaveLength(5);
+
+    const ids = Array.from({ length: 1200 }, (_, i) => `r${i}`);
+    await dpdp.access.log({ actor: "support:ravi", subjectIds: ids, purpose: "account" });
+    await dpdp.access.log({ actor: "support:ravi", subjectIds: ids.slice(0, 10), purpose: "account" });
+    expect(await dpdp.breach.addAffectedFromAccessLog(id, { actor: "support:ravi" })).toBe(1200);
+  });
+});

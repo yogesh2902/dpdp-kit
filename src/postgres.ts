@@ -1,7 +1,7 @@
 // Store and data access on Postgres with plain SQL, for any client that can run a parameterised
 // query: node-postgres, postgres.js, Prisma ($queryRawUnsafe), Kysely, Knex… `dpdp-kit/prisma` builds
 // on this. Uses the same tables as `dpdp-kit/drizzle`: create them with DPDP_DDL, exported here too.
-import type { AccessEntry, AccessLogStore } from "./access.js";
+import type { AccessEntry, AccessFilter, AccessLogStore } from "./access.js";
 import type { Breach, BreachNotice, BreachStore, NoticeCounts } from "./breach.js";
 import type { ErasedValue } from "./config.js";
 import type { DataAccess } from "./data-access.js";
@@ -198,6 +198,27 @@ const RUNNABLE = `due_at <= $1::timestamptz AND (status = 'pending' OR (status =
 /** Rows per statement for bulk writes, well under Postgres's 65,535 parameters. */
 const BATCH = 1000;
 
+/** `INSERT INTO table (columns) VALUES (…), (…)` for `rows` rows. */
+const insertManySql = (table: string, cols: Columns, rows: number) =>
+  `INSERT INTO ${table} (${cols.map(([c]) => c).join(", ")}) VALUES ${Array.from(
+    { length: rows },
+    (_, r) => `(${cols.map(([, t], i) => p(r * cols.length + i + 1, t)).join(", ")})`,
+  ).join(", ")}`;
+
+/** Insert rows in batches, each batch one statement (so a batch is stored whole or not at all). */
+async function insertMany<T>(query: SqlQuery, table: string, cols: Columns, items: readonly T[], values: (item: T) => unknown[], suffix = "") {
+  const results: Record<string, unknown>[] = [];
+  for (let i = 0; i < items.length; i += BATCH) {
+    const batch = items.slice(i, i + BATCH);
+    results.push(...(await query(`${insertManySql(table, cols, batch.length)}${suffix}`, batch.flatMap(values))));
+  }
+  return results;
+}
+
+const ACCESS_WHERE = `($1::text IS NULL OR subject_id = $1::text) AND ($2::text IS NULL OR actor = $2::text) AND ($3::text IS NULL OR purpose = $3::text)
+           AND ($4::timestamptz IS NULL OR at >= $4::timestamptz) AND ($5::timestamptz IS NULL OR at < $5::timestamptz)`;
+const accessParams = (f: AccessFilter) => [f.subjectId ?? null, f.actor ?? null, f.purpose ?? null, f.from ?? null, f.to ?? null];
+
 /**
  * Store on Postgres with plain SQL: consent events, rights requests, erasure tasks, the access log and
  * breaches. Needs the dpdp-kit tables (`DPDP_DDL` from `dpdp-kit/drizzle`, or `PRISMA_MODELS` from
@@ -246,7 +267,7 @@ export function postgresStore(query: SqlQuery): DpdpStore & AccessLogStore & Bre
     },
 
     async insertTasks(tasks) {
-      for (const t of tasks) await query(insertSql("dpdp_erasure_tasks", TASK_COLUMNS), taskValues(t));
+      await insertMany(query, "dpdp_erasure_tasks", TASK_COLUMNS, tasks, taskValues);
     },
     async dueTasks({ limit, now, staleBefore, maxAttempts }) {
       const rows = await query(`SELECT ${TASK_SELECT} FROM dpdp_erasure_tasks WHERE ${RUNNABLE} ORDER BY due_at ASC LIMIT $4::int`, [now, staleBefore, maxAttempts, limit]);
@@ -275,17 +296,18 @@ export function postgresStore(query: SqlQuery): DpdpStore & AccessLogStore & Bre
     },
 
     async insertAccess(entries) {
-      for (const e of entries) await query(insertSql("dpdp_access_log", ACCESS_COLUMNS), accessValues(e));
+      await insertMany(query, "dpdp_access_log", ACCESS_COLUMNS, entries, accessValues);
     },
     async listAccess(f) {
-      const rows = await query(
-        `SELECT ${ACCESS_SELECT} FROM dpdp_access_log
-         WHERE ($1::text IS NULL OR subject_id = $1::text) AND ($2::text IS NULL OR actor = $2::text) AND ($3::text IS NULL OR purpose = $3::text)
-           AND ($4::timestamptz IS NULL OR at >= $4::timestamptz) AND ($5::timestamptz IS NULL OR at < $5::timestamptz)
-         ORDER BY at ASC, id ASC LIMIT $6::int`,
-        [f.subjectId ?? null, f.actor ?? null, f.purpose ?? null, f.from ?? null, f.to ?? null, f.limit ?? null],
-      );
+      const rows = await query(`SELECT ${ACCESS_SELECT} FROM dpdp_access_log WHERE ${ACCESS_WHERE} ORDER BY at ASC, id ASC LIMIT $6::int`, [
+        ...accessParams(f),
+        f.limit ?? null,
+      ]);
       return rows.map(accessFromRow);
+    },
+    async accessSubjects(f) {
+      const rows = await query(`SELECT DISTINCT subject_id FROM dpdp_access_log WHERE ${ACCESS_WHERE}`, accessParams(f));
+      return rows.map((r) => String(r.subject_id));
     },
     async pruneAccess(before) {
       // In batches, so the first prune of a big table neither holds a long lock nor returns every id.
@@ -308,25 +330,19 @@ export function postgresStore(query: SqlQuery): DpdpStore & AccessLogStore & Bre
       return row ? json<Breach>(row.data) : undefined;
     },
     async updateBreach(b) {
-      await query(updateSql("dpdp_breaches", BREACH_COLUMNS), breachValues(b));
+      // Only if no one saved it since it was read: each change adds one history entry.
+      const unchanged = `jsonb_array_length(data->'history') = $${BREACH_COLUMNS.length + 1}::int`;
+      const rows = await query(`${updateSql("dpdp_breaches", BREACH_COLUMNS)} AND ${unchanged} RETURNING 1 AS one`, [...breachValues(b), b.history.length - 1]);
+      return rows.length === 1;
     },
     async listBreaches(filter) {
       const rows = await query(`SELECT data FROM dpdp_breaches WHERE ($1::text IS NULL OR status = $1::text) ORDER BY aware_at DESC`, [filter.status ?? null]);
       return rows.map((r) => json<Breach>(r.data));
     },
     async addNotices(list) {
-      let added = 0;
-      for (let i = 0; i < list.length; i += BATCH) {
-        const batch = list.slice(i, i + BATCH);
-        const values = batch.map((_, j) => `(${NOTICE_COLUMNS.map(([, t], k) => p(j * NOTICE_COLUMNS.length + k + 1, t)).join(", ")})`);
-        const rows = await query(
-          `INSERT INTO dpdp_breach_notices (${NOTICE_COLUMNS.map(([c]) => c).join(", ")}) VALUES ${values.join(", ")}
-           ON CONFLICT (breach_id, subject_id) DO NOTHING RETURNING 1 AS one`,
-          batch.flatMap((n) => [n.breachId, n.subjectId, n.status, n.addedAt, n.sentAt ?? null, n.channel ?? null]),
-        );
-        added += rows.length;
-      }
-      return added;
+      const values = (n: BreachNotice) => [n.breachId, n.subjectId, n.status, n.addedAt, n.sentAt ?? null, n.channel ?? null];
+      const rows = await insertMany(query, "dpdp_breach_notices", NOTICE_COLUMNS, list, values, " ON CONFLICT (breach_id, subject_id) DO NOTHING RETURNING 1 AS one");
+      return rows.length;
     },
     async markNotices(breachId, subjectIds, sentAt, channel) {
       let changed = 0;
@@ -376,6 +392,24 @@ export function castType(sqlType: string): string {
 }
 
 /**
+ * A column as the summary shows it. Timestamps come back as text, so a driver that shifts them by
+ * the server's time zone (Prisma's pg adapter) can't show a person the wrong time: `timestamptz` as
+ * UTC (`…Z`), `timestamp` as stored.
+ */
+function readable(column: string, sqlType: string | undefined): string {
+  const type = sqlType ? castType(sqlType).toLowerCase() : "";
+  if (type === "timestamptz" || type === "timestamp with time zone") return utc(column);
+  if (type === "timestamp" || type === "timestamp without time zone") return `to_char(${column}, 'YYYY-MM-DD"T"HH24:MI:SS.MS')`;
+  return column;
+}
+
+/** BigInt values (Prisma returns them for bigint columns) as numbers, or text when too big, so rows serialise to JSON. */
+const plainRow = (row: Record<string, unknown>) =>
+  Object.fromEntries(
+    Object.entries(row).map(([k, v]) => [k, typeof v === "bigint" ? (Number.isSafeInteger(Number(v)) ? Number(v) : v.toString()) : v]),
+  );
+
+/**
  * Data access for your own Postgres tables with plain SQL, for access summaries and erasure. Pass a
  * `schema` (from `prismaSchema()` or `drizzleSchema()`) when the data map uses names from code
  * (a `User` model, a `userId` property) rather than the database's (`users`, `user_id`); it also
@@ -405,8 +439,9 @@ export function postgresData(query: SqlQuery, options: { schema?: Schema } = {})
   return {
     async read(table, subjectColumn, subjectId, columns) {
       if (columns.length === 0) return [];
-      const select = columns.map((c) => `${col(table, c)} AS ${ident(c)}`).join(", ");
-      return query(`SELECT ${select} FROM ${from(table)} WHERE ${where(table, subjectColumn)}`, [subjectId]);
+      const select = columns.map((c) => `${readable(col(table, c), column(table, c)?.sqlType)} AS ${ident(c)}`).join(", ");
+      const rows = await query(`SELECT ${select} FROM ${from(table)} WHERE ${where(table, subjectColumn)}`, [subjectId]);
+      return rows.map(plainRow);
     },
     async eraseFields(table, subjectColumn, subjectId, columns, values: Readonly<Record<string, ErasedValue>> = {}) {
       if (columns.length === 0) return 0;

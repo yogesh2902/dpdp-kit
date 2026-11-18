@@ -31,6 +31,7 @@ model Member {
   nickname String
   tier     Tier    @default(GOLD)
   city     String?
+  joinedAt DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
 
   @@map("members")
 }
@@ -51,6 +52,7 @@ const config = defineConfig({
         nickname: { category: "identity", purposes: ["promo"], erase: "redact" },
         tier: { category: "behavioural", purposes: ["promo"], erase: { value: "BASIC" } },
         city: { category: "contact", purposes: ["account"] },
+        joinedAt: { category: "behavioural", purposes: ["account"] },
       },
     },
   },
@@ -108,7 +110,7 @@ describe.skipIf(!url)("real Prisma on a real Postgres server", () => {
     dpdp = createDpdp({ config, store: prismaStore(prisma), data: prismaData(prisma, { schema }), now: () => new Date(t) });
 
     await prisma.$queryRawUnsafe(
-      `INSERT INTO members (email_address, nickname, city) SELECT 'm' || i || '@example.com', 'nick' || i, 'Pune' FROM generate_series(1, 12) i`,
+      `INSERT INTO members (email_address, nickname, city, joined_at) SELECT 'm' || i || '@example.com', 'nick' || i, 'Pune', '2026-01-01T00:00:00Z' FROM generate_series(1, 12) i`,
     );
   }, 180_000);
   afterAll(async () => {
@@ -121,7 +123,8 @@ describe.skipIf(!url)("real Prisma on a real Postgres server", () => {
     await ddl.query(DPDP_DDL);
     await ddl.query("CREATE TYPE member_tier AS ENUM ('BASIC', 'GOLD')");
     await ddl.query(`CREATE TABLE members (id serial PRIMARY KEY, uid uuid NOT NULL UNIQUE DEFAULT gen_random_uuid(),
-      email_address varchar(120) NOT NULL, nickname text NOT NULL, tier member_tier NOT NULL DEFAULT 'GOLD', city text)`);
+      email_address varchar(120) NOT NULL, nickname text NOT NULL, tier member_tier NOT NULL DEFAULT 'GOLD', city text,
+      joined_at timestamptz(6) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
     await ddl.end();
     const diff = prismaCli(["migrate", "diff", "--from-config-datasource", "--to-schema", "schema.prisma", "--script"], ddlUrl);
     const dpdpChanges = diff.split("\n").filter((l) => /dpdp_/.test(l));
@@ -136,7 +139,10 @@ describe.skipIf(!url)("real Prisma on a real Postgres server", () => {
 
   it("shows a person's data, found by an integer id through model and field names", async () => {
     const summary = await dpdp.rights.summary("2");
-    expect(summary.data).toMatchObject([{ key: "members", rows: [{ email: "m2@example.com", nickname: "nick2", tier: "GOLD", city: "Pune" }] }]);
+    // joinedAt is exact: on this IST server Prisma's adapter alone would show it 5.5 hours off.
+    expect(summary.data).toMatchObject([
+      { key: "members", rows: [{ email: "m2@example.com", nickname: "nick2", tier: "GOLD", city: "Pune", joinedAt: "2026-01-01T00:00:00.000Z" }] },
+    ]);
   });
 
   it("erases into NOT NULL, UNIQUE and enum columns, each task once across racing runners", async () => {

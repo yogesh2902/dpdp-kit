@@ -136,6 +136,41 @@ describe("breach records (Section 8(6), Rule 7)", () => {
     expect(report.breaches![0]!.todo.length).toBeGreaterThan(0);
   });
 
+  it("keeps every change when several are made at once", async () => {
+    const { dpdp } = setup();
+    const { id } = await dpdp.breach.open(base);
+    await Promise.all([
+      dpdp.breach.boardNotified(id),
+      dpdp.breach.updateReport(id, { details: "Bucket public for 41 hours." }),
+      dpdp.breach.update(id, { consequences: "Unwanted calls." }),
+      dpdp.breach.updateReport(id, { facts: "A deploy script reset the policy." }),
+    ]);
+    const breach = (await dpdp.breach.get(id))!;
+    expect(breach.boardNotifiedAt).toBeDefined();
+    expect(breach.consequences).toBe("Unwanted calls.");
+    expect(breach.report).toEqual({ details: "Bucket public for 41 hours.", facts: "A deploy script reset the policy." });
+    expect(breach.history.map((h) => h.event).sort()).toEqual(["board notified", "opened", "report updated", "report updated", "updated"]);
+  });
+
+  it("can't change a closed breach in any way", async () => {
+    const { dpdp } = setup();
+    const { id } = await dpdp.breach.open(base);
+    await dpdp.breach.addAffected(id, ["u1"]);
+    await dpdp.breach.close(id);
+    for (const change of [
+      () => dpdp.breach.update(id, { measures: "x" }),
+      () => dpdp.breach.boardNotified(id),
+      () => dpdp.breach.updateReport(id, { details: "x" }),
+      () => dpdp.breach.reportSent(id),
+      () => dpdp.breach.markNotified(id, ["u1"]),
+      () => dpdp.breach.extend(id, { until: "2027-06-09T00:00:00Z", reference: "x" }),
+      () => dpdp.breach.close(id),
+    ]) {
+      await expect(change()).rejects.toMatchObject({ code: "breach-closed" });
+    }
+    expect((await dpdp.breach.get(id))!.history.map((h) => h.event)).toEqual(["opened", "closed"]);
+  });
+
   it("needs a store that keeps breaches", async () => {
     const { lastEvent, insert, events } = memoryStore();
     const store: ConsentStore = { lastEvent, insert, events };

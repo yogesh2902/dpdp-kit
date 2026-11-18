@@ -283,4 +283,27 @@ describe.each(backends)("breach records on Postgres (PGlite): $name", (backend) 
     expect((await dpdp.breach.get(first.id))!.report).toEqual({ details: "d" });
     expect((await dpdp.breach.list({ status: "open" })).map((b) => b.id)).toEqual([first.id]);
   });
+
+  it("keeps every change made at once, saving only over the version it read", async () => {
+    const { id } = await dpdp.breach.open({ description: "Concurrent" });
+    await Promise.all([
+      dpdp.breach.boardNotified(id),
+      dpdp.breach.updateReport(id, { details: "d" }),
+      dpdp.breach.updateReport(id, { facts: "f" }),
+      dpdp.breach.update(id, { measures: "m" }),
+    ]);
+    const breach = (await dpdp.breach.get(id))!;
+    expect(breach).toMatchObject({ measures: "m", report: { details: "d", facts: "f" } });
+    expect(breach.boardNotifiedAt).toBeDefined();
+    expect(breach.history).toHaveLength(5);
+  });
+
+  it("adds everyone a compromised account read, from the access log", async () => {
+    const ids = Array.from({ length: 1200 }, (_, i) => `r${i}`);
+    await dpdp.access.log({ actor: "support:ravi", subjectIds: ids, purpose: "account" });
+    await dpdp.access.log({ actor: "support:ravi", subjectIds: ids.slice(0, 10), purpose: "account" }); // read twice
+    const { id } = await dpdp.breach.open({ description: "Account takeover" });
+    expect(await dpdp.breach.addAffectedFromAccessLog(id, { actor: "support:ravi" })).toBe(1200);
+    expect(await dpdp.access.list({ actor: "support:ravi" })).toHaveLength(1210);
+  });
 });

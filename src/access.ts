@@ -50,6 +50,11 @@ export interface AccessLogStore {
   listAccess(filter: AccessFilter): Promise<AccessEntry[]>;
   /** Delete entries older than `before` (ISO 8601). Returns how many were deleted. */
   pruneAccess(before: string): Promise<number>;
+  /**
+   * The distinct people in entries matching the filter. Optional: without it, dpdp-kit reads the
+   * entries and collects them itself, which loads every entry into memory.
+   */
+  accessSubjects?(filter: Omit<AccessFilter, "limit">): Promise<string[]>;
 }
 
 export function isAccessLogStore(store: object): store is AccessLogStore {

@@ -4,7 +4,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DPDP_DDL } from "../src/drizzle.js";
 import { createDpdp, defineConfig, SeqConflictError } from "../src/index.js";
-import { castType, isUniqueViolation } from "../src/postgres.js";
+import { castType, isUniqueViolation, postgresData, postgresStore } from "../src/postgres.js";
 import { PRISMA_MODELS, prismaData, prismaSchema, prismaStore } from "../src/prisma.js";
 import { checkSchema } from "../src/schema-check.js";
 import { config } from "./fixtures/config.js";
@@ -177,6 +177,55 @@ describe("Prisma store and data access (PGlite)", () => {
   it("turns Prisma's wrapped unique violation into SeqConflictError", async () => {
     const [first] = await dpdp.consent.history("7");
     await expect(store.insert(first!)).rejects.toBeInstanceOf(SeqConflictError);
+  });
+});
+
+describe("plain SQL: batching and values (PGlite)", () => {
+  const client = new PGlite();
+  const statements: string[] = [];
+  const query = async (text: string, params: readonly unknown[]) => {
+    statements.push(text);
+    return (await client.query<Record<string, unknown>>(text, [...params])).rows;
+  };
+  beforeAll(async () => {
+    await client.exec(DPDP_DDL);
+    await client.exec(`SET TimeZone = 'Asia/Kolkata';
+      CREATE TABLE people (id text PRIMARY KEY, phone bigint, seen_at timestamptz, born timestamp);
+      INSERT INTO people VALUES ('p1', 9876543210, '2026-01-01T00:00:00Z', '1990-05-17 08:30:00');`);
+  });
+  afterAll(async () => {
+    await client.close();
+  });
+
+  it("writes many access entries in a few statements, not one per entry", async () => {
+    const dpdp = createDpdp({ config, store: postgresStore(query) });
+    statements.length = 0;
+    await dpdp.access.log({ actor: "crm", subjectIds: Array.from({ length: 2500 }, (_, i) => `s${i}`), purpose: "account" });
+    expect(statements.filter((s) => s.startsWith("INSERT INTO dpdp_access_log"))).toHaveLength(3);
+    expect(await dpdp.access.list({ actor: "crm" })).toHaveLength(2500);
+  });
+
+  it("returns BigInt values as numbers (or text when too big), and timestamps as text, whatever the time zone", async () => {
+    const schema = {
+      tables: [
+        {
+          name: "people",
+          columns: [
+            { name: "id", sqlType: "text" },
+            { name: "phone", sqlType: "bigint" },
+            { name: "seen_at", sqlType: "timestamptz" },
+            { name: "born", sqlType: "timestamp" },
+          ],
+        },
+      ],
+    };
+    const rows = await postgresData(query, { schema }).read("people", "id", "p1", ["phone", "seen_at", "born"]);
+    expect(rows).toEqual([{ phone: 9876543210, seen_at: "2026-01-01T00:00:00.000Z", born: "1990-05-17T08:30:00.000" }]);
+
+    const prismaLike = async () => [{ phone: 9876543210n, huge: 2n ** 70n }];
+    const fromPrisma = await postgresData(prismaLike).read("people", "id", "p1", ["phone", "huge"]);
+    expect(fromPrisma).toEqual([{ phone: 9876543210, huge: "1180591620717411303424" }]);
+    expect(() => JSON.stringify(fromPrisma)).not.toThrow();
   });
 });
 

@@ -57,7 +57,7 @@ export const dpdp = createDpdp({
 });
 ```
 
-- It runs parameterised SQL through `prisma.$queryRawUnsafe`, so it works with Prisma 5, 6 and 7, with or without a driver adapter. Postgres only.
+- It runs parameterised SQL through `prisma.$queryRawUnsafe`. Postgres only. Tested on Prisma 7 with `@prisma/adapter-pg`. Every parameter has an explicit cast, so earlier versions should work too, but they aren't tested.
 - The schema lets the data map use model and field names (`User`, `phoneNumber`) where the database has others (`users`, `phone_number`), and casts values to each column's type, so `Int` ids, `@db.Uuid` columns and enums work.
 - Inside a transaction, pass the transaction client: `createDpdp({ config, store: prismaStore(tx) })` within `prisma.$transaction(async (tx) => …)`. The consent record then commits or rolls back with your own writes.
 
@@ -110,7 +110,8 @@ Implement `DpdpStore`:
 - consent events: `lastEvent`, `insert`, `events`
 - requests and tasks: see `RequestStore` and `TaskStore`
 - the access log: `insertAccess`, `listAccess`, `pruneAccess` (see `AccessLogStore`)
-- breaches: see `BreachStore`
+- breaches: see `BreachStore`. `updateBreach` must save only over the version that was read (the stored history is one entry shorter) and return `false` otherwise, so changes made at once aren't lost.
+- optionally `accessSubjects`, the distinct people in matching access-log entries, so `addAffectedFromAccessLog` doesn't load every entry
 
 `insert` must throw `SeqConflictError` on a duplicate `(subjectId, seq)`, and `claimTask` must be atomic. A store with only the three consent methods still works for consent; rights and retention then throw `store-unsupported`.
 
