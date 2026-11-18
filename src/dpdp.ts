@@ -5,6 +5,7 @@ import {
   type AccessFilter,
   type AccessLogStore,
   type AccessReview,
+  accessId,
   DEFAULT_ACCESS_LOG_RETENTION,
   fieldsOutsidePurpose,
   isAccessLogStore,
@@ -29,7 +30,14 @@ import {
 } from "./records.js";
 import { type ProcessorHooks, type RunReport, runDueTasks, tasksFromPlan } from "./retention.js";
 import { type AccessSummary, buildAccessSummary, dueAt } from "./rights.js";
-import { type ConsentAction, type ConsentEvent, type ConsentStore, type DpdpStore, isDpdpStore } from "./store.js";
+import {
+  type ConsentAction,
+  type ConsentEvent,
+  type ConsentStore,
+  type DpdpStore,
+  grantedPurposes,
+  isDpdpStore,
+} from "./store.js";
 
 export interface ConsentMeta {
   noticeVersion?: string;
@@ -151,7 +159,14 @@ export interface Dpdp<P extends string> {
      * than `maxSubjects` people (default 100) within `window` (default `"1h"`). Reviews the last day
      * unless `from` / `to` are given. Run it daily.
      */
-    review(input?: { from?: string; to?: string; window?: Duration; maxSubjects?: number }): Promise<AccessReview>;
+    review(input?: {
+      from?: string;
+      to?: string;
+      window?: Duration;
+      maxSubjects?: number;
+      /** Actors exempt from bulk-access findings, e.g. a nightly export job that reaches everyone. */
+      ignoreActors?: readonly string[];
+    }): Promise<AccessReview>;
     /**
      * Delete entries older than `config.security.accessLogRetention` (default and minimum one year,
      * Rule 6(1)(e)). Run it with the retention runner.
@@ -199,17 +214,6 @@ export function hashEvent(event: HashedFields): string {
   );
 }
 
-/** Purposes whose latest event is a grant. */
-function grantedFrom(events: readonly ConsentEvent[]): Set<string> {
-  const granted = new Set<string>();
-  for (const e of events) {
-    for (const p of e.purposes) {
-      if (e.action === "grant") granted.add(p);
-      else granted.delete(p);
-    }
-  }
-  return granted;
-}
 
 /**
  * Create the runtime. Throws `DpdpError("invalid-config")` if `audit()` finds errors, so a broken
@@ -292,7 +296,7 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
 
   async function activeFor(subjectId: string): Promise<P[]> {
     checkSubject(subjectId);
-    return [...grantedFrom(await store.events(subjectId))] as P[];
+    return [...grantedPurposes(await store.events(subjectId))] as P[];
   }
 
   const nowIso = () => now().toISOString();
@@ -388,7 +392,7 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
         const def = purposes[purpose];
         if (!def) throw new DpdpError("unknown-purpose", `Unknown purpose ${JSON.stringify(purpose)}`);
         if (def.basis === "legitimate-use") return true;
-        return grantedFrom(await store.events(subjectId)).has(purpose);
+        return grantedPurposes(await store.events(subjectId)).has(purpose);
       },
 
       active: activeFor,
@@ -485,7 +489,7 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
         const outside = fieldsOutsidePurpose(config, fields, input.purpose);
         const at = nowIso();
         const entries: AccessEntry[] = [...new Set(subjects)].map((subjectId) => ({
-          id: randomUUID(),
+          id: accessId(at),
           at,
           actor: input.actor,
           subjectId,
@@ -521,6 +525,7 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
           history: (subjectId) => store.events(subjectId),
           window: input.window ?? "1h",
           maxSubjects: input.maxSubjects ?? 100,
+          ignoreActors: input.ignoreActors ?? [],
         });
       },
 

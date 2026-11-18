@@ -1,6 +1,7 @@
+import { randomBytes } from "node:crypto";
 import type { DpdpConfig } from "./config.js";
 import { type Duration, durationMs } from "./duration.js";
-import type { ConsentEvent } from "./store.js";
+import { type ConsentEvent, grantedPurposes } from "./store.js";
 
 /** What was done with the data. Free text is allowed; these are the common ones. */
 export type AccessAction = "read" | "export" | "update" | "delete" | "search" | (string & {});
@@ -54,6 +55,17 @@ export interface AccessLogStore {
 export function isAccessLogStore(store: object): store is AccessLogStore {
   const s = store as Partial<AccessLogStore>;
   return typeof s.insertAccess === "function" && typeof s.listAccess === "function" && typeof s.pruneAccess === "function";
+}
+
+let sequence = 0;
+
+/**
+ * An id that sorts in the order entries were written: the time, then a per-process counter for
+ * entries in the same millisecond, then random bits so ids from different servers never collide.
+ */
+export function accessId(at: string): string {
+  sequence = (sequence + 1) % 36 ** 4;
+  return `${Date.parse(at).toString(36).padStart(9, "0")}-${sequence.toString(36).padStart(4, "0")}-${randomBytes(6).toString("hex")}`;
 }
 
 /** Default and minimum time to keep the access log (Rule 6(1)(e)). */
@@ -125,16 +137,17 @@ export interface ReviewInput {
   window: Duration;
   /** More distinct people than this within one window is reported as bulk access. */
   maxSubjects: number;
+  /** Actors exempt from bulk-access findings (batch jobs). */
+  ignoreActors?: readonly string[];
 }
 
-/** Whether the person had granted `purpose` at time `at`, according to their consent history. */
-function grantedAt(events: readonly ConsentEvent[], purpose: string, at: string): boolean {
-  let granted = false;
-  for (const e of events) {
-    if (e.at > at) break;
-    if (e.purposes.includes(purpose)) granted = e.action === "grant";
-  }
-  return granted;
+/** Run `fn` over `items`, at most `limit` at a time. */
+async function eachLimited<T>(items: readonly T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) await fn(items[next++]!);
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }
 
 /**
@@ -160,15 +173,14 @@ export async function reviewAccess(input: ReviewInput): Promise<AccessReview> {
   }
 
   const consentPurposes = new Set(Object.keys(config.purposes).filter((p) => config.purposes[p]?.basis === "consent"));
+  const needConsent = entries.filter((e) => consentPurposes.has(e.purpose));
   const histories = new Map<string, readonly ConsentEvent[]>();
-  for (const e of entries) {
-    if (!consentPurposes.has(e.purpose)) continue;
-    let events = histories.get(e.subjectId);
-    if (!events) {
-      events = await input.history(e.subjectId);
-      histories.set(e.subjectId, events);
-    }
-    if (!grantedAt(events, e.purpose, e.at)) {
+  // Load each person's consent history once, a few at a time rather than one after another.
+  await eachLimited([...new Set(needConsent.map((e) => e.subjectId))], 16, async (subjectId) => {
+    histories.set(subjectId, await input.history(subjectId));
+  });
+  for (const e of needConsent) {
+    if (!grantedPurposes(histories.get(e.subjectId) ?? [], e.at).has(e.purpose)) {
       findings.push({
         kind: "no-consent",
         actor: e.actor,
@@ -181,8 +193,10 @@ export async function reviewAccess(input: ReviewInput): Promise<AccessReview> {
   }
 
   const windowMs = durationMs(input.window);
+  const ignored = new Set(input.ignoreActors ?? []);
   const byActor = new Map<string, AccessEntry[]>();
   for (const e of entries) {
+    if (ignored.has(e.actor)) continue;
     const list = byActor.get(e.actor);
     if (list) list.push(e);
     else byActor.set(e.actor, [e]);

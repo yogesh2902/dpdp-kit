@@ -140,6 +140,9 @@ describe("access review", () => {
     expect(findings).toEqual([expect.objectContaining({ kind: "bulk-access", actor: "intern", subjects: 12 })]);
     expect(findings[0]!.entries).toHaveLength(12);
 
+    const exempt = await dpdp.access.review({ maxSubjects: 10, ignoreActors: ["intern"] });
+    expect(exempt.findings).toEqual([]); // e.g. a nightly export job
+
     const narrow = await dpdp.access.review({ maxSubjects: 10, from: "2027-06-01T10:05:00.000Z" });
     expect(narrow.findings).toEqual([]); // only 7 people after 10:05
   });

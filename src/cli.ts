@@ -24,7 +24,7 @@ Options:
 const [command, ...rest] = process.argv.slice(2);
 
 const commands: Record<string, typeof runAudit> = { audit: runAudit, safeguards: runSafeguards };
-const run = command ? commands[command] : undefined;
+const run = command !== undefined && Object.hasOwn(commands, command) ? commands[command] : undefined;
 
 if (run) {
   run(rest, process.cwd(), (line) => console.log(line)).then(

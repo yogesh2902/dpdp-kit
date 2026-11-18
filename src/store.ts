@@ -154,3 +154,19 @@ export function memoryStore(): DpdpStore &
     },
   };
 }
+
+/**
+ * Purposes whose latest event is a grant: the person's consent state. Pass `until` (ISO 8601) for
+ * the state at that moment, counting only events at or before it.
+ */
+export function grantedPurposes(events: readonly ConsentEvent[], until?: string): Set<string> {
+  const granted = new Set<string>();
+  for (const e of events) {
+    if (until !== undefined && e.at > until) break;
+    for (const p of e.purposes) {
+      if (e.action === "grant") granted.add(p);
+      else granted.delete(p);
+    }
+  }
+  return granted;
+}

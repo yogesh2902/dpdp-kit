@@ -178,11 +178,16 @@ describe("access log on Postgres (PGlite)", () => {
     ]);
   });
 
+  it("keeps entries written in the same millisecond in the order they were written", async () => {
+    for (const actor of ["a", "b", "c", "d", "e"]) await dpdp.access.log({ actor, subjectId: "same-ms", purpose: "account" });
+    expect((await dpdp.access.list({ subjectId: "same-ms" })).map((e) => e.actor)).toEqual(["a", "b", "c", "d", "e"]);
+  });
+
   it("prunes only entries older than a year", async () => {
     t = Date.parse("2027-01-01T09:00:30.000Z"); // the entries were logged at 09:01, so not quite a year ago
     expect((await dpdp.access.prune()).deleted).toBe(0);
     t = Date.parse("2027-01-02T09:00:00.000Z");
-    expect((await dpdp.access.prune()).deleted).toBe(3);
+    expect((await dpdp.access.prune()).deleted).toBe(8);
     expect(await dpdp.access.list()).toEqual([]);
   });
 });

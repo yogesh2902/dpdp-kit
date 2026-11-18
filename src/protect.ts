@@ -18,11 +18,15 @@ export function generateKey(): string {
   return randomBytes(KEY_BYTES).toString("base64url");
 }
 
-function toKey(input: KeyInput, label: string): Buffer {
+/** Decode a key given as base64 or base64url text, or bytes. `exact` requires exactly 32 bytes, otherwise at least 32. */
+function toKey(input: KeyInput, label: string, exact = true): Buffer {
   // Node's base64 decoder accepts both the standard and the URL-safe alphabet.
   const key = typeof input === "string" ? Buffer.from(input, "base64") : Buffer.from(input);
-  if (key.length !== KEY_BYTES) {
-    throw new DpdpError("invalid-key", `${label} must be ${KEY_BYTES} bytes (base64 or base64url text, or bytes); got ${key.length}`);
+  if (exact ? key.length !== KEY_BYTES : key.length < KEY_BYTES) {
+    throw new DpdpError(
+      "invalid-key",
+      `${label} must be ${exact ? "" : "at least "}${KEY_BYTES} bytes (base64 or base64url text, or bytes); got ${key.length}`,
+    );
   }
   return key;
 }
@@ -132,8 +136,7 @@ export interface Tokenizer {
 
 /** Virtual tokens mapped to personal data, for lookups without storing the value in the clear. */
 export function createTokenizer(options: TokenizerOptions): Tokenizer {
-  const key = typeof options.key === "string" ? Buffer.from(options.key, "base64") : Buffer.from(options.key);
-  if (key.length < KEY_BYTES) throw new DpdpError("invalid-key", `Tokenizer key must be at least ${KEY_BYTES} bytes; got ${key.length}`);
+  const key = toKey(options.key, "Tokenizer key", false);
   const normalize = options.normalize ?? ((v: string) => v.trim());
   return {
     token(value) {

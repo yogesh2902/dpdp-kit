@@ -350,8 +350,19 @@ export function drizzleStore(db: AnyPgDatabase): DpdpStore & AccessLogStore {
       return rows.map(accessFromRow);
     },
     async pruneAccess(before) {
-      const deleted = await db.delete(accessLog).where(lt(accessLog.at, new Date(before))).returning({ id: accessLog.id });
-      return deleted.length;
+      // Delete in batches, so the first prune of a big table neither holds a long lock nor sends
+      // every deleted id back to Node.
+      const batch = 5000;
+      let total = 0;
+      for (;;) {
+        const ids = db.select({ id: accessLog.id }).from(accessLog).where(lt(accessLog.at, new Date(before))).limit(batch);
+        const deleted = await db
+          .delete(accessLog)
+          .where(sql`${accessLog.id} IN (${ids})`)
+          .returning({ one: sql<number>`1` });
+        total += deleted.length;
+        if (deleted.length < batch) return total;
+      }
     },
 
     async lastEvent(subjectId) {

@@ -87,9 +87,17 @@ const flagValue = (argv: readonly string[], flag: string) => {
   return i >= 0 ? argv[i + 1] : undefined;
 };
 
+/** The config file from `--config` or the default names, or undefined after logging why not. */
+function configFile(argv: readonly string[], cwd: string, log: (line: string) => void): string | undefined {
+  const explicit = flagValue(argv, "--config");
+  const file = findConfig(cwd, explicit);
+  if (file && existsSync(file)) return file;
+  log(explicit ? `Config file not found: ${explicit}` : `No config found. Create one of: ${CONFIG_FILES.join(", ")}`);
+  return undefined;
+}
+
 /** Run `dpdp-kit audit`. Returns the exit code: 1 when there are errors (or `--strict` and warnings). */
 export async function runAudit(argv: readonly string[], cwd: string, log: (line: string) => void): Promise<number> {
-  const explicit = flagValue(argv, "--config");
   const schemaFlag = flagValue(argv, "--schema");
   const strict = argv.includes("--strict");
   const format = flagValue(argv, "--format") ?? "text";
@@ -97,11 +105,8 @@ export async function runAudit(argv: readonly string[], cwd: string, log: (line:
     log(`Unknown --format ${JSON.stringify(format)}. Use "text" or "github".`);
     return 1;
   }
-  const file = findConfig(cwd, explicit);
-  if (!file || !existsSync(file)) {
-    log(explicit ? `Config file not found: ${explicit}` : `No config found. Create one of: ${CONFIG_FILES.join(", ")}`);
-    return 1;
-  }
+  const file = configFile(argv, cwd, log);
+  if (!file) return 1;
   const schemaFile = schemaFlag ? resolve(cwd, schemaFlag) : undefined;
   if (schemaFile && !existsSync(schemaFile)) {
     log(`Schema file not found: ${schemaFlag}`);
@@ -123,12 +128,8 @@ export async function runAudit(argv: readonly string[], cwd: string, log: (line:
  * when a safeguard is missing or partly recorded.
  */
 export async function runSafeguards(argv: readonly string[], cwd: string, log: (line: string) => void): Promise<number> {
-  const explicit = flagValue(argv, "--config");
-  const file = findConfig(cwd, explicit);
-  if (!file || !existsSync(file)) {
-    log(explicit ? `Config file not found: ${explicit}` : `No config found. Create one of: ${CONFIG_FILES.join(", ")}`);
-    return 1;
-  }
+  const file = configFile(argv, cwd, log);
+  if (!file) return 1;
   const report = safeguardsReport(await loadConfig(file));
   log(formatSafeguards(report));
   const gaps = report.some((s) => s.status === "missing" || s.status === "partly");
