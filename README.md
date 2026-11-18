@@ -358,6 +358,19 @@ sendPromo() {}
 
 Without consent, the middleware responds `403 { error: "consent_required", purpose, message }`. The message is plain enough to show to people. Pass `onDenied` to send your own response; in NestJS, return the exception to throw, e.g. `(purpose) => new ForbiddenException(CONSENT_REQUIRED_BODY(purpose))`. Access logging works the same way in every framework: `logAccess` for Express, Hono and Fastify, `accessLogGuard` for NestJS.
 
+## 8. Events
+
+Listen for changes to feed your own audit trail, alerts or analytics:
+
+```ts
+const off = dpdp.on("consent.withdrawn", ({ event }) => analytics.forget(event.subjectId, event.purposes));
+dpdp.on("access.logged", ({ entries }) => {
+  if (entries.some((e) => e.outOfPurpose)) slack.alert("Out-of-purpose read", entries);
+});
+```
+
+Events: `consent.granted`, `consent.withdrawn`, `erasure.scheduled`, `retention.ran`, `rights.opened`, `rights.closed`, `access.logged`. Listeners run after the change is saved and after the call returns, and a listener that throws can't break it: errors go to `onListenerError` (default `console.error`). For work that must happen exactly once, like telling a vendor to erase, use processor hooks and the retention runner instead.
+
 ## Storage
 
 ### Drizzle (Postgres)

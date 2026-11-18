@@ -80,6 +80,20 @@ export interface AccessOptions {
   outOfPurpose?: "record" | "throw";
 }
 
+/** What each event carries. Events fire after the change is saved. */
+export interface DpdpEvents {
+  "consent.granted": { event: ConsentEvent };
+  "consent.withdrawn": { event: ConsentEvent; erasure: ErasurePlan; tasks: ErasureTask[] };
+  "erasure.scheduled": { plan: ErasurePlan; tasks: ErasureTask[] };
+  "retention.ran": { report: RunReport };
+  "rights.opened": { request: RightsRequest };
+  "rights.closed": { request: RightsRequest };
+  "access.logged": { entries: AccessEntry[] };
+}
+
+export type DpdpEventName = keyof DpdpEvents;
+export type DpdpListener<E extends DpdpEventName> = (payload: DpdpEvents[E]) => void | Promise<void>;
+
 export interface DpdpOptions<P extends string> {
   config: DpdpConfig<P>;
   /** `memoryStore()`, `drizzleStore(db)`, or your own. Rights and retention need a full `DpdpStore`. */
@@ -97,10 +111,25 @@ export interface DpdpOptions<P extends string> {
   maxRetries?: number;
   /** Access log behaviour. See `AccessOptions`. */
   access?: AccessOptions;
+  /**
+   * Called when an event listener throws or rejects. Listeners never break the operation that
+   * fired them. Default: `console.error`.
+   */
+  onListenerError?: (error: unknown, event: DpdpEventName) => void;
 }
 
 export interface Dpdp<P extends string> {
   readonly config: DpdpConfig<P>;
+  /**
+   * Listen for an event, e.g. to feed your own audit trail, alerts or analytics. Listeners run after
+   * the change is saved, don't delay the call that fired them, and can't make it fail. Returns a
+   * function that removes the listener.
+   *
+   * ```ts
+   * dpdp.on("consent.withdrawn", ({ event }) => analytics.forget(event.subjectId, event.purposes));
+   * ```
+   */
+  on<E extends DpdpEventName>(event: E, listener: DpdpListener<E>): () => void;
   readonly consent: {
     /** Record that the person agreed to these consent purposes. */
     grant(subjectId: string, purposes: readonly P[], meta?: ConsentMeta): Promise<ConsentEvent>;
@@ -321,8 +350,27 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
 
   async function schedule(plan: ErasurePlan): Promise<ErasureTask[]> {
     const tasks = tasksFromPlan(config, plan, nowIso());
-    if (tasks.length > 0) await fullStore("Scheduling erasure").insertTasks(tasks);
+    if (tasks.length > 0) {
+      await fullStore("Scheduling erasure").insertTasks(tasks);
+      emit("erasure.scheduled", { plan, tasks });
+    }
     return tasks;
+  }
+
+  const listeners = new Map<DpdpEventName, Set<DpdpListener<any>>>();
+  const onListenerError = options.onListenerError ?? ((err: unknown, event: DpdpEventName) => console.error(`dpdp-kit: a "${event}" listener failed`, err));
+
+  function emit<E extends DpdpEventName>(event: E, payload: DpdpEvents[E]): void {
+    for (const listener of listeners.get(event) ?? []) {
+      // Run after the current call returns, and never let a listener's error reach the caller.
+      setImmediate(() => {
+        try {
+          Promise.resolve(listener(payload)).catch((err: unknown) => onListenerError(err, event));
+        } catch (err) {
+          onListenerError(err, event);
+        }
+      });
+    }
   }
 
   function accessStore(): AccessLogStore {
@@ -354,6 +402,7 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
       history: [...request.history, { at, status, ...(note !== undefined ? { note } : {}) }],
     };
     await fullStore("Rights requests").updateRequest(closed);
+    emit("rights.closed", { request: closed });
     return closed;
   }
 
@@ -371,8 +420,22 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
 
   return {
     config,
+
+    on(event, listener) {
+      let set = listeners.get(event);
+      if (!set) listeners.set(event, (set = new Set()));
+      set.add(listener);
+      return () => {
+        set.delete(listener);
+      };
+    },
+
     consent: {
-      grant: (subjectId, list, meta) => append(subjectId, "grant", list, meta),
+      async grant(subjectId, list, meta) {
+        const event = await append(subjectId, "grant", list, meta);
+        emit("consent.granted", { event });
+        return event;
+      },
 
       async withdraw(subjectId, list, meta) {
         const event = await append(subjectId, "withdraw", list, meta);
@@ -384,6 +447,7 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
           remaining: [...legitimate, ...stillGranted],
         });
         const tasks = isDpdpStore(store) ? await schedule(erasure) : [];
+        emit("consent.withdrawn", { event, erasure, tasks });
         return { event, erasure, tasks };
       },
 
@@ -440,7 +504,7 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
 
     retention: {
       async run(input = {}) {
-        return runDueTasks({
+        const report = await runDueTasks({
           config,
           store: fullStore("The retention runner"),
           data: options.data,
@@ -448,6 +512,8 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
           now: nowIso(),
           limit: input.limit ?? 500,
         });
+        emit("retention.ran", { report });
+        return report;
       },
 
       async tasks(filter = {}) {
@@ -501,6 +567,7 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
           ...(input.evidence !== undefined ? { evidence: { ...input.evidence } } : {}),
         }));
         await log.insertAccess(entries);
+        emit("access.logged", { entries });
         if (outside.length > 0 && options.access?.outOfPurpose === "throw") {
           throw new DpdpError(
             "out-of-purpose",
@@ -555,6 +622,7 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
           history: [{ at: openedAt, status: "open" }],
         };
         await fullStore("Rights requests").insertRequest(request);
+        emit("rights.opened", { request });
         return request;
       },
 
