@@ -1,4 +1,5 @@
 import type { Dpdp } from "./dpdp.js";
+import { DpdpError } from "./errors.js";
 import { type AccessLogOptions, checkConsent, type GuardOptions, recordAccess } from "./guard.js";
 
 /**
@@ -14,7 +15,26 @@ export interface CanActivateLike {
   canActivate(context: ExecutionContextLike): Promise<boolean>;
 }
 
-export interface NestGuardOptions<Req> extends GuardOptions<Req> {
+interface RequestOption<Req> {
+  /**
+   * Where to find the request. Default: `context.switchToHttp().getRequest()`, for HTTP routes. For
+   * GraphQL, pass e.g. `(ctx) => GqlExecutionContext.create(ctx).getContext().req`.
+   */
+  request?: (context: ExecutionContextLike) => Req | undefined;
+}
+
+function requestOf<Req>(context: ExecutionContextLike, options: RequestOption<Req>, guard: string): Req {
+  const request = options.request ? options.request(context) : context.switchToHttp().getRequest<Req>();
+  if (request === undefined || request === null) {
+    throw new DpdpError(
+      "invalid-input",
+      `${guard} found no request. It reads HTTP requests by default; for GraphQL or other contexts, pass request: (context) => ….`,
+    );
+  }
+  return request;
+}
+
+export interface NestGuardOptions<Req> extends GuardOptions<Req>, RequestOption<Req> {
   /**
    * Throw your own exception when consent is missing, for example
    * `(purpose) => new ForbiddenException(CONSENT_REQUIRED_BODY(purpose))`. Default: the guard
@@ -41,7 +61,7 @@ export interface NestGuardOptions<Req> extends GuardOptions<Req> {
 export function consentGuard<P extends string, Req = any>(dpdp: Dpdp<P>, purpose: P, options: NestGuardOptions<Req>): CanActivateLike {
   return {
     async canActivate(context) {
-      const request = context.switchToHttp().getRequest<Req>();
+      const request = requestOf(context, options, "consentGuard");
       if (await checkConsent(dpdp, purpose, options, request)) return true;
       if (options.onDenied) throw options.onDenied(purpose, request);
       return false;
@@ -66,10 +86,13 @@ export function consentGuard<P extends string, Req = any>(dpdp: Dpdp<P>, purpose
  * getUser() { … }
  * ```
  */
-export function accessLogGuard<P extends string, Req = any>(dpdp: Dpdp<P>, options: AccessLogOptions<Req, P>): CanActivateLike {
+export function accessLogGuard<P extends string, Req = any>(
+  dpdp: Dpdp<P>,
+  options: AccessLogOptions<Req, P> & RequestOption<Req>,
+): CanActivateLike {
   return {
     async canActivate(context) {
-      await recordAccess(dpdp, options, context.switchToHttp().getRequest<Req>());
+      await recordAccess(dpdp, options, requestOf(context, options, "accessLogGuard"));
       return true;
     },
   };

@@ -74,7 +74,7 @@ describe("startDaily", () => {
     const dpdp = createDpdp({ config, store: memoryStore() });
     let release!: () => void;
     const slow = vi.spyOn(dpdp, "daily").mockImplementationOnce(
-      () => new Promise((resolve) => (release = () => resolve({ at: "x", skipped: [] }))),
+      () => new Promise((resolve) => (release = () => resolve({ at: "x", skipped: [], errors: [] }))),
     );
     const errors: unknown[] = [];
     const schedule = startDaily(dpdp, { onError: (e) => errors.push(e) });
@@ -82,7 +82,7 @@ describe("startDaily", () => {
     const first = schedule.runNow();
     expect(await schedule.runNow()).toBeUndefined(); // already running
     release();
-    expect(await first).toEqual({ at: "x", skipped: [] });
+    expect(await first).toEqual({ at: "x", skipped: [], errors: [] });
 
     slow.mockRejectedValueOnce(new Error("db down"));
     expect(await schedule.runNow()).toBeUndefined();
@@ -95,5 +95,44 @@ describe("startDaily", () => {
     const dpdp = createDpdp({ config, store: memoryStore() });
     expect(() => startDaily(dpdp, { at: "3am" })).toThrow(expect.objectContaining({ code: "invalid-input" }));
     expect(() => startDaily(dpdp, { at: "24:00" })).toThrow();
+  });
+});
+
+describe("daily() and startDaily() after the pre-publish review", () => {
+  it("keeps going when one step fails, and reports it", async () => {
+    let t = Date.parse("2026-01-01T00:00:00.000Z");
+    const store = memoryStore();
+    const data = memoryData({ users: [{ id: "u1", phone: "98xxxxxx01", name: "Asha", interests: "cricket" }] });
+    const dpdp = createDpdp({ config, store, data, now: () => new Date(t) });
+    await dpdp.consent.grant("u1", ["marketing_sms"]);
+    await dpdp.consent.withdraw("u1", ["marketing_sms"]);
+    t += 400 * DAY;
+    vi.spyOn(store, "pruneAccess").mockRejectedValue(new Error('relation "dpdp_access_log" does not exist'));
+
+    const report = await dpdp.daily();
+    expect(report.retention!.done.length).toBeGreaterThan(0); // erasure still ran
+    expect(report.review).toBeDefined(); // and so did the review
+    expect(report.errors.map((e) => `${e.step}: ${e.message}`)).toEqual(['access-prune: relation "dpdp_access_log" does not exist']);
+  });
+
+  it("startDaily reports failed steps to onError, and starts the next review where the last one ended", async () => {
+    let t = Date.parse("2026-06-01T03:00:00.000Z");
+    const store = memoryStore();
+    const dpdp = createDpdp({ config, store, now: () => new Date(t) });
+    const daily = vi.spyOn(dpdp, "daily");
+    const errors: unknown[] = [];
+    const schedule = startDaily(dpdp, { onError: (e) => errors.push(e), now: () => new Date(t) });
+
+    const first = await schedule.runNow();
+    expect(daily).toHaveBeenLastCalledWith({});
+    t += 2 * DAY; // a night was missed
+    await schedule.runNow();
+    expect(daily).toHaveBeenLastCalledWith({ review: { from: first!.review!.to } });
+
+    vi.spyOn(store, "listAccess").mockRejectedValueOnce(new Error("timeout"));
+    const failed = await schedule.runNow();
+    expect(failed!.errors.map((e) => e.step)).toEqual(["access-review"]);
+    expect(errors).toEqual([new Error("timeout")]);
+    schedule.stop();
   });
 });

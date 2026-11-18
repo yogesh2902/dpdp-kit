@@ -146,3 +146,25 @@ describe("erase values in memory", () => {
     expect(data.tables.t).toEqual([{ id: "a", x: "[erased]", y: false, z: 0, w: null }]);
   });
 });
+
+describe("erase functions are checked when they run", () => {
+  it("fails the task with a clear message when the function returns nothing", async () => {
+    let t = Date.parse("2026-01-01T00:00:00.000Z");
+    const users = config.data.users!;
+    const broken = {
+      ...config,
+      data: {
+        ...config.data,
+        users: { ...users, fields: { ...users.fields, interests: { ...users.fields.interests!, erase: { value: () => undefined as unknown as string } } } },
+      },
+    } as typeof config;
+    const data = memoryData({ users: [{ id: "u1", phone: "1", name: "A", interests: "x" }] });
+    const dpdp = createDpdp({ config: broken, store: memoryStore(), data, now: () => new Date(t) });
+    await dpdp.consent.grant("u1", ["marketing_sms", "analytics"]);
+    await dpdp.consent.withdraw("u1", ["marketing_sms", "analytics"]);
+    t += 400 * DAY;
+    const report = await dpdp.retention.run();
+    expect(report.failed.map((f) => f.lastError)).toEqual([expect.stringContaining("does the function return?")]);
+    expect(data.tables.users![0]!.interests).toBe("x");
+  });
+});

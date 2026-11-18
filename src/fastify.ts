@@ -4,10 +4,12 @@ import { type AccessLogOptions, CONSENT_REQUIRED_BODY, checkConsent, type GuardO
 /** The parts of Fastify's reply these hooks use. */
 interface ReplyLike {
   code(statusCode: number): { send(payload: unknown): unknown };
+  /** Whether a reply has been sent (Fastify sets it). */
+  readonly sent?: boolean;
 }
 
 export interface FastifyGuardOptions<Req, Reply> extends GuardOptions<Req> {
-  /** Send your own reply when consent is missing. Default: 403 with a JSON body. */
+  /** Send your own reply when consent is missing. Default (and if it sends nothing): 403 with a JSON body. */
   onDenied?: (request: Req, reply: Reply, purpose: string) => unknown;
 }
 
@@ -27,7 +29,8 @@ export function requireConsent<P extends string, Req = any, Reply = any>(
   return async (request: Req, reply: ReplyLike): Promise<unknown> => {
     if (await checkConsent(dpdp, purpose, options, request)) return undefined;
     if (options.onDenied) await options.onDenied(request, reply as Reply, purpose);
-    else reply.code(403).send(CONSENT_REQUIRED_BODY(purpose));
+    // Without a reply the request would hang, so fall back to the default 403.
+    if (!reply.sent) reply.code(403).send(CONSENT_REQUIRED_BODY(purpose));
     return reply;
   };
 }

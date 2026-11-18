@@ -1,11 +1,15 @@
 import type { Issue } from "./audit.js";
-import type { DpdpConfig } from "./config.js";
+import { type DpdpConfig, type EraseWith, REDACTED } from "./config.js";
 import { guessPersonal, type PersonalGuess } from "./personal.js";
 
 /** A column as your ORM sees it: its database name, and the property name in code if different. */
 export interface SchemaColumn {
   name: string;
   key?: string;
+  /** The column rejects NULL. Used to check each field's `erase` setting. */
+  notNull?: boolean;
+  /** Kind of value the column holds, when known. Used to check each field's `erase` setting. */
+  type?: "string" | "number" | "boolean" | "other";
 }
 
 export interface SchemaTable {
@@ -49,6 +53,35 @@ function strongest(a: PersonalGuess | undefined, b: PersonalGuess | undefined) {
  *   warnings), so a new `phone` column can't ship without a purpose;
  * - data map entries whose table or column no longer exists, so the map can't go stale.
  */
+/**
+ * An erase setting that the column can't take fails only when the task runs, which is often a year
+ * after the withdrawal (Rule 8(3)). Catch it now, from the schema.
+ */
+function checkEraseAgainstColumn(erase: EraseWith | undefined, column: SchemaColumn, path: string, where: string, issues: Issue[]) {
+  const fixed = erase === undefined || erase === "null" ? null : erase === "redact" ? REDACTED : typeof erase.value === "function" ? undefined : erase.value;
+  if (fixed === undefined) return; // a function: checked when it runs
+  if (fixed === null) {
+    if (column.notNull) {
+      issues.push({
+        level: "error",
+        code: "erase-not-null",
+        path,
+        message: `${where} is NOT NULL, so erasing it to NULL will fail. Set erase: "redact" for text, or erase: { value: … } with something the column accepts.`,
+      });
+    }
+    return;
+  }
+  const kind = typeof fixed as "string" | "number" | "boolean";
+  if (column.type && column.type !== "other" && column.type !== kind) {
+    issues.push({
+      level: "error",
+      code: "erase-type-mismatch",
+      path,
+      message: `${where} holds ${column.type} values, but erase writes a ${kind} (${JSON.stringify(fixed)}). Use erase: { value: … } with a ${column.type}.`,
+    });
+  }
+}
+
 export function checkSchema(config: DpdpConfig<string>, schema: Schema): Issue[] {
   const issues: Issue[] = [];
   const byName = new Map<string, SchemaTable>();
@@ -78,10 +111,12 @@ export function checkSchema(config: DpdpConfig<string>, schema: Schema): Issue[]
         message: `Column "${def.subject}" isn't in table "${table.name}". The subject column must exist to find a person's rows.`,
       });
     }
-    for (const field of Object.keys(def.fields ?? {})) {
+    for (const [field, fieldDef] of Object.entries(def.fields ?? {})) {
       const column = table.columns.find((c) => matches(c, field));
-      if (column) list.push(column);
-      else {
+      if (column) {
+        list.push(column);
+        checkEraseAgainstColumn(fieldDef.erase, column, `data.${key}.fields.${field}.erase`, `${table.name}.${column.name}`, issues);
+      } else {
         issues.push({
           level: "error",
           code: "unknown-column",

@@ -42,7 +42,7 @@ describe("checkSchema with Drizzle", () => {
     expect(schema.tables.map((t) => t.name).sort()).toEqual(
       ["analytics_events", "dpdp_consent_events", "orders", "products", "users"].sort(),
     );
-    expect(schema.tables.find((t) => t.name === "orders")?.columns).toContainEqual({ name: "user_id", key: "userId" });
+    expect(schema.tables.find((t) => t.name === "orders")?.columns).toContainEqual(expect.objectContaining({ name: "user_id", key: "userId", type: "string" }));
   });
 
   it("passes when the data map matches the schema", () => {
@@ -117,5 +117,46 @@ describe("checkSchema rules", () => {
   it("audit rejects a malformed notPersonal entry", () => {
     const cfg = { ...config, notPersonal: ["products"] };
     expect(audit(cfg).map((i) => i.code)).toEqual(["invalid-not-personal"]);
+  });
+});
+
+describe("checkSchema: erase settings against the columns", () => {
+  it("catches erasures the column can't take, before they fail a year later", async () => {
+    const { pgTable, text, integer, boolean } = await import("drizzle-orm/pg-core");
+    const members = pgTable("members", {
+      id: text("id").primaryKey(),
+      email: text("email").notNull(),
+      nickname: text("nickname").notNull(),
+      points: integer("points").notNull(),
+      score: integer("score").notNull(),
+      vip: boolean("vip"),
+      bio: text("bio"),
+      handle: text("handle").notNull(),
+    });
+    const c = {
+      fiduciary: { name: "X", grievanceUrl: "/g" },
+      purposes: { a: { basis: "legitimate-use", retain: "while-active" } },
+      data: {
+        members: {
+          table: "members",
+          subject: "id",
+          fields: {
+            email: { category: "contact", purposes: ["a"] }, // NOT NULL, erased to NULL
+            nickname: { category: "identity", purposes: ["a"], erase: "redact" }, // fine
+            points: { category: "behavioural", purposes: ["a"], erase: "redact" }, // text into an integer
+            score: { category: "behavioural", purposes: ["a"], erase: { value: 0 } }, // fine
+            vip: { category: "behavioural", purposes: ["a"], erase: { value: "no" } }, // text into a boolean
+            bio: { category: "identity", purposes: ["a"] }, // nullable: fine
+            handle: { category: "identity", purposes: ["a"], erase: { value: ({ subjectId }: { subjectId: string }) => `x-${subjectId}` } }, // checked at run time
+          },
+        },
+      },
+      minimumRetention: "1y",
+    } as unknown as DpdpConfig<string>;
+    expect(codes(checkSchema(c, drizzleSchema({ members })))).toEqual([
+      "error:erase-not-null:data.members.fields.email.erase",
+      "error:erase-type-mismatch:data.members.fields.points.erase",
+      "error:erase-type-mismatch:data.members.fields.vip.erase",
+    ]);
   });
 });

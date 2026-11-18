@@ -34,7 +34,9 @@ export interface Issue {
     | "processor-contract-missing"
     | "security-measure-missing"
     | "access-log-retention-too-short"
-    | "invalid-erase";
+    | "invalid-erase"
+    | "erase-not-null"
+    | "erase-type-mismatch";
   /** Where in the config (`data.users.fields.phone`), or in the schema (`schema.users.phone`). */
   path: string;
   message: string;

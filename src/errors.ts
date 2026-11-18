@@ -20,7 +20,8 @@ export type DpdpErrorCode =
   | "out-of-purpose"
   | "invalid-key"
   | "invalid-input"
-  | "decrypt-failed";
+  | "decrypt-failed"
+  | "invalid-erase";
 
 /** Thrown for mistakes in how the library is called. Messages are for developers, not end users. */
 export class DpdpError extends Error {

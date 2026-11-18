@@ -1,3 +1,4 @@
+import { DpdpError } from "./errors.js";
 import type { Duration } from "./duration.js";
 import type { RequestType } from "./records.js";
 
@@ -209,5 +210,12 @@ export function purposeNames<P extends string>(config: DpdpConfig<P>): P[] {
 export function erasedValue(erase: EraseWith | undefined, field: { subjectId: string; table: string; field: string }): ErasedValue {
   if (erase === undefined || erase === "null") return null;
   if (erase === "redact") return REDACTED;
-  return typeof erase.value === "function" ? erase.value(field) : erase.value;
+  const value = typeof erase.value === "function" ? erase.value(field) : erase.value;
+  if (value !== null && !["string", "number", "boolean"].includes(typeof value)) {
+    throw new DpdpError(
+      "invalid-erase",
+      `The erase value for ${field.table}.${field.field} must be a string, number, boolean or null; got ${value === undefined ? "undefined (does the function return?)" : typeof value}`,
+    );
+  }
+  return value;
 }

@@ -474,9 +474,10 @@ export function drizzleSchema(module: Record<string, unknown>): Schema {
     if (!is(value, Table)) continue;
     const name = getTableName(value);
     if (tables.has(name)) continue;
-    const columns = Object.entries(getTableColumns(value)).map(([key, column]) =>
-      key === column.name ? { name: column.name } : { name: column.name, key },
-    );
+    const columns = Object.entries(getTableColumns(value)).map(([key, column]) => {
+      const type = ["string", "number", "boolean"].includes(column.dataType) ? (column.dataType as "string" | "number" | "boolean") : "other";
+      return { name: column.name, ...(key === column.name ? {} : { key }), notNull: column.notNull, type } as const;
+    });
     tables.set(name, { name, columns });
   }
   return { tables: [...tables.values()] };
@@ -491,8 +492,8 @@ function rowsOf(result: unknown): Record<string, unknown>[] {
 /**
  * Data access for your own Postgres tables through Drizzle, for access summaries and erasure.
  * Pass your schema module if data map names are Drizzle property names (`userId`) rather than
- * database column names (`user_id`). Erasure sets fields to NULL, so erasable columns must be
- * nullable; a NOT NULL column makes the task fail with the database's message.
+ * database column names (`user_id`). Erasure writes each field's `erase` replacement, or NULL;
+ * `dpdp-kit audit --schema` checks that each column can take it.
  */
 export function drizzleData(db: AnyPgDatabase, options: { schema?: Record<string, unknown> } = {}): DataAccess {
   const columnsByTable = new Map<string, Map<string, string>>();

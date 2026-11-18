@@ -105,6 +105,8 @@ export interface DailyReport {
   /** Open rights requests past their due date. */
   overdueRequests?: RightsRequest[];
   skipped: Array<"retention" | "access" | "rights">;
+  /** Steps that failed. The other steps still ran. */
+  errors: Array<{ step: "retention" | "rights" | "access-prune" | "access-review"; message: string; error: unknown }>;
 }
 
 export type DpdpEventName = keyof DpdpEvents;
@@ -152,7 +154,15 @@ export interface Dpdp<P extends string> {
    * overdue rights requests. Run it once a day: from `startDaily()` in `dpdp-kit/schedule`, node-cron,
    * a BullMQ repeatable job, or your platform's cron. Safe to run from several servers at once.
    */
-  daily(input?: { review?: { window?: Duration; maxSubjects?: number; ignoreActors?: readonly string[] } }): Promise<DailyReport>;
+  daily(input?: {
+    review?: {
+      /** Start of the review (ISO 8601). Default: a day before now. Pass the end of the last successful review so no day is missed. */
+      from?: string;
+      window?: Duration;
+      maxSubjects?: number;
+      ignoreActors?: readonly string[];
+    };
+  }): Promise<DailyReport>;
   readonly consent: {
     /** Record that the person agreed to these consent purposes. */
     grant(subjectId: string, purposes: readonly P[], meta?: ConsentMeta): Promise<ConsentEvent>;
@@ -337,7 +347,11 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
         await store.insert(event);
         return event;
       } catch (err) {
-        if (err instanceof SeqConflictError && attempt < maxRetries) continue;
+        if (err instanceof SeqConflictError && attempt < maxRetries) {
+          // Back off a little, with jitter, so writers racing for the same person spread out.
+          await new Promise((r) => setTimeout(r, Math.random() * 5 * attempt));
+          continue;
+        }
         if (err instanceof SeqConflictError) {
           throw new DpdpError("write-conflict", `Gave up after ${maxRetries} conflicting writes for one subject`);
         }
@@ -388,7 +402,8 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
       // Run after the current call returns, and never let a listener's error reach the caller.
       setImmediate(() => {
         try {
-          Promise.resolve(listener(payload)).catch((err: unknown) => onListenerError(err, event));
+          // Each listener gets its own copy, so one can't change what the caller or another listener sees.
+          Promise.resolve(listener(structuredClone(payload))).catch((err: unknown) => onListenerError(err, event));
         } catch (err) {
           onListenerError(err, event);
         }
@@ -445,16 +460,32 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
     config,
 
     async daily(input = {}) {
-      const report: DailyReport = { at: nowIso(), skipped: [] };
+      const report: DailyReport = { at: nowIso(), skipped: [], errors: [] };
+      // Each step runs even if an earlier one fails: one broken table mustn't stop erasure.
+      const step = async (name: DailyReport["errors"][number]["step"], run: () => Promise<void>) => {
+        try {
+          await run();
+        } catch (error) {
+          report.errors.push({ step: name, message: error instanceof Error ? error.message : String(error), error });
+        }
+      };
       if (isDpdpStore(store)) {
-        report.retention = await api.retention.run();
-        report.overdueRequests = await api.rights.list({ overdue: true });
+        await step("retention", async () => {
+          report.retention = await api.retention.run();
+        });
+        await step("rights", async () => {
+          report.overdueRequests = await api.rights.list({ overdue: true });
+        });
       } else {
         report.skipped.push("retention", "rights");
       }
       if (isAccessLogStore(store)) {
-        report.accessPruned = (await api.access.prune()).deleted;
-        report.review = await api.access.review(input.review ?? {});
+        await step("access-prune", async () => {
+          report.accessPruned = (await api.access.prune()).deleted;
+        });
+        await step("access-review", async () => {
+          report.review = await api.access.review({ ...input.review });
+        });
       } else {
         report.skipped.push("access");
       }

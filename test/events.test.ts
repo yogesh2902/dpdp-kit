@@ -108,3 +108,18 @@ describe("events", () => {
     expect(logged).toHaveBeenCalledWith({ entries: [expect.objectContaining({ outOfPurpose: ["users.phone"] })] });
   });
 });
+
+describe("events after the pre-publish review", () => {
+  it("gives each listener its own copy of the payload", async () => {
+    const dpdp = createDpdp({ config, store: memoryStore() });
+    dpdp.on("consent.granted", ({ event }) => {
+      delete event.evidence;
+    });
+    const seen = vi.fn();
+    dpdp.on("consent.granted", seen);
+    const event = await dpdp.consent.grant("u1", ["marketing_sms"], { evidence: { ip: "10.0.0.7" } });
+    await settle();
+    expect(event.evidence).toEqual({ ip: "10.0.0.7" });
+    expect(seen.mock.calls[0]![0].event.evidence).toEqual({ ip: "10.0.0.7" });
+  });
+});

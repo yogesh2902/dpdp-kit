@@ -96,3 +96,24 @@ describe("nestjs", () => {
     await expect(outside.canActivate(ctx({}))).rejects.toMatchObject({ code: "out-of-purpose" });
   });
 });
+
+describe("after the pre-publish review", () => {
+  it("fastify: falls back to 403 when onDenied sends nothing", async () => {
+    const dpdp = await setup();
+    const app = Fastify();
+    const logged: string[] = [];
+    app.get("/x", { preHandler: fastifyGuard(dpdp, "marketing_sms", { subject: (_req: unknown) => "no", onDenied: () => void logged.push("denied") }) }, async () => ({ reached: true }));
+    const res = await app.inject({ method: "GET", url: "/x" });
+    expect(res.statusCode).toBe(403);
+    expect(logged).toEqual(["denied"]);
+  });
+
+  it("nestjs: a clear error without a request, and a request option for other contexts", async () => {
+    const dpdp = await setup();
+    const noHttp: ExecutionContextLike = { switchToHttp: () => ({ getRequest: <T>() => undefined as T }) };
+    const guard = consentGuard(dpdp, "marketing_sms", { subject: (req: { user?: string }) => req.user });
+    await expect(guard.canActivate(noHttp)).rejects.toMatchObject({ code: "invalid-input" });
+    const gql = consentGuard(dpdp, "marketing_sms", { subject: (req: { user?: string }) => req.user, request: () => ({ user: "yes" }) });
+    expect(await gql.canActivate(noHttp)).toBe(true);
+  });
+});

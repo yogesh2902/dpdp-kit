@@ -6,7 +6,10 @@ export interface StartDailyOptions {
   at?: string;
   /** Called with each run's report, e.g. to alert on failed tasks or review findings. */
   onReport?: (report: DailyReport) => void | Promise<void>;
-  /** Called when a run throws. Default: `console.error`. The next day's run still happens. */
+  /**
+   * Called when a run, or a step of it, fails. Default: `console.error`. The next day's run still
+   * happens, and its access review starts where the last successful one ended (up to a week back).
+   */
   onError?: (error: unknown) => void;
   /** Clock, for tests. */
   now?: () => Date;
@@ -54,11 +57,18 @@ export function startDaily<P extends string>(dpdp: Dpdp<P>, options: StartDailyO
   let stopped = false;
   let next = new Date(now().getTime() + msUntil(now(), hours, minutes));
 
+  // Where the last successful review ended, so a failed night's access is reviewed the next day.
+  let reviewedUntil: string | undefined;
+  const MAX_CATCH_UP_MS = 7 * 24 * 60 * 60 * 1000;
+
   async function run(): Promise<DailyReport | undefined> {
     if (running) return undefined;
     running = (async () => {
       try {
-        const report = await dpdp.daily();
+        const catchUp = reviewedUntil && now().getTime() - Date.parse(reviewedUntil) <= MAX_CATCH_UP_MS ? reviewedUntil : undefined;
+        const report = await dpdp.daily(catchUp ? { review: { from: catchUp } } : {});
+        if (report.review) reviewedUntil = report.review.to;
+        for (const failure of report.errors ?? []) onError(failure.error);
         await options.onReport?.(report);
         return report;
       } catch (err) {
