@@ -5,3 +5,6 @@ dist
 *.pdf
 .action-sample
 site/dist
+examples/*/node_modules
+examples/*/package-lock.json
+examples/prisma-express/src/generated

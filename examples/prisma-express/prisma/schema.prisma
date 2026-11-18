@@ -1,0 +1,143 @@
+// Chai & Co's Prisma schema. Your own models first, then dpdp-kit's, printed with:
+//   node -e 'import("dpdp-kit/prisma").then((m) => console.log(m.PRISMA_MODELS))'
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String
+  email     String   @unique
+  city      String?
+  interests String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("users")
+}
+
+/// Invoices outlive the account: GST law makes you keep them for 8 years, so userId is a plain
+/// column, not a relation that would block deleting the user (or be set to null and lose track).
+model Order {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  address   String
+  total     Int
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@map("orders")
+}
+
+// ---- dpdp-kit ----
+
+/// dpdp-kit: consent events, a hash chain per person (Section 6).
+model DpdpConsentEvent {
+  subjectId     String   @map("subject_id")
+  seq           Int
+  action        String
+  purposes      Json
+  noticeVersion String?  @map("notice_version")
+  language      String?
+  channel       String?
+  evidence      Json?
+  at            DateTime @db.Timestamptz(6)
+  prevHash      String?  @map("prev_hash")
+  hash          String
+
+  @@id([subjectId, seq])
+  @@map("dpdp_consent_events")
+}
+
+/// dpdp-kit: rights requests and grievances (Sections 11 to 14).
+model DpdpRequest {
+  id        String    @id
+  subjectId String    @map("subject_id")
+  type      String
+  status    String
+  openedAt  DateTime  @map("opened_at") @db.Timestamptz(6)
+  dueAt     DateTime  @map("due_at") @db.Timestamptz(6)
+  closedAt  DateTime? @map("closed_at") @db.Timestamptz(6)
+  details   Json?
+  history   Json
+
+  @@index([subjectId], map: "dpdp_requests_subject_idx")
+  @@index([status, dueAt], map: "dpdp_requests_status_due_idx")
+  @@map("dpdp_requests")
+}
+
+/// dpdp-kit: erasure and processor tasks (Section 8(7), Rule 8).
+model DpdpErasureTask {
+  id        String    @id
+  subjectId String    @map("subject_id")
+  reason    String
+  kind      String
+  tableKey  String?   @map("table_key")
+  fields    Json?
+  processor String?
+  purposes  Json?
+  createdAt DateTime  @map("created_at") @db.Timestamptz(6)
+  dueAt     DateTime  @map("due_at") @db.Timestamptz(6)
+  status    String
+  attempts  Int
+  claimedAt DateTime? @map("claimed_at") @db.Timestamptz(6)
+  doneAt    DateTime? @map("done_at") @db.Timestamptz(6)
+  affected  Int?
+  lastError String?   @map("last_error")
+  note      String?
+
+  @@index([subjectId], map: "dpdp_erasure_tasks_subject_idx")
+  @@index([status, dueAt], map: "dpdp_erasure_tasks_status_due_idx")
+  @@map("dpdp_erasure_tasks")
+}
+
+/// dpdp-kit: who accessed whose data, and why (Rule 6(1)(c), (e)).
+model DpdpAccessLog {
+  id           String   @id
+  at           DateTime @db.Timestamptz(6)
+  actor        String
+  subjectId    String   @map("subject_id")
+  action       String
+  purpose      String
+  fields       Json?
+  outOfPurpose Json?    @map("out_of_purpose")
+  reason       String?
+  evidence     Json?
+
+  @@index([at], map: "dpdp_access_log_at_idx")
+  @@index([subjectId, at], map: "dpdp_access_log_subject_idx")
+  @@index([actor, at], map: "dpdp_access_log_actor_idx")
+  @@map("dpdp_access_log")
+}
+
+/// dpdp-kit: personal data breaches (Section 8(6), Rule 7).
+model DpdpBreach {
+  id          String   @id
+  status      String
+  awareAt     DateTime @map("aware_at") @db.Timestamptz(6)
+  reportDueAt DateTime @map("report_due_at") @db.Timestamptz(6)
+  data        Json
+
+  @@index([status, awareAt], map: "dpdp_breaches_status_idx")
+  @@map("dpdp_breaches")
+}
+
+/// dpdp-kit: each person affected by a breach, and whether they've been told (Rule 7(1)).
+model DpdpBreachNotice {
+  breachId  String    @map("breach_id")
+  subjectId String    @map("subject_id")
+  status    String
+  addedAt   DateTime  @map("added_at") @db.Timestamptz(6)
+  sentAt    DateTime? @map("sent_at") @db.Timestamptz(6)
+  channel   String?
+
+  @@id([breachId, subjectId])
+  @@index([breachId, status, addedAt], map: "dpdp_breach_notices_status_idx")
+  @@map("dpdp_breach_notices")
+}

@@ -1,0 +1,21 @@
+{
+  "name": "dpdp-kit-example-mongoose-express",
+  "private": true,
+  "type": "module",
+  "description": "Chai & Co: an Express + Mongoose + MongoDB shop using dpdp-kit",
+  "scripts": {
+    "audit": "dpdp-kit audit --schema src/models.ts",
+    "safeguards": "dpdp-kit safeguards",
+    "start": "tsx src/server.ts",
+    "journey": "node ../journey.mjs"
+  },
+  "dependencies": {
+    "dpdp-kit": "^0.4.0",
+    "express": "^5.3.0",
+    "mongoose": "^9.12.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "tsx": "^4.21.0"
+  }
+}

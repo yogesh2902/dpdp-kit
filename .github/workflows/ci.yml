@@ -91,6 +91,70 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm vitest run test/postgres-server.test.ts test/prisma-server.test.ts
 
+  examples:
+    name: Example apps, a year-long customer journey
+    needs: check
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: dpdp
+          POSTGRES_PASSWORD: dpdp
+          POSTGRES_DB: chai
+          TZ: Asia/Kolkata
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U dpdp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      mongo:
+        image: mongo:8
+        ports: ["27017:27017"]
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DEMO_CLOCK: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build and pack this version
+        run: pnpm build && pnpm pack --pack-destination "$RUNNER_TEMP"
+      - name: Prisma + Express + Postgres (IST)
+        working-directory: examples/prisma-express
+        env:
+          DATABASE_URL: postgresql://dpdp:dpdp@127.0.0.1:5432/chai
+          PORT: "3001"
+          BASE_URL: http://127.0.0.1:3001
+        run: |
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/dpdp-kit-*.tgz
+          npm run db:push
+          npm run audit
+          npx tsx src/server.ts > server.log 2>&1 &
+          for i in $(seq 1 60); do curl -s -o /dev/null "$BASE_URL/me/consents" -H "x-user-id: x" && break; sleep 1; done
+          npm run journey || { cat server.log; exit 1; }
+      - name: Mongoose + Express + MongoDB
+        working-directory: examples/mongoose-express
+        env:
+          MONGODB_URL: mongodb://127.0.0.1:27017/chai
+          PORT: "3002"
+          BASE_URL: http://127.0.0.1:3002
+        run: |
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/dpdp-kit-*.tgz
+          npm run audit
+          npx tsx src/server.ts > server.log 2>&1 &
+          for i in $(seq 1 60); do curl -s -o /dev/null "$BASE_URL/me/consents" -H "x-user-id: x" && break; sleep 1; done
+          npm run journey || { cat server.log; exit 1; }
+
   action:
     name: GitHub Action on a sample project
     needs: check

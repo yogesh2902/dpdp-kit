@@ -1,0 +1,24 @@
+{
+  "name": "dpdp-kit-example-prisma-express",
+  "private": true,
+  "type": "module",
+  "description": "Chai & Co: an Express + Prisma + Postgres shop using dpdp-kit",
+  "scripts": {
+    "db:push": "prisma db push && prisma generate",
+    "audit": "dpdp-kit audit --schema prisma/schema.prisma",
+    "safeguards": "dpdp-kit safeguards",
+    "start": "tsx src/server.ts",
+    "journey": "node ../journey.mjs"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
+    "dpdp-kit": "^0.4.0",
+    "express": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "prisma": "^7.10.1",
+    "tsx": "^4.21.0"
+  }
+}
