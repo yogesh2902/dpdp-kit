@@ -1,0 +1,48 @@
+name: Release
+
+# Creates the GitHub Release (and its vX.Y.Z tag) for the version in package.json, once that
+# version is published on npm. Publishing to npm stays manual (it needs the owner's 2FA), so this
+# runs when the version changes on main, every few hours to pick up a version published later,
+# and on demand. It does nothing if the release exists or the version isn't on npm yet.
+on:
+  push:
+    branches: [main]
+    paths: ["package.json", "CHANGELOG.md", ".github/workflows/release.yml", "scripts/release-notes.mjs"]
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: GitHub Release for the published version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          tag="v$version"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "$tag is already released."
+            exit 0
+          fi
+          if [ "$(npm view "dpdp-kit@$version" version 2>/dev/null || true)" != "$version" ]; then
+            echo "::notice::dpdp-kit@$version isn't on npm yet. The release will be created once it's published."
+            exit 0
+          fi
+          node scripts/release-notes.mjs "$version" > notes.md
+          gh release create "$tag" --title "dpdp-kit $version" --notes-file notes.md --target "$GITHUB_SHA" --latest
+          echo "Released $tag: $(gh release view "$tag" --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"

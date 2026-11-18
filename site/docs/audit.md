@@ -77,7 +77,7 @@ jobs:
           # working-directory: apps/api   # for monorepos
 ```
 
-The Action runs the dpdp-kit your project installed, falling back to `npx dpdp-kit@latest`. It sets `errors` and `warnings` outputs. Annotations need dpdp-kit 0.2.0 or later; with 0.1.x the check still runs and fails the build, without annotations.
+`@main` follows the latest code; to pin a released version, use its tag, e.g. `yogesh2902/dpdp-kit@v0.3.0` (each release is on the [releases page](https://github.com/yogesh2902/dpdp-kit/releases)). The Action runs the dpdp-kit your project installed, falling back to `npx dpdp-kit@latest`. It sets `errors` and `warnings` outputs. Annotations need dpdp-kit 0.2.0 or later; with 0.1.x the check still runs and fails the build, without annotations.
 
 ## Other CI systems
 
