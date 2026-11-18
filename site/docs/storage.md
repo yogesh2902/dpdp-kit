@@ -9,7 +9,7 @@ Add the tables to your schema so drizzle-kit creates them:
 
 ```ts
 // schema.ts
-export { accessLog, consentEvents, erasureTasks, rightsRequests } from "dpdp-kit/drizzle";
+export { accessLog, breachNotices, breaches, consentEvents, erasureTasks, rightsRequests } from "dpdp-kit/drizzle";
 ```
 
 If you don't use drizzle-kit, run `DPDP_DDL` (exported from `dpdp-kit/drizzle`). This works with any Drizzle Postgres driver: node-postgres, postgres.js, Neon and PGlite.
@@ -20,8 +20,12 @@ If you don't use drizzle-kit, run `DPDP_DDL` (exported from `dpdp-kit/drizzle`).
 | `dpdp_requests` | rights requests |
 | `dpdp_erasure_tasks` | scheduled erasure tasks |
 | `dpdp_access_log` | who accessed whose data, and why (Rule 6) |
+| `dpdp_breaches` | personal data breaches and their deadlines (Rule 7) |
+| `dpdp_breach_notices` | who each breach affected, and whether they were told |
 
 > **Upgrading from 0.1.x?** Add `rightsRequests` and `erasureTasks` to your schema and generate a migration, or run `RECORDS_DDL`. `withdraw()` now schedules erasure tasks, so it needs the `dpdp_erasure_tasks` table.
+>
+> **Upgrading from 0.3.x?** Add `breaches` and `breachNotices` to your schema and generate a migration, or run `BREACH_DDL`.
 >
 > **Upgrading from 0.2.x?** Add `accessLog` to your schema and generate a migration, or run `ACCESS_LOG_DDL`, before using `dpdp.access`.
 
@@ -36,6 +40,7 @@ Implement `DpdpStore`:
 - consent events: `lastEvent`, `insert`, `events`
 - requests and tasks: see `RequestStore` and `TaskStore`
 - the access log: `insertAccess`, `listAccess`, `pruneAccess` (see `AccessLogStore`)
+- breaches: see `BreachStore`
 
 `insert` must throw `SeqConflictError` on a duplicate `(subjectId, seq)`, and `claimTask` must be atomic. A store with only the three consent methods still works for consent; rights and retention then throw `store-unsupported`.
 

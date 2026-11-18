@@ -11,6 +11,7 @@
 - **Declare why you hold each piece of personal data**, in one typed config file. A misspelt purpose is a type error.
 - **Keep consent records that show tampering.** Each person's grants and withdrawals form a hash chain, with the notice version and language they saw.
 - **Know what to erase.** When consent is withdrawn or an account is deleted, get a plan: which fields go, which stay (and why), which tables are under a legal hold, which third parties to tell.
+- **Handle a breach on time.** Record it, find and tell the people affected, and track the Board's 72-hour deadline (Section 8(6), Rule 7).
 - **Show who touched what.** An access log records who read whose data and why, flags reads outside a field's purpose, and keeps a year of entries, as Rule 6 requires. Encryption, tokens and masking for Aadhaar, PAN and other identifiers come in `dpdp-kit/protect`.
 - **Check it in CI.** `dpdp-kit audit` fails the build when the data map is inconsistent, and the GitHub Action puts each problem on the pull request.
 - **Catch drift.** `dpdp-kit audit --schema` reads your Drizzle schema and fails the build when someone adds a `phone`, `email` or `aadhaar_number` column without saying what it's for, or when the data map points at columns that no longer exist. Compliance that can't quietly fall out of date.
@@ -395,6 +396,27 @@ startDaily(dpdp, { at: "03:00", onReport: (r) => r.retention?.failed.length && a
 
 Or call `dpdp.daily()` from node-cron, a BullMQ repeatable job (to run it once across servers), or your platform's cron. It's safe to run from several servers at once.
 
+## 10. Breach records
+
+Section 8(6) and Rule 7: on becoming aware of a personal data breach, tell each affected person and the Board without delay, and send the Board a detailed report within 72 hours. Failing to notify carries up to ₹200 crore.
+
+```ts
+const breach = await dpdp.breach.open({ description: "A storage bucket exposed order exports.", fields: ["users.phone", "orders"] });
+await dpdp.breach.addAffectedFromAccessLog(breach.id, { actor: "support:ravi" }); // or addAffected(id, userIds)
+
+const notice = await dpdp.breach.notice(breach.id);  // Rule 7(1)(a)–(e), with fiduciary.dpo as the contact
+await dpdp.breach.markNotified(breach.id, sentIds, { channel: "email" });
+
+await dpdp.breach.boardNotified(breach.id);           // Rule 7(2)(a)
+await dpdp.breach.updateReport(breach.id, { details, facts, mitigation, findings, remedial });
+const report = await dpdp.breach.boardReport(breach.id); // (i)–(vi), (vi) built from the notice records
+await dpdp.breach.reportSent(breach.id);
+
+await dpdp.breach.status(breach.id); // { report: { dueAt, hoursLeft, overdue }, people: { total, sent, pending }, todo }
+```
+
+`dpdp.daily()` reports every open breach and its deadline, and a written Board extension can be recorded with `extend()`. dpdp-kit keeps the record and the clocks; you send the messages.
+
 ## Storage
 
 ### Drizzle (Postgres)
@@ -403,12 +425,14 @@ Add the tables to your schema so drizzle-kit creates them:
 
 ```ts
 // schema.ts
-export { accessLog, consentEvents, erasureTasks, rightsRequests } from "dpdp-kit/drizzle";
+export { accessLog, breachNotices, breaches, consentEvents, erasureTasks, rightsRequests } from "dpdp-kit/drizzle";
 ```
 
 If you don't use drizzle-kit, run `DPDP_DDL` (exported from `dpdp-kit/drizzle`). This works with any Drizzle Postgres driver: node-postgres, postgres.js, Neon, PGlite.
 
 > **Upgrading from 0.1.x?** Add `rightsRequests` and `erasureTasks` to your schema and generate a migration, or run `RECORDS_DDL`. `withdraw()` now schedules erasure tasks, so it needs the `dpdp_erasure_tasks` table.
+>
+> **Upgrading from 0.3.x?** Add `breaches` and `breachNotices` to your schema and generate a migration, or run `BREACH_DDL`. The audit now also warns when `fiduciary.dpo` is missing (Section 8(9), Rule 7(1)(e)).
 >
 > **Upgrading from 0.2.x?** Add `accessLog` to your schema and generate a migration, or run `ACCESS_LOG_DDL`, before using `dpdp.access`. The audit now warns about the Rule 6 safeguards; if you run it with `--strict`, add a `security` block and processor `contract`s first.
 

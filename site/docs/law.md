@@ -17,9 +17,12 @@ description: Which Sections and Rules dpdp-kit implements, when they apply, and 
 | Logs, monitoring and review of access to personal data | Rule 6(1)(c) | The access log, `review()` and `logAccess` middleware |
 | Keep those logs for a year | Rule 6(1)(e) | The access log keeps at least a year, enforced by the audit |
 | Security provisions in contracts with processors | Rule 6(1)(f) | `contract` on each processor, checked by the audit |
+| Tell each affected person about a breach, without delay | Section 8(6), Rule 7(1) | `breach.notice()` (a)–(e), `addAffected`, `markNotified` |
+| Tell the Board without delay, and report in detail within 72 hours | Section 8(6), Rule 7(2) | `breach.status()` deadlines, `boardReport()` (i)–(vi), `extend()` |
+| Publish a contact for questions about personal data | Section 8(9) | `fiduciary.dpo`, checked by the audit |
 | Access, correction, erasure, grievance and nomination | Sections 11–14 | Rights requests with due dates |
 | Answer grievances within 90 days | Rule 14(3) | A default due date, enforced by the audit |
-| Maximum penalty | Schedule, item 1 | ₹250 crore, for failing to take reasonable security safeguards |
+| Maximum penalties | Schedule | ₹250 crore for failing to take reasonable security safeguards (item 1); ₹200 crore for failing to notify a breach (item 2) |
 
 ## When the Rules apply
 

@@ -54,7 +54,7 @@ Who you are, as the Data Fiduciary.
 
 - **`name`**: your organisation's name.
 - **`grievanceUrl`**: where people can raise a grievance. Section 8(10) requires a grievance mechanism, and Section 5(1)(ii) requires the notice to say how to use it. The audit warns when it's missing.
-- **`dpo`**: optional, your Data Protection Officer or contact person.
+- **`dpo`**: your Data Protection Officer, or a person who can answer questions about personal data, with their business contact, e.g. `"Meera Iyer, privacy@acme.in, +91 80 4000 1234"`. Section 8(9) requires publishing it, and it's the contact in every [breach notice](../breaches/) (Rule 7(1)(e)). The audit warns when it's missing.
 
 ## purposes
 
