@@ -50,6 +50,10 @@ describe("audit", () => {
         "warning:table-without-fields:data.orders.fields",
         "warning:unused-purpose:purposes.promo",
         "warning:unused-purpose:purposes.spare",
+        "warning:processor-contract-missing:processors.sms.contract",
+        "warning:security-measure-missing:security.accessControl",
+        "warning:security-measure-missing:security.backups",
+        "warning:security-measure-missing:security.measures",
       ].sort(),
     );
   });
@@ -63,6 +67,51 @@ describe("audit", () => {
     expect(codes(bad)).toEqual([
       "error:invalid-retention:purposes.account.retain",
       "warning:minimum-retention-missing:minimumRetention",
+      "warning:security-measure-missing:security.accessControl",
+      "warning:security-measure-missing:security.backups",
+      "warning:security-measure-missing:security.measures",
     ]);
+  });
+});
+
+describe("audit: Rule 6 security safeguards", () => {
+  const base = {
+    fiduciary: { name: "X", grievanceUrl: "/g" },
+    purposes: { kyc: { basis: "legitimate-use", retain: "while-active" } },
+    minimumRetention: "1y",
+    security: { accessControl: "SSO", backups: "Daily", measures: "Training" },
+  } as const;
+  const fields = (f: Record<string, unknown>) =>
+    ({ ...base, data: { users: { table: "users", subject: "id", fields: f } } }) as unknown as DpdpConfig<string>;
+
+  it("warns about high-risk identifiers stored without protection", () => {
+    const c = fields({
+      aadhaar_number: { category: "identity", purposes: ["kyc"] },
+      pan: { category: "identity", purposes: ["kyc"], protect: "encrypted" },
+      bankAccountNumber: { category: "financial", purposes: ["kyc"] },
+      bloodGroup: { category: "health", purposes: ["kyc"] },
+      company_pan: { category: "identity", purposes: ["kyc"] }, // a business identifier: only a weak guess
+      phone: { category: "contact", purposes: ["kyc"] },
+    });
+    expect(codes(c)).toEqual([
+      "warning:unprotected-high-risk-field:data.users.fields.aadhaar_number.protect",
+      "warning:unprotected-high-risk-field:data.users.fields.bankAccountNumber.protect",
+      "warning:unprotected-high-risk-field:data.users.fields.bloodGroup.protect",
+    ]);
+  });
+
+  it("warns about processors without a security provision in the contract", () => {
+    const c = {
+      ...fields({ phone: { category: "contact", purposes: ["kyc"] } }),
+      processors: { sms: { purposes: ["kyc"] }, kyc: { purposes: ["kyc"], contract: "MSA clause 9" } },
+    } as unknown as DpdpConfig<string>;
+    expect(codes(c)).toEqual(["warning:processor-contract-missing:processors.sms.contract"]);
+  });
+
+  it("requires a year of access logs", () => {
+    const short = { ...fields({ phone: { category: "contact", purposes: ["kyc"] } }), security: { ...base.security, accessLogRetention: "180d" } };
+    expect(codes(short as unknown as DpdpConfig<string>)).toEqual(["error:access-log-retention-too-short:security.accessLogRetention"]);
+    const bad = { ...short, security: { ...base.security, accessLogRetention: "a while" } };
+    expect(codes(bad as unknown as DpdpConfig<string>)).toEqual(["error:invalid-duration:security.accessLogRetention"]);
   });
 });

@@ -82,4 +82,18 @@ console.log("✔ dpdp-kit audit --schema");
 }
 console.log("✔ rights + retention");
 
+// 6. Security safeguards: access log, field encryption, and the Rule 6 report
+{
+  const { createEncryptor, generateKey, maskAadhaar } = await import("dpdp-kit/protect");
+  const kit = createDpdp({ config, store: memoryStore() });
+  await kit.access.log({ actor: "support", subjectId: "u1", purpose: "account", fields: ["users.phone"] });
+  if ((await kit.access.list({ subjectId: "u1" })).length !== 1) fail("access log entry missing");
+  const enc = createEncryptor({ keys: { k1: generateKey() }, current: "k1" });
+  if (enc.decrypt(enc.encrypt("123412341234", "u1"), "u1") !== "123412341234") fail("encryption round trip");
+  if (maskAadhaar("123412341234") !== "XXXX XXXX 1234") fail("aadhaar mask");
+  const report = execFileSync(process.execPath, ["dist/cli.js", "safeguards", "--config", "test/fixtures/config.ts"], { encoding: "utf8" });
+  if (!report.includes("(f) Security safeguards in contracts")) fail(`safeguards output:\n${report}`);
+}
+console.log("✔ access log + dpdp-kit/protect + dpdp-kit safeguards");
+
 console.log(`All smoke checks passed on Node ${process.version}`);

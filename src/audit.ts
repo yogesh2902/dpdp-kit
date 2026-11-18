@@ -1,5 +1,6 @@
 import type { DpdpConfig, Retention } from "./config.js";
 import { durationMs, isDuration } from "./duration.js";
+import { guessPersonal } from "./personal.js";
 import { REQUEST_TYPES } from "./records.js";
 
 export type IssueLevel = "error" | "warning";
@@ -27,7 +28,12 @@ export interface Issue {
     | "unmapped-personal-column"
     | "stale-not-personal"
     | "grievance-response-too-long"
-    | "invalid-request-type";
+    | "invalid-request-type"
+    // Rule 6: security safeguards
+    | "unprotected-high-risk-field"
+    | "processor-contract-missing"
+    | "security-measure-missing"
+    | "access-log-retention-too-short";
   /** Where in the config (`data.users.fields.phone`), or in the schema (`schema.users.phone`). */
   path: string;
   message: string;
@@ -249,7 +255,96 @@ export function audit(config: DpdpConfig<string>): Issue[] {
     });
   }
 
+  checkSecurity(config, issues);
+
   return issues;
+}
+
+/** Identifiers whose exposure does the most harm: government ids and bank or card numbers. */
+const HIGH_RISK_MATCHES = new Set([
+  "aadhaar",
+  "aadhar",
+  "uidai",
+  "pan",
+  "passport",
+  "voter id",
+  "epic",
+  "driving licence",
+  "driving license",
+  "abha",
+  "account number",
+  "bank account",
+  "card number",
+  "iban",
+]);
+const HIGH_RISK_CATEGORIES = new Set(["health", "biometric"]);
+
+/** Whether a field holds high-risk data, judging by its declared category and its name. */
+export function isHighRisk(field: string, category: string): boolean {
+  if (HIGH_RISK_CATEGORIES.has(category)) return true;
+  const guess = guessPersonal(field);
+  return guess !== undefined && guess.confidence === "strong" && (HIGH_RISK_MATCHES.has(guess.matched) || HIGH_RISK_CATEGORIES.has(guess.category));
+}
+
+const SECURITY_MEASURES = [
+  ["accessControl", "(b)", "how access to your computer resources is controlled (for example SSO and least-privilege roles)"],
+  ["backups", "(d)", "how processing continues after a compromise or loss of data (for example tested backups)"],
+  ["measures", "(g)", "the technical and organisational measures that make the safeguards work (for example training and access reviews)"],
+] as const;
+
+/** Rule 6(1): reasonable security safeguards. */
+function checkSecurity(config: DpdpConfig<string>, issues: Issue[]) {
+  for (const [key, table] of Object.entries(config.data ?? {})) {
+    for (const [field, def] of Object.entries(table.fields ?? {})) {
+      if (!def.protect && isHighRisk(field, def.category)) {
+        issues.push({
+          level: "warning",
+          code: "unprotected-high-risk-field",
+          path: `data.${key}.fields.${field}.protect`,
+          message: `${field} looks like high-risk personal data. Rule 6(1)(a) lists encryption, obfuscation, masking and virtual tokens as safeguards: store it protected (see dpdp-kit/protect) and say how with protect: "encrypted" | "tokenised" | "masked" | "hashed".`,
+        });
+      }
+    }
+  }
+
+  for (const [name, def] of Object.entries(config.processors ?? {})) {
+    if (!def.contract) {
+      issues.push({
+        level: "warning",
+        code: "processor-contract-missing",
+        path: `processors.${name}.contract`,
+        message: `Rule 6(1)(f) requires a provision for reasonable security safeguards in your contract with each Data Processor. Record where it is, e.g. contract: "DPA signed 2026-03-01, clause 7".`,
+      });
+    }
+  }
+
+  for (const [key, clause, what] of SECURITY_MEASURES) {
+    if (!config.security?.[key]) {
+      issues.push({
+        level: "warning",
+        code: "security-measure-missing",
+        path: `security.${key}`,
+        message: `Rule 6(1)${clause} requires ${what}. Describe what you do in a sentence, as evidence.`,
+      });
+    }
+  }
+
+  const keep = config.security?.accessLogRetention;
+  if (keep !== undefined && !isDuration(keep)) {
+    issues.push({
+      level: "error",
+      code: "invalid-duration",
+      path: "security.accessLogRetention",
+      message: `${JSON.stringify(keep)} is not a duration. Use e.g. "1y".`,
+    });
+  } else if (keep !== undefined && durationMs(keep) < ONE_YEAR_MS) {
+    issues.push({
+      level: "error",
+      code: "access-log-retention-too-short",
+      path: "security.accessLogRetention",
+      message: 'Rule 6(1)(e) of the DPDP Rules requires keeping access logs for one year to detect and investigate unauthorised access. Use at least "1y".',
+    });
+  }
 }
 
 export function hasErrors(issues: readonly Issue[]): boolean {

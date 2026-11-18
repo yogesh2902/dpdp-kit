@@ -46,12 +46,28 @@ export type Category =
   | "behavioural"
   | (string & {});
 
+/**
+ * How a field is protected where it's stored. Rule 6(1)(a) of the DPDP Rules lists "encryption,
+ * obfuscation, masking or the use of virtual tokens mapped to that personal data" as safeguards.
+ * - `"encrypted"`: stored encrypted (e.g. with `createEncryptor` from `dpdp-kit/protect`).
+ * - `"tokenised"`: replaced by a token that maps to the value kept elsewhere (a vault).
+ * - `"masked"`: only a masked form is stored (e.g. the last four digits of an Aadhaar number).
+ * - `"hashed"`: only a keyed hash is stored, for matching (e.g. `createTokenizer`).
+ */
+export type Protection = "encrypted" | "tokenised" | "masked" | "hashed";
+
 export interface PersonalField<P extends string = string> {
   category: Category;
   /** Every purpose this field is held for. When all of them end, the field must go. */
   purposes: readonly P[];
   /** This field can tell you the person is under 18 (e.g. date of birth). Used from v0.3. */
   childSignal?: boolean;
+  /**
+   * How the field is protected at rest (Rule 6(1)(a)). The audit warns when a high-risk
+   * identifier (Aadhaar, PAN, passport, bank account, card number, health or biometric data)
+   * has none.
+   */
+  protect?: Protection;
 }
 
 /**
@@ -78,6 +94,30 @@ export interface TableDef<P extends string = string> {
 export interface ProcessorDef<P extends string = string> {
   purposes: readonly P[];
   description?: string;
+  /**
+   * Where your contract with this processor requires reasonable security safeguards, e.g.
+   * `"DPA signed 2026-03-01, clause 7"`. Rule 6(1)(f) requires such a provision. The audit warns
+   * when it's missing.
+   */
+  contract?: string;
+}
+
+/**
+ * The security safeguards of Rule 6(1) that live outside your code, written down as evidence.
+ * Describe what you actually do, in a sentence; the audit warns about any you leave out.
+ */
+export interface SecurityConfig {
+  /** Rule 6(1)(b): how access to your computer resources is controlled, e.g. `"SSO, least-privilege IAM roles"`. */
+  accessControl?: string;
+  /** Rule 6(1)(d): how processing continues after a compromise, e.g. `"Daily encrypted backups, restore tested monthly"`. */
+  backups?: string;
+  /** Rule 6(1)(g): technical and organisational measures, e.g. `"Annual security training, quarterly access reviews"`. */
+  measures?: string;
+  /**
+   * Rule 6(1)(c) and (e): how long the access log (`dpdp.access`) is kept. Default and minimum
+   * `"1y"`: the Rule requires a year of logs to detect and investigate unauthorised access.
+   */
+  accessLogRetention?: Duration;
 }
 
 export interface RightsConfig {
@@ -123,6 +163,8 @@ export interface DpdpConfig<P extends string = string> {
    */
   notPersonal?: readonly string[];
   rights?: RightsConfig;
+  /** Security safeguards under Rule 6(1). See `SecurityConfig`. */
+  security?: SecurityConfig;
 }
 
 /** Purpose names of a config, e.g. `"account" | "marketing_sms"`. */

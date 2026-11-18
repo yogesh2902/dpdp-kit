@@ -32,10 +32,15 @@ export const config = defineConfig({
     },
   },
   processors: {
-    msg91: { purposes: ["order_updates", "marketing_sms"] },
-    posthog: { purposes: ["analytics"] },
+    msg91: { purposes: ["order_updates", "marketing_sms"], contract: "DPA signed 2026-03-01, clause 7" },
+    posthog: { purposes: ["analytics"], contract: "PostHog DPA, section 4" },
   },
   minimumRetention: "1y",
+  security: {
+    accessControl: "SSO with least-privilege roles; production access through a bastion",
+    backups: "Encrypted daily backups, restore tested monthly",
+    measures: "Annual security training and quarterly access reviews",
+  },
   notPersonal: ["products.name"],
 });
 

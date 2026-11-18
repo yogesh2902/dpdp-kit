@@ -3,6 +3,7 @@ import { relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { audit, type Issue } from "./audit.js";
 import type { DpdpConfig } from "./config.js";
+import { formatSafeguards, safeguardsReport } from "./safeguards.js";
 import { checkSchema, type Schema } from "./schema-check.js";
 
 export const CONFIG_FILES = ["dpdp.config.ts", "dpdp.config.mts", "dpdp.config.js", "dpdp.config.mjs"];
@@ -115,4 +116,21 @@ export async function runAudit(argv: readonly string[], cwd: string, log: (line:
   log(formatIssues(issues));
   const failing = issues.filter((i) => i.level === "error" || (strict && i.level === "warning"));
   return failing.length > 0 ? 1 : 0;
+}
+
+/**
+ * Run `dpdp-kit safeguards`: a Rule 6(1) report from the config. Returns 0, or with `--strict` 1
+ * when a safeguard is missing or partly recorded.
+ */
+export async function runSafeguards(argv: readonly string[], cwd: string, log: (line: string) => void): Promise<number> {
+  const explicit = flagValue(argv, "--config");
+  const file = findConfig(cwd, explicit);
+  if (!file || !existsSync(file)) {
+    log(explicit ? `Config file not found: ${explicit}` : `No config found. Create one of: ${CONFIG_FILES.join(", ")}`);
+    return 1;
+  }
+  const report = safeguardsReport(await loadConfig(file));
+  log(formatSafeguards(report));
+  const gaps = report.some((s) => s.status === "missing" || s.status === "partly");
+  return argv.includes("--strict") && gaps ? 1 : 0;
 }
