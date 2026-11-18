@@ -1,3 +1,4 @@
+import type { AccessEntry, AccessLogStore } from "./access.js";
 import { SeqConflictError } from "./errors.js";
 import type { NoticeLanguage } from "./languages.js";
 import { type ErasureTask, isRunnable, type RequestStore, type RightsRequest, type TaskStore } from "./records.js";
@@ -48,19 +49,47 @@ export function isDpdpStore(store: ConsentStore): store is DpdpStore {
 }
 
 /** Keeps everything in memory. For tests and trying the library out; everything is lost on restart. */
-export function memoryStore(): DpdpStore & {
-  readonly all: Map<string, ConsentEvent[]>;
-  readonly requests: Map<string, RightsRequest>;
-  readonly tasks: Map<string, ErasureTask>;
-} {
+export function memoryStore(): DpdpStore &
+  AccessLogStore & {
+    readonly all: Map<string, ConsentEvent[]>;
+    readonly requests: Map<string, RightsRequest>;
+    readonly tasks: Map<string, ErasureTask>;
+    readonly accessLog: AccessEntry[];
+  } {
   const all = new Map<string, ConsentEvent[]>();
   const requests = new Map<string, RightsRequest>();
   const tasks = new Map<string, ErasureTask>();
+  const accessLog: AccessEntry[] = [];
   const byDue = (a: ErasureTask, b: ErasureTask) => (a.dueAt < b.dueAt ? -1 : a.dueAt > b.dueAt ? 1 : 0);
   return {
     all,
     requests,
     tasks,
+    accessLog,
+
+    async insertAccess(entries) {
+      for (const e of entries) accessLog.push(structuredClone(e));
+    },
+    async listAccess(filter) {
+      const list = accessLog
+        .filter(
+          (e) =>
+            (!filter.subjectId || e.subjectId === filter.subjectId) &&
+            (!filter.actor || e.actor === filter.actor) &&
+            (!filter.purpose || e.purpose === filter.purpose) &&
+            (!filter.from || e.at >= filter.from) &&
+            (!filter.to || e.at < filter.to),
+        )
+        .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
+        .map((e) => structuredClone(e));
+      return filter.limit === undefined ? list : list.slice(0, filter.limit);
+    },
+    async pruneAccess(before) {
+      const keep = accessLog.filter((e) => e.at >= before);
+      const deleted = accessLog.length - keep.length;
+      accessLog.splice(0, accessLog.length, ...keep);
+      return deleted;
+    },
 
     async insertRequest(request) {
       requests.set(request.id, structuredClone(request));

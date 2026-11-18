@@ -1,5 +1,6 @@
-import { and, asc, desc, eq, getTableColumns, getTableName, is, lt, lte, or, type SQL, sql, Table } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, getTableName, gte, is, lt, lte, or, type SQL, sql, Table } from "drizzle-orm";
 import { index, integer, jsonb, type PgDatabase, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
+import type { AccessEntry, AccessLogStore } from "./access.js";
 import type { DataAccess } from "./data-access.js";
 import type { ErasureTask, RequestStatus, RequestType, RightsRequest, TaskKind, TaskStatus } from "./records.js";
 import { SeqConflictError } from "./errors.js";
@@ -128,8 +129,82 @@ CREATE TABLE IF NOT EXISTS dpdp_erasure_tasks (
 CREATE INDEX IF NOT EXISTS dpdp_erasure_tasks_subject_idx ON dpdp_erasure_tasks (subject_id);
 CREATE INDEX IF NOT EXISTS dpdp_erasure_tasks_status_due_idx ON dpdp_erasure_tasks (status, due_at);`;
 
+/**
+ * The access log (Rule 6(1)(c) and (e)): who accessed whose personal data, when, for which purpose.
+ * Export it from your Drizzle schema with `consentEvents`.
+ */
+export const accessLog = pgTable(
+  "dpdp_access_log",
+  {
+    id: text("id").primaryKey(),
+    at: ts("at").notNull(),
+    actor: text("actor").notNull(),
+    subjectId: text("subject_id").notNull(),
+    action: text("action").notNull(),
+    purpose: text("purpose").notNull(),
+    fields: jsonb("fields").$type<string[]>(),
+    outOfPurpose: jsonb("out_of_purpose").$type<string[]>(),
+    reason: text("reason"),
+    evidence: jsonb("evidence").$type<Record<string, string>>(),
+  },
+  (t) => [
+    index("dpdp_access_log_at_idx").on(t.at),
+    index("dpdp_access_log_subject_idx").on(t.subjectId, t.at),
+    index("dpdp_access_log_actor_idx").on(t.actor, t.at),
+  ],
+);
+
+/** The access log as plain SQL, if you don't use drizzle-kit for migrations. */
+export const ACCESS_LOG_DDL = `CREATE TABLE IF NOT EXISTS dpdp_access_log (
+  id text PRIMARY KEY,
+  at timestamptz NOT NULL,
+  actor text NOT NULL,
+  subject_id text NOT NULL,
+  action text NOT NULL,
+  purpose text NOT NULL,
+  fields jsonb,
+  out_of_purpose jsonb,
+  reason text,
+  evidence jsonb
+);
+CREATE INDEX IF NOT EXISTS dpdp_access_log_at_idx ON dpdp_access_log (at);
+CREATE INDEX IF NOT EXISTS dpdp_access_log_subject_idx ON dpdp_access_log (subject_id, at);
+CREATE INDEX IF NOT EXISTS dpdp_access_log_actor_idx ON dpdp_access_log (actor, at);`;
+
 /** Every dpdp-kit table as plain SQL. */
-export const DPDP_DDL = `${CONSENT_EVENTS_DDL}\n${RECORDS_DDL}`;
+export const DPDP_DDL = `${CONSENT_EVENTS_DDL}\n${RECORDS_DDL}\n${ACCESS_LOG_DDL}`;
+
+type AccessRow = typeof accessLog.$inferSelect;
+
+function accessFromRow(row: AccessRow): AccessEntry {
+  return {
+    id: row.id,
+    at: row.at.toISOString(),
+    actor: row.actor,
+    subjectId: row.subjectId,
+    action: row.action,
+    purpose: row.purpose,
+    ...(row.fields !== null ? { fields: row.fields } : {}),
+    ...(row.outOfPurpose !== null ? { outOfPurpose: row.outOfPurpose } : {}),
+    ...(row.reason !== null ? { reason: row.reason } : {}),
+    ...(row.evidence !== null ? { evidence: row.evidence } : {}),
+  };
+}
+
+function accessToRow(e: AccessEntry): AccessRow {
+  return {
+    id: e.id,
+    at: new Date(e.at),
+    actor: e.actor,
+    subjectId: e.subjectId,
+    action: e.action,
+    purpose: e.purpose,
+    fields: e.fields ?? null,
+    outOfPurpose: e.outOfPurpose ?? null,
+    reason: e.reason ?? null,
+    evidence: e.evidence ?? null,
+  };
+}
 
 type Row = typeof consentEvents.$inferSelect;
 
@@ -255,10 +330,30 @@ function runnable(when: { now: string; staleBefore: string; maxAttempts: number 
 /**
  * Store on Postgres through Drizzle: consent events, rights requests and erasure tasks. Works with
  * node-postgres, postgres.js, Neon, PGlite and other Drizzle Postgres drivers. Needs the tables
- * `consentEvents`, `rightsRequests` and `erasureTasks` (or `DPDP_DDL`).
+ * `consentEvents`, `rightsRequests`, `erasureTasks` and `accessLog` (or `DPDP_DDL`).
  */
-export function drizzleStore(db: AnyPgDatabase): DpdpStore {
+export function drizzleStore(db: AnyPgDatabase): DpdpStore & AccessLogStore {
   return {
+    async insertAccess(entries) {
+      if (entries.length > 0) await db.insert(accessLog).values(entries.map(accessToRow));
+    },
+    async listAccess(filter) {
+      const where = and(
+        filter.subjectId ? eq(accessLog.subjectId, filter.subjectId) : undefined,
+        filter.actor ? eq(accessLog.actor, filter.actor) : undefined,
+        filter.purpose ? eq(accessLog.purpose, filter.purpose) : undefined,
+        filter.from ? gte(accessLog.at, new Date(filter.from)) : undefined,
+        filter.to ? lt(accessLog.at, new Date(filter.to)) : undefined,
+      );
+      const query = db.select().from(accessLog).where(where).orderBy(asc(accessLog.at), asc(accessLog.id));
+      const rows = filter.limit === undefined ? await query : await query.limit(filter.limit);
+      return rows.map(accessFromRow);
+    },
+    async pruneAccess(before) {
+      const deleted = await db.delete(accessLog).where(lt(accessLog.at, new Date(before))).returning({ id: accessLog.id });
+      return deleted.length;
+    },
+
     async lastEvent(subjectId) {
       const rows = await db
         .select()

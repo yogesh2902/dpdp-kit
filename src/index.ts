@@ -1,4 +1,15 @@
-export { audit, hasErrors, type Issue, type IssueLevel } from "./audit.js";
+export {
+  type AccessAction,
+  type AccessEntry,
+  type AccessFilter,
+  type AccessFinding,
+  type AccessFindingKind,
+  type AccessLogStore,
+  type AccessReview,
+  DEFAULT_ACCESS_LOG_RETENTION,
+  isAccessLogStore,
+} from "./access.js";
+export { audit, hasErrors, isHighRisk, type Issue, type IssueLevel } from "./audit.js";
 export {
   type Basis,
   type Category,
@@ -9,13 +20,17 @@ export {
   type PersonalField,
   type ProcessorDef,
   type PurposeDef,
+  type Protection,
   type PurposeOf,
   type RightsConfig,
+  type SecurityConfig,
   purposeNames,
   type Retention,
   type TableDef,
 } from "./config.js";
 export {
+  type AccessInput,
+  type AccessOptions,
   type ConsentMeta,
   createDpdp,
   type Dpdp,
@@ -34,7 +49,7 @@ export {
   type TablePlan,
 } from "./erasure.js";
 export { DpdpError, type DpdpErrorCode, SeqConflictError } from "./errors.js";
-export { CONSENT_REQUIRED_BODY, type GuardOptions } from "./guard.js";
+export { type AccessLogOptions, CONSENT_REQUIRED_BODY, type GuardOptions } from "./guard.js";
 export { isNoticeLanguage, NOTICE_LANGUAGES, type NoticeLanguage } from "./languages.js";
 export { type Confidence, guessPersonal, type PersonalGuess, tokenize } from "./personal.js";
 export { checkSchema, type Schema, type SchemaColumn, type SchemaTable } from "./schema-check.js";
@@ -68,3 +83,4 @@ export {
   tasksFromPlan,
 } from "./retention.js";
 export { type AccessSummary, DEFAULT_RESPONSE_WITHIN } from "./rights.js";
+export { formatSafeguards, type Safeguard, type SafeguardStatus, safeguardsReport } from "./safeguards.js";

@@ -145,3 +145,44 @@ describe("rights and retention on Postgres (PGlite)", () => {
     expect(failed?.lastError).toMatch(/null/i);
   });
 });
+
+describe("access log on Postgres (PGlite)", () => {
+  const client = new PGlite();
+  const db = drizzle(client);
+  let t = Date.parse("2026-01-01T09:00:00.000Z");
+  const dpdp = createDpdp({ config, store: drizzleStore(db), now: () => new Date(t) });
+
+  beforeAll(async () => {
+    await client.exec(DPDP_DDL);
+  });
+  afterAll(async () => {
+    await client.close();
+  });
+
+  it("writes, filters and reviews entries", async () => {
+    await dpdp.consent.grant("c1", ["promo"]);
+    t += 60_000;
+    await dpdp.access.log({ actor: "crm", subjectIds: ["c1", "c2"], purpose: "promo", fields: ["customers.mobileNo"], evidence: { ip: "10.0.0.7" } });
+    await dpdp.access.log({ actor: "support", subjectId: "c1", purpose: "account", fields: ["customers.favouriteTeam"], reason: "ticket 9" });
+
+    const forC1 = await dpdp.access.list({ subjectId: "c1" });
+    expect(forC1.map((e) => e.actor)).toEqual(["crm", "support"]);
+    expect(forC1[0]).toMatchObject({ purpose: "promo", fields: ["customers.mobileNo"], evidence: { ip: "10.0.0.7" } });
+    expect(forC1[1]).toMatchObject({ outOfPurpose: ["customers.favouriteTeam"], reason: "ticket 9" });
+    expect(await dpdp.access.list({ actor: "crm", limit: 1 })).toHaveLength(1);
+
+    const { findings } = await dpdp.access.review();
+    expect(findings.map((f) => `${f.kind}:${f.actor}:${f.subjectId}`).sort()).toEqual([
+      "no-consent:crm:c2", // c2 never agreed to promo
+      "out-of-purpose:support:c1", // favouriteTeam is held for promo, not account
+    ]);
+  });
+
+  it("prunes only entries older than a year", async () => {
+    t = Date.parse("2027-01-01T09:00:30.000Z"); // the entries were logged at 09:01, so not quite a year ago
+    expect((await dpdp.access.prune()).deleted).toBe(0);
+    t = Date.parse("2027-01-02T09:00:00.000Z");
+    expect((await dpdp.access.prune()).deleted).toBe(3);
+    expect(await dpdp.access.list()).toEqual([]);
+  });
+});

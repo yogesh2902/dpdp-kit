@@ -1,7 +1,20 @@
 import { randomUUID } from "node:crypto";
+import {
+  type AccessAction,
+  type AccessEntry,
+  type AccessFilter,
+  type AccessLogStore,
+  type AccessReview,
+  DEFAULT_ACCESS_LOG_RETENTION,
+  fieldsOutsidePurpose,
+  isAccessLogStore,
+  resolveFields,
+  reviewAccess,
+} from "./access.js";
 import { audit, hasErrors } from "./audit.js";
 import type { DpdpConfig } from "./config.js";
 import type { DataAccess } from "./data-access.js";
+import { type Duration, durationMs } from "./duration.js";
 import { type ErasurePlan, planErasure } from "./erasure.js";
 import { DpdpError, SeqConflictError } from "./errors.js";
 import { canonicalJson, sha256 } from "./hash.js";
@@ -29,6 +42,36 @@ export type VerifyResult =
   | { ok: true; events: number }
   | { ok: false; events: number; brokenAt: number; reason: "hash-mismatch" | "chain-broken" | "seq-gap" };
 
+export interface AccessInput<P extends string> {
+  /** Who is accessing the data: a staff user's id, a service or job name. */
+  actor: string;
+  /** Whose data. Pass `subjectIds` instead for a list or an export. */
+  subjectId?: string;
+  subjectIds?: readonly string[];
+  /** Why: one of your purposes. */
+  purpose: P;
+  /** Default `"read"`. */
+  action?: AccessAction;
+  /**
+   * What is accessed, as data map keys: `"users.phone"`, or `"users"` / `"users.*"` for every
+   * personal field of a table. Fields not held for `purpose` are recorded as `outOfPurpose`.
+   */
+  fields?: readonly string[];
+  /** Free text, e.g. a support ticket number. */
+  reason?: string;
+  /** Details of the request, e.g. IP address, user agent, request id. */
+  evidence?: Record<string, string>;
+}
+
+export interface AccessOptions {
+  /**
+   * What to do when a log entry reads fields that aren't held for its purpose. `"record"` (default)
+   * logs it with `outOfPurpose` for `review()` to report; `"throw"` logs it, then throws
+   * `DpdpError("out-of-purpose")` so the caller can refuse.
+   */
+  outOfPurpose?: "record" | "throw";
+}
+
 export interface DpdpOptions<P extends string> {
   config: DpdpConfig<P>;
   /** `memoryStore()`, `drizzleStore(db)`, or your own. Rights and retention need a full `DpdpStore`. */
@@ -44,6 +87,8 @@ export interface DpdpOptions<P extends string> {
   now?: () => Date;
   /** Attempts when two writes for the same person race. Default 5. */
   maxRetries?: number;
+  /** Access log behaviour. See `AccessOptions`. */
+  access?: AccessOptions;
 }
 
 export interface Dpdp<P extends string> {
@@ -90,6 +135,28 @@ export interface Dpdp<P extends string> {
     tasks(filter?: TaskFilter): Promise<ErasureTask[]>;
     /** Mark a `manual` or `failed` task as handled by a person. */
     markDone(taskId: string, note: string): Promise<ErasureTask>;
+  };
+  readonly access: {
+    /**
+     * Record that someone accessed a person's personal data, and why (Rule 6(1)(c)). One entry per
+     * person. Needs a store that keeps the access log: `memoryStore()`, `drizzleStore(db)`, or your
+     * own `AccessLogStore`.
+     */
+    log(input: AccessInput<P>): Promise<AccessEntry[]>;
+    /** Entries matching the filter, oldest first: for investigating a person, an actor, or a period. */
+    list(filter?: AccessFilter): Promise<AccessEntry[]>;
+    /**
+     * Look for signs of unauthorised access (Rule 6(1)(c)): fields read for a purpose they aren't
+     * held for, consent purposes used without consent at the time, and one actor reaching more
+     * than `maxSubjects` people (default 100) within `window` (default `"1h"`). Reviews the last day
+     * unless `from` / `to` are given. Run it daily.
+     */
+    review(input?: { from?: string; to?: string; window?: Duration; maxSubjects?: number }): Promise<AccessReview>;
+    /**
+     * Delete entries older than `config.security.accessLogRetention` (default and minimum one year,
+     * Rule 6(1)(e)). Run it with the retention runner.
+     */
+    prune(): Promise<{ deleted: number; before: string }>;
   };
   readonly rights: {
     /** Record a request (Sections 11–14). It's due after `config.rights.responseWithin` (default 90 days). */
@@ -254,6 +321,16 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
     return tasks;
   }
 
+  function accessStore(): AccessLogStore {
+    if (!isAccessLogStore(store)) {
+      throw new DpdpError(
+        "store-unsupported",
+        "The access log needs a store that keeps it: memoryStore(), drizzleStore(db), or your own AccessLogStore",
+      );
+    }
+    return store;
+  }
+
   async function requireRequest(id: string): Promise<RightsRequest> {
     const request = await fullStore("Rights requests").getRequest(id);
     if (!request) throw new DpdpError("request-not-found", `No rights request with id ${JSON.stringify(id)}`);
@@ -383,6 +460,75 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
         const done: ErasureTask = { ...task, status: "done", doneAt: nowIso(), note };
         await tasks.updateTask(done);
         return done;
+      },
+    },
+
+    access: {
+      async log(input) {
+        const log = accessStore();
+        if (typeof input.actor !== "string" || input.actor.length === 0) {
+          throw new DpdpError("invalid-actor", "actor must be a non-empty string: who is accessing the data");
+        }
+        const subjects = input.subjectIds ?? (input.subjectId !== undefined ? [input.subjectId] : []);
+        if (subjects.length === 0) throw new DpdpError("invalid-subject", "Pass subjectId or subjectIds");
+        for (const id of subjects) checkSubject(id);
+        if (!purposes[input.purpose]) {
+          throw new DpdpError("unknown-purpose", `Unknown purpose ${JSON.stringify(input.purpose)}`);
+        }
+        const { fields, unknown } = resolveFields(config, input.fields ?? []);
+        if (unknown.length > 0) {
+          throw new DpdpError(
+            "unknown-field",
+            `Not in the data map: ${unknown.map((k) => JSON.stringify(k)).join(", ")}. Use keys like "users.phone" or "users".`,
+          );
+        }
+        const outside = fieldsOutsidePurpose(config, fields, input.purpose);
+        const at = nowIso();
+        const entries: AccessEntry[] = [...new Set(subjects)].map((subjectId) => ({
+          id: randomUUID(),
+          at,
+          actor: input.actor,
+          subjectId,
+          action: input.action ?? "read",
+          purpose: input.purpose,
+          ...(fields.length > 0 ? { fields } : {}),
+          ...(outside.length > 0 ? { outOfPurpose: outside } : {}),
+          ...(input.reason !== undefined ? { reason: input.reason } : {}),
+          ...(input.evidence !== undefined ? { evidence: { ...input.evidence } } : {}),
+        }));
+        await log.insertAccess(entries);
+        if (outside.length > 0 && options.access?.outOfPurpose === "throw") {
+          throw new DpdpError(
+            "out-of-purpose",
+            `${outside.join(", ")} ${outside.length === 1 ? "isn't" : "aren't"} held for "${input.purpose}". The attempt was logged.`,
+          );
+        }
+        return entries;
+      },
+
+      list: (filter = {}) => accessStore().listAccess(filter),
+
+      async review(input = {}) {
+        const to = input.to ?? nowIso();
+        const from = input.from ?? new Date(Date.parse(to) - durationMs("1d")).toISOString();
+        // Without an explicit end, include everything up to and including now.
+        const entries = await accessStore().listAccess(input.to ? { from, to } : { from });
+        return reviewAccess({
+          config,
+          entries,
+          from,
+          to,
+          history: (subjectId) => store.events(subjectId),
+          window: input.window ?? "1h",
+          maxSubjects: input.maxSubjects ?? 100,
+        });
+      },
+
+      async prune() {
+        const keep = config.security?.accessLogRetention ?? DEFAULT_ACCESS_LOG_RETENTION;
+        const keepMs = Math.max(durationMs(keep), durationMs(DEFAULT_ACCESS_LOG_RETENTION));
+        const before = new Date(now().getTime() - keepMs).toISOString();
+        return { deleted: await accessStore().pruneAccess(before), before };
       },
     },
 
