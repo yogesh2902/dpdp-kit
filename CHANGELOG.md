@@ -28,6 +28,10 @@
   - `--schema prisma/schema.prisma`, or a folder of `.prisma` files.
   - `--schema src/models.ts` for a file that exports Mongoose models.
   - The data map and `notPersonal` can use model and field names (`User`, `phoneNumber`) as well as the database's names.
+- **Foreign keys that break a legal hold** (`audit --schema`, Drizzle and Prisma). A link from a held table, like invoices kept for GST, to the users table:
+  - `ON DELETE CASCADE` would delete the invoices with the account: error `held-rows-cascade`.
+  - `SET NULL` on the subject column would lose whose they are: error `held-link-lost`.
+  - `RESTRICT`, Prisma's default for a required relation, makes the deletion fail: warning `held-rows-block-delete`.
 - **A `contact-missing` audit warning** when `fiduciary.dpo` isn't set. Section 8(9) requires publishing it, and every breach notice needs it (Rule 7(1)(e)).
 - **Example apps** in `examples/`: the same shop on Express + Prisma + Postgres and on Express + Mongoose + MongoDB. `examples/journey.mjs` takes them through a year: consent, a blocked promo, access logs, a data request, withdrawal, a grievance, deletion, a breach and erasure. CI runs the journey on every change.
 
@@ -41,7 +45,9 @@
    - Drizzle: add `breaches` and `breachNotices` to your schema and generate a migration, or run `BREACH_DDL`.
    - Prisma: add `PRISMA_MODELS`.
    - MongoDB: nothing to do; the collections are created on first use.
-2. **New audit warning.** If you run `dpdp-kit audit --strict`, set `fiduciary.dpo` (your Data Protection Officer, or a contact person, with their business contact) first.
+2. **New audit checks.**
+   - If you run `dpdp-kit audit --strict`, set `fiduciary.dpo` (your Data Protection Officer, or a contact person, with their business contact) first.
+   - With `--schema`, a foreign key from a table with a `legalHold` to a table whose rows account deletion removes is now reported. Keep that link as a plain, indexed column (see the messages).
 3. **Custom stores.**
    - Breach records need `BreachStore`. Without it, `dpdp.breach` throws `store-unsupported` and `daily()` skips breaches.
    - `updateBreach` must save only over the version it read, and return `false` otherwise (see `BreachStore`).
