@@ -29,6 +29,6 @@ console.log(`${section}
 npm i dpdp-kit@${version}
 \`\`\`
 
-- Docs: https://yogesh2902.github.io/dpdp-kit/
+- Docs: https://dpdp-kit.js.org/
 - npm: https://www.npmjs.com/package/dpdp-kit/v/${version}
 - Full changelog: https://github.com/yogesh2902/dpdp-kit/blob/main/CHANGELOG.md`);

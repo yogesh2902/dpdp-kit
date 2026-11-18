@@ -8,7 +8,7 @@ import { codeToHtml } from "shiki";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const out = join(here, "dist");
-const SITE_URL = "https://yogesh2902.github.io/dpdp-kit/";
+const SITE_URL = "https://dpdp-kit.js.org/";
 const REPO = "https://github.com/yogesh2902/dpdp-kit";
 const pkg = JSON.parse(readFileSync(join(here, "../package.json"), "utf8"));
 

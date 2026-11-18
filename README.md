@@ -4,7 +4,7 @@
 
 **The Node.js-native toolkit for India's Digital Personal Data Protection Act, 2023.** Build it into your Node.js backend.
 
-**Website and docs: [yogesh2902.github.io/dpdp-kit](https://yogesh2902.github.io/dpdp-kit/)**
+**Website and docs: [dpdp-kit.js.org](https://dpdp-kit.js.org/)**
 
 ![dpdp-kit catching an unmapped aadhaar_number column in CI, then passing once it's mapped](docs/media/demo.gif)
 
