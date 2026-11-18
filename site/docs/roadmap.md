@@ -16,21 +16,27 @@ dpdp-kit is growing from a backend toolkit into a full-stack one: the same `dpdp
 
 ## Building now: 0.4
 
-- **Notices that meet Rule 3**, built from the config: per-language text for each purpose, labels for each field, your Data Protection Officer's contact and how to complain to the Board. Every edit gives a new notice version automatically, and each consent event stores the version the person saw.
+- **Prisma**: a store and data access for Prisma, and a drift check that reads your Prisma schema, so the audit catches unmapped personal columns there too.
+- **MongoDB**: a store and data access for MongoDB and Mongoose, for MERN-stack apps.
+- **Breach records** (Section 8(6), Rule 7): record a personal data breach, track who must be told and by when, including the detailed report to the Board within 72 hours, and get reminded before each deadline.
+
+## Next: 0.5
+
+- **Notices that meet Rule 3**, built from the config: per-language text for each purpose, labels for each field, your Data Protection Officer's contact and how to complain to the Board, with an automatic notice version.
 - **Objections to a legitimate use** (Section 7(a)): a new `object` action in the consent ledger, respected by `has()`.
-- **An HTTP API** for notices, consent and rights requests, on the standard Fetch `Request` and `Response`, with adapters for Express, Hono and the Next.js App Router.
+- **An HTTP API** for notices, consent and rights requests, with adapters for Express, Hono and the Next.js App Router.
+- **Rights requests, completed**: corrections applied, an identity-check hook, and acknowledgements.
+- **Cross-border transfers** (Section 16): which country each processor stores data in, checked by the audit.
 
-## Next: 0.5 and 0.6
+## After that: 0.6
 
-- **Prisma and MongoDB** stores and data access, so most Node.js teams can use dpdp-kit with the database they already have.
 - **MySQL and SQLite** data access.
-- **React and React Native** components: a consent notice with every toggle off by default, and a privacy centre with choices, "my data", requests and contacts.
+- **React and React Native** components: a consent notice with every toggle off by default, and a privacy centre.
 - **Example apps** for Next.js and Expo, run in CI.
 
 ## Later
 
 - **Children's data**: an age gate and verifiable guardian consent (Section 9, Rule 10).
-- **Breach records** with the deadlines of Section 8(6) and Rule 7.
 - **Inactivity erasure** with 48 hours' warning, for the platforms in the Third Schedule (Rule 8(1)–(2)).
 - **Erasure beyond SQL**: files in object storage, caches, search indexes and logs.
 - **Consent Manager interop** (Sections 6(7)–6(9), Rule 4).

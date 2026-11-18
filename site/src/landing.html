@@ -286,25 +286,26 @@ jobs:
       <div class="col now reveal">
         <div class="col-head"><span class="pill building"><i></i>Building now</span><span class="ver">0.4</span></div>
         <ul>
-          <li><b>Rule 3 notices from the config</b>in every offered language, with an automatic notice version</li>
-          <li><b>Objections to a legitimate use</b>Section 7(a), respected by <code>has()</code></li>
-          <li><b>HTTP API</b>notice, consent and rights routes, with Express, Hono and Next.js adapters</li>
+          <li><b>Prisma</b>store, data access, and a drift check on your Prisma schema</li>
+          <li><b>MongoDB</b>store and data access for MongoDB and Mongoose</li>
+          <li><b>Breach records</b>Section 8(6), Rule 7: who to tell, and the Board's 72-hour report</li>
         </ul>
       </div>
       <div class="col reveal">
         <div class="col-head"><span class="pill next">Next</span><span class="ver">0.5 – 0.6</span></div>
         <ul>
-          <li><b>Prisma and MongoDB</b>stores and data access</li>
+          <li><b>Rule 3 notices from the config</b>in every offered language, with an automatic version</li>
+          <li><b>Objections to a legitimate use</b>Section 7(a)</li>
+          <li><b>HTTP API</b>Express, Hono and Next.js adapters</li>
           <li><b>MySQL and SQLite</b>data access</li>
           <li><b>React and React Native</b>a consent notice and a privacy centre</li>
-          <li><b>Example apps</b>Next.js and Expo, end to end</li>
+          <li><b>Rights requests and transfers</b>corrections applied, cross-border records (Section 16)</li>
         </ul>
       </div>
       <div class="col reveal">
         <div class="col-head"><span class="pill later">Later</span><span class="ver">0.7 +</span></div>
         <ul>
           <li><b>Children's data</b>age gate and verifiable guardian consent, Section 9, Rule 10</li>
-          <li><b>Breach records</b>with the deadlines of Section 8(6) and Rule 7</li>
           <li><b>Inactivity erasure</b>48 hours' warning, Rule 8(1)–(2)</li>
           <li><b>Erasure beyond SQL</b>files, caches, search indexes</li>
           <li><b>Consent Manager interop</b>Sections 6(7)–6(9), Rule 4</li>
@@ -325,7 +326,7 @@ jobs:
       <details class="reveal"><summary>Does dpdp-kit make my app compliant?</summary><p>No tool can do that on its own. dpdp-kit puts the obligations into practice in your code: declared purposes, consent records, erasure and rights requests. You still need a privacy notice, security safeguards and your own lawyer's review of your purposes and retention periods.</p></details>
       <details class="reveal"><summary>Is it free?</summary><p>Yes. It's MIT licensed, with no paid tier and no account. You can use it in commercial products.</p></details>
       <details class="reveal"><summary>Do I need to run a server or sign up for anything?</summary><p>No. It's a library that runs inside your Node.js process and writes to your own database. There's no API key, and it makes no network calls.</p></details>
-      <details class="reveal"><summary>Which databases and frameworks does it support?</summary><p>Storage and data access work with Postgres through Drizzle (node-postgres, postgres.js, Neon, PGlite). The schema drift check reads Drizzle schemas for Postgres, MySQL and SQLite. Guards are included for Express, Hono, Fastify and NestJS. Every store is an interface, so you can add another database; MySQL, SQLite and Prisma support are on the roadmap.</p></details>
+      <details class="reveal"><summary>Which databases and frameworks does it support?</summary><p>Storage and data access work with Postgres through Drizzle (node-postgres, postgres.js, Neon, PGlite). The schema drift check reads Drizzle schemas for Postgres, MySQL and SQLite. Guards are included for Express, Hono, Fastify and NestJS. Every store is an interface, so you can add another database. Prisma and MongoDB are coming in 0.4, MySQL and SQLite after that.</p></details>
       <details class="reveal"><summary>Which Node.js versions?</summary><p>Node.js 20.19 or later. The package is ESM-only, and <code>require("dpdp-kit")</code> also works on those versions.</p></details>
       <details class="reveal"><summary>When do I need to have this in place?</summary><p>The DPDP Rules were notified on 13 November 2025. Most obligations, including notices, erasure, breaches, children and rights requests, start in May 2027 (Rule 1). Starting now leaves time to test.</p></details>
       <details class="reveal"><summary>What if a legal reference is wrong?</summary><p>Every reference was checked against the official texts of the Act, the Rules and their corrigendum, but laws change. Report it as a <a href="https://github.com/yogesh2902/dpdp-kit/issues">GitHub issue</a>; it's treated as a bug.</p></details>
