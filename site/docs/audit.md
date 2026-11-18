@@ -44,6 +44,12 @@ It checks both directions:
 - **New personal columns nobody mapped.** Columns are recognised by name: phone and email, Aadhaar, PAN, passport and voter ID, date of birth, names, addresses and PIN codes, UPI, IFSC and bank details, IP addresses and device IDs, health, biometric and location data. Clear cases are errors. Columns that are personal only sometimes, like `name`, `gender` or `city`, or anything named for a company or branch, are warnings.
 - **A data map that points at nothing.** Tables or columns that were renamed or dropped.
 - **Erase settings a column can't take.** Erasing a `NOT NULL` column to null, or writing text into a number column. See [Erasure](../erasure/).
+- **Foreign keys that break a legal hold.** Account deletion deletes the person's rows but keeps held ones, like invoices kept for GST. A foreign key from the held table to the users table defeats that:
+  - `ON DELETE CASCADE` deletes the invoices with the account (an error).
+  - `SET NULL` on the subject column loses whose invoices they are (an error).
+  - `RESTRICT`, Prisma's default for a required relation, makes the deletion fail (a warning).
+
+  Keep the link as a plain, indexed column instead.
 
 Columns that describe data rather than hold it, such as `email_verified_at`, `phone_confirmed` and `address_type`, are not flagged. For anything that only looks personal, list it under `notPersonal` in the config:
 

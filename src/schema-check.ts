@@ -17,15 +17,27 @@ export interface SchemaColumn {
   sqlType?: string;
 }
 
+/** A foreign key: these columns point at rows of another table. */
+export interface SchemaReference {
+  /** The referencing columns, as named in the database. */
+  columns: readonly string[];
+  /** The referenced table's database name. */
+  table: string;
+  /** What the database does to these rows when the referenced row is deleted. Default "no action". */
+  onDelete?: "cascade" | "set null" | "set default" | "restrict" | "no action";
+}
+
 export interface SchemaTable {
   /** The table's name in the database. */
   name: string;
   /** The name in code, if different: a Prisma model name (`User` for `@@map("users")`). The data map may use either. */
   key?: string;
   columns: readonly SchemaColumn[];
+  /** Foreign keys from this table. Used to check that legal holds survive account deletion. */
+  references?: readonly SchemaReference[];
 }
 
-/** Your database schema in a neutral shape. `drizzleSchema()` and `prismaSchema()` build one. */
+/** Your database schema in a neutral shape. `drizzleSchema()`, `prismaSchema()` and `mongooseSchema()` build one. */
 export interface Schema {
   tables: readonly SchemaTable[];
 }
@@ -177,5 +189,61 @@ export function checkSchema(config: DpdpConfig<string>, schema: Schema): Issue[]
     }
   }
 
+  // 4. A table under a legal hold must survive deleting the rows it points at.
+  issues.push(...checkHeldReferences(config, byName));
+
+  return issues;
+}
+
+/**
+ * Account deletion deletes the person's rows in every table without a legal hold, and keeps the
+ * held ones (invoices kept for GST). A foreign key from a held table to a deleted one breaks that:
+ * ON DELETE CASCADE deletes the held rows with the account, SET NULL on the subject column loses
+ * whose rows they are (so they can't be anonymised when the hold ends), and RESTRICT or NO ACTION
+ * make the deletion fail for as long as the held rows exist.
+ */
+function checkHeldReferences(config: DpdpConfig<string>, byName: Map<string, SchemaTable>): Issue[] {
+  const issues: Issue[] = [];
+  const entries = Object.entries(config.data ?? {});
+  const deleted = new Set(entries.filter(([, def]) => !def.legalHold).flatMap(([, def]) => (byName.get(def.table) ? [byName.get(def.table)!.name] : [])));
+  for (const [key, def] of entries) {
+    const hold = def.legalHold;
+    const held = byName.get(def.table);
+    if (!hold || !held) continue;
+    const subject = held.columns.find((c) => matches(c, def.subject))?.name;
+    for (const ref of held.references ?? []) {
+      const target = byName.get(ref.table)?.name ?? ref.table;
+      if (!deleted.has(target) || target === held.name) continue;
+      const where = `${held.name}.${ref.columns.join(", ")}`;
+      const path = `schema.${held.name}.${ref.columns.join(",")}`;
+      const keep = `the legal hold (${hold.reason}, ${hold.keep})`;
+      const plain = `Drop the foreign key and keep ${ref.columns.join(", ")} as a plain, indexed column, so the ${held.name} rows outlive the account.`;
+      const onDelete = ref.onDelete ?? "no action";
+      if (onDelete === "cascade") {
+        issues.push({
+          level: "error",
+          code: "held-rows-cascade",
+          path,
+          message: `${where} references ${target} with ON DELETE CASCADE, so deleting an account also deletes the ${held.name} rows that ${keep} says to keep. ${plain}`,
+        });
+      } else if (onDelete === "set null" || onDelete === "set default") {
+        if (subject && ref.columns.includes(subject)) {
+          issues.push({
+            level: "error",
+            code: "held-link-lost",
+            path,
+            message: `${where} references ${target} with ON DELETE ${onDelete.toUpperCase()}, so deleting an account clears whose ${held.name} rows they are, and they can't be found to ${hold.then} when ${keep} ends. ${plain}`,
+          });
+        }
+      } else {
+        issues.push({
+          level: "warning",
+          code: "held-rows-block-delete",
+          path,
+          message: `${where} references ${target} (ON DELETE ${onDelete.toUpperCase()}), so deleting an account fails while ${keep} keeps the ${held.name} rows. The erasure task will fail and retry. ${plain}`,
+        });
+      }
+    }
+  }
   return issues;
 }

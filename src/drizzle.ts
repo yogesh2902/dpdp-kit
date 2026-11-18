@@ -1,12 +1,14 @@
 import { and, asc, count, desc, eq, getTableColumns, getTableName, gte, inArray, is, lt, lte, max, min, or, type SQL, sql, Table } from "drizzle-orm";
-import { index, integer, jsonb, type PgDatabase, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
+import { getTableConfig as mysqlTableConfig, MySqlTable } from "drizzle-orm/mysql-core";
+import { getTableConfig as pgTableConfig, index, integer, jsonb, type PgDatabase, PgTable, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
+import { SQLiteTable, getTableConfig as sqliteTableConfig } from "drizzle-orm/sqlite-core";
 import type { AccessEntry, AccessFilter, AccessLogStore } from "./access.js";
 import type { Breach, BreachNotice, BreachStore } from "./breach.js";
 import type { DataAccess } from "./data-access.js";
 import type { ErasureTask, RequestStatus, RequestType, RightsRequest, TaskKind, TaskStatus } from "./records.js";
 import { SeqConflictError } from "./errors.js";
 import type { NoticeLanguage } from "./languages.js";
-import type { Schema, SchemaTable } from "./schema-check.js";
+import type { Schema, SchemaReference, SchemaTable } from "./schema-check.js";
 import type { ConsentEvent, DpdpStore } from "./store.js";
 
 export { ACCESS_LOG_DDL, BREACH_DDL, CONSENT_EVENTS_DDL, DPDP_DDL, RECORDS_DDL } from "./ddl.js";
@@ -531,7 +533,8 @@ export function drizzleSchema(module: Record<string, unknown>): Schema {
       const type = ["string", "number", "boolean"].includes(column.dataType) ? (column.dataType as "string" | "number" | "boolean") : "other";
       return { name: column.name, ...(key === column.name ? {} : { key }), notNull: column.notNull, type, sqlType: column.getSQLType() } as const;
     });
-    tables.set(name, { name, columns });
+    const references = foreignKeys(value);
+    tables.set(name, { name, columns, ...(references.length ? { references } : {}) });
   }
   return { tables: [...tables.values()] };
 }
@@ -544,6 +547,21 @@ function accessWhere(filter: AccessFilter) {
     filter.from ? gte(accessLog.at, new Date(filter.from)) : undefined,
     filter.to ? lt(accessLog.at, new Date(filter.to)) : undefined,
   );
+}
+
+/** A Drizzle table's foreign keys, for Postgres, MySQL and SQLite tables. */
+function foreignKeys(table: Table): SchemaReference[] {
+  const config = is(table, PgTable)
+    ? pgTableConfig(table)
+    : is(table, MySqlTable)
+      ? mysqlTableConfig(table)
+      : is(table, SQLiteTable)
+        ? sqliteTableConfig(table)
+        : undefined;
+  return (config?.foreignKeys ?? []).map((fk) => {
+    const ref = fk.reference();
+    return { columns: ref.columns.map((c) => c.name), table: getTableName(ref.foreignTable), ...(fk.onDelete ? { onDelete: fk.onDelete } : {}) };
+  });
 }
 
 /** Rows from `db.execute()`, whichever Postgres driver Drizzle wraps. */

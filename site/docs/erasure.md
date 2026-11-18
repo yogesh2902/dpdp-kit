@@ -54,7 +54,9 @@ const report = await dpdp.retention.run();   // { done, failed, manual }
 - **Failures are retried**, up to 5 times. `lastError` keeps the database's message for developers, for example when a column is `NOT NULL`.
 - **A processor with no hook** gives a `manual` task. Handle it yourself (email their support), then `retention.markDone(taskId, "ticket 4411")`.
 - **Consent records are never erased.**
-- **Erasure sets columns to `NULL` by default.** For a `NOT NULL` column, say what to write instead with the field's `erase` setting (below). Data access currently covers Postgres.
+- **Held tables need to outlive the account.** Don't link a held table, like invoices, to the users table with a foreign key. `ON DELETE CASCADE` deletes the invoices with the account. `SET NULL` loses whose invoices they are. `RESTRICT` makes the deletion fail. Keep `user_id` as a plain, indexed column; `audit --schema` checks this for Drizzle and Prisma schemas.
+- **Data access** covers Postgres (Drizzle, Prisma, any client) and MongoDB.
+- **Erasure sets columns to `NULL` by default.** For a `NOT NULL` column, say what to write instead with the field's `erase` setting (below).
 
 ```ts
 fields: {

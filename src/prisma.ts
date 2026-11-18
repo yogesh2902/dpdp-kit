@@ -6,7 +6,7 @@ import type { AccessLogStore } from "./access.js";
 import type { BreachStore } from "./breach.js";
 import type { DataAccess } from "./data-access.js";
 import { postgresData, postgresStore, type SqlQuery } from "./postgres.js";
-import type { Schema, SchemaColumn, SchemaTable } from "./schema-check.js";
+import type { Schema, SchemaColumn, SchemaReference, SchemaTable } from "./schema-check.js";
 import type { DpdpStore } from "./store.js";
 
 export { castType, DPDP_DDL, isUniqueViolation, type SqlQuery } from "./postgres.js";
@@ -121,6 +121,8 @@ export function prismaSchema(text: string): Schema {
   const models = new Set(all.filter((b) => b.kind === "model" || b.kind === "view").map((b) => b.name));
 
   const tables: SchemaTable[] = [];
+  const tableOf = new Map<string, string>(); // model name -> table name
+  const relations: Array<{ model: string; fields: string[]; target: string; onDelete: SchemaReference["onDelete"] }> = [];
   for (const block of all) {
     if (block.kind !== "model" && block.kind !== "view") continue;
     const columns: SchemaColumn[] = [];
@@ -133,7 +135,22 @@ export function prismaSchema(text: string): Schema {
       const m = /^(\w+)\s+(Unsupported\(\s*"(?:[^"\\]|\\.)*"\s*\)|[\w.]+)(\[\])?(\?)?(.*)$/.exec(line);
       if (!m) continue;
       const [, field, typeName, list, optional, attrs = ""] = m as unknown as [string, string, string, string?, string?, string?];
-      if (models.has(typeName) || composites.has(typeName)) continue; // a relation, not a column
+      if (models.has(typeName) || composites.has(typeName)) {
+        // A relation, not a column. The side with `fields:` holds the foreign key.
+        const relation = /@relation\(([^)]*(?:\[[^\]]*\][^)]*)*)\)/.exec(attrs)?.[1] ?? "";
+        const fields = /fields\s*:\s*\[([^\]]*)\]/.exec(relation)?.[1];
+        if (fields && models.has(typeName)) {
+          const action = /onDelete\s*:\s*(\w+)/.exec(relation)?.[1];
+          relations.push({
+            model: block.name,
+            fields: fields.split(",").map((f) => f.trim()).filter(Boolean),
+            target: typeName,
+            // Prisma's defaults: SetNull for an optional relation, Restrict for a required one.
+            onDelete: PRISMA_ACTIONS[action ?? (optional ? "SetNull" : "Restrict")] ?? "no action",
+          });
+        }
+        continue;
+      }
       const name = mapName(attrs, "@") ?? field;
       const native = /@db\.(\w+)(\(([^)]*)\))?/.exec(attrs);
       let sqlType: string | undefined;
@@ -155,10 +172,26 @@ export function prismaSchema(text: string): Schema {
         ...(sqlType ? { sqlType } : {}),
       });
     }
+    tableOf.set(block.name, tableName);
     tables.push({ name: tableName, ...(tableName === block.name ? {} : { key: block.name }), columns });
+  }
+  for (const r of relations) {
+    const table = tables.find((t) => (t.key ?? t.name) === r.model);
+    if (!table) continue;
+    const columnName = (field: string) => table.columns.find((c) => (c.key ?? c.name) === field)?.name ?? field;
+    const reference: SchemaReference = { columns: r.fields.map(columnName), table: tableOf.get(r.target) ?? r.target, ...(r.onDelete ? { onDelete: r.onDelete } : {}) };
+    Object.assign(table, { references: [...(table.references ?? []), reference] });
   }
   return { tables };
 }
+
+const PRISMA_ACTIONS: Record<string, SchemaReference["onDelete"]> = {
+  Cascade: "cascade",
+  SetNull: "set null",
+  SetDefault: "set default",
+  Restrict: "restrict",
+  NoAction: "no action",
+};
 
 /**
  * Prisma models for dpdp-kit's own tables. Paste them into schema.prisma (or save as

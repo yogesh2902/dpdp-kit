@@ -37,7 +37,11 @@ export interface Issue {
     | "access-log-retention-too-short"
     | "invalid-erase"
     | "erase-not-null"
-    | "erase-type-mismatch";
+    | "erase-type-mismatch"
+    // legal holds against the database's foreign keys
+    | "held-rows-cascade"
+    | "held-link-lost"
+    | "held-rows-block-delete";
   /** Where in the config (`data.users.fields.phone`), or in the schema (`schema.users.phone`). */
   path: string;
   message: string;
