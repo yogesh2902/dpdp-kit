@@ -18,7 +18,7 @@
 
 <section class="stats">
   <div class="wrap">
-    <div class="stat reveal"><b>85</b><span>tests, including real Postgres</span></div>
+    <div class="stat reveal"><b>145</b><span>tests, including real Postgres and Fastify</span></div>
     <div class="stat reveal"><b>22<small>+1</small></b><span>notice languages: the Eighth Schedule and English</span></div>
     <div class="stat reveal"><b>0</b><span>network calls; data stays on your servers</span></div>
     <div class="stat reveal"><b>MIT</b><span>free and open source, no paid tier</span></div>
@@ -226,7 +226,7 @@ jobs:
       <div class="card reveal"><div class="ico">⌁</div><h4>Drift-proof</h4><p>The audit reads your real Drizzle schema in both directions, so the data map can't quietly fall out of date.</p></div>
       <div class="card reveal"><div class="ico">◎</div><h4>Node-native, no SaaS</h4><p>A library inside your process. No server to run, no account, no API key, and your own Postgres.</p></div>
       <div class="card reveal"><div class="ico">§</div><h4>Checked against the law</h4><p>Every Section and Rule reference was checked against the official Gazette texts. A wrong reference is treated as a bug.</p></div>
-      <div class="card reveal"><div class="ico">✓</div><h4>Tested like infrastructure</h4><p>85 tests, including full flows on real Postgres and three runners racing for the same tasks. CI on Node 20.19, 22 and 24.</p></div>
+      <div class="card reveal"><div class="ico">✓</div><h4>Tested like infrastructure</h4><p>145 tests, including full flows on real Postgres and three runners racing for the same tasks. CI on Node 20.19, 22 and 24.</p></div>
       <div class="card reveal"><div class="ico">↗</div><h4>Open, no lock-in</h4><p>MIT licensed. Your records live in your own tables, and every store and data-access layer is an interface you can replace.</p></div>
     </div>
   </div>
@@ -270,42 +270,43 @@ jobs:
     <p class="intro reveal">dpdp-kit is growing from a backend toolkit into a full-stack one: the same config will drive the screens people see, on the web and on mobile.</p>
     <div class="board">
       <div class="col reveal">
-        <div class="col-head"><span class="pill done">Shipped</span><span class="ver">0.1 – 0.2</span></div>
+        <div class="col-head"><span class="pill done">Shipped</span><span class="ver">0.1 – 0.3</span></div>
         <ul>
           <li><b>Typed config and audit CLI</b>purposes, data map, checks</li>
           <li><b>Schema drift check</b>Drizzle: Postgres, MySQL, SQLite</li>
           <li><b>Consent records</b>hash-chained, 22 languages + English</li>
-          <li><b>Erasure and retention runner</b>legal holds, Rule 8(3)</li>
+          <li><b>Erasure and retention runner</b>legal holds, Rule 8(3), NOT NULL replacements</li>
           <li><b>Rights requests</b>Sections 11–14, Rule 14 due dates</li>
+          <li><b>Security safeguards</b>Rule 6: access log, encryption, tokens, masking</li>
+          <li><b>Guards for every framework</b>Express, Hono, Fastify, NestJS</li>
+          <li><b>Events and daily upkeep</b><code>dpdp.on</code>, <code>dpdp.daily()</code></li>
           <li><b>GitHub Action</b>annotations on pull requests</li>
-          <li><b>Express and Hono guards</b>consent-required routes</li>
         </ul>
       </div>
       <div class="col now reveal">
-        <div class="col-head"><span class="pill building"><i></i>Building now</span><span class="ver">0.3</span></div>
+        <div class="col-head"><span class="pill building"><i></i>Building now</span><span class="ver">0.4</span></div>
         <ul>
-          <li><b>Security safeguards and access logs ✓ built</b>Rule 6: who accessed what, encryption, tokens, masking, a safeguards report</li>
           <li><b>Rule 3 notices from the config</b>in every offered language, with an automatic notice version</li>
           <li><b>Objections to a legitimate use</b>Section 7(a), respected by <code>has()</code></li>
           <li><b>HTTP API</b>notice, consent and rights routes, with Express, Hono and Next.js adapters</li>
         </ul>
       </div>
       <div class="col reveal">
-        <div class="col-head"><span class="pill next">Next</span><span class="ver">0.4 – 0.5</span></div>
+        <div class="col-head"><span class="pill next">Next</span><span class="ver">0.5 – 0.6</span></div>
         <ul>
-          <li><b>Typed client</b>for browsers, React Native and Node</li>
-          <li><b>React hooks and components</b>a consent notice and a privacy centre, ready for Next.js</li>
-          <li><b>React Native screens</b>Expo-friendly, no native modules</li>
+          <li><b>Prisma and MongoDB</b>stores and data access</li>
+          <li><b>MySQL and SQLite</b>data access</li>
+          <li><b>React and React Native</b>a consent notice and a privacy centre</li>
           <li><b>Example apps</b>Next.js and Expo, end to end</li>
         </ul>
       </div>
       <div class="col reveal">
-        <div class="col-head"><span class="pill later">Later</span><span class="ver">0.6 +</span></div>
+        <div class="col-head"><span class="pill later">Later</span><span class="ver">0.7 +</span></div>
         <ul>
           <li><b>Children's data</b>age gate and verifiable guardian consent, Section 9, Rule 10</li>
           <li><b>Breach records</b>with the deadlines of Section 8(6) and Rule 7</li>
           <li><b>Inactivity erasure</b>48 hours' warning, Rule 8(1)–(2)</li>
-          <li><b>More databases</b>MySQL and SQLite data access, a Prisma store</li>
+          <li><b>Erasure beyond SQL</b>files, caches, search indexes</li>
           <li><b>Consent Manager interop</b>Sections 6(7)–6(9), Rule 4</li>
         </ul>
       </div>

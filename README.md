@@ -434,9 +434,10 @@ Section 6(10) puts the burden on you: if consent is questioned in a proceeding, 
 | **v0.1** | Config and types, `audit` + CLI, consent records, erasure plans, Drizzle store, Express/Hono guards |
 | **v0.1.2** | Schema drift check: `audit --schema`, `checkSchema`, `drizzleSchema`, `notPersonal` |
 | **v0.2.0** | Rights requests (Sections 11–14, Rule 14), retention runner that carries out erasure (Section 8(7), Rule 8(3), legal holds), processor hooks, `drizzleData`, GitHub Action with pull request annotations |
-| **next** | Security safeguards (Rule 6): the access log with review and one-year retention, `dpdp-kit/protect` (encryption, tokens, masking), `protect` / `contract` / `security` in the config, `dpdp-kit safeguards`, `logAccess` middleware |
-| later | Recording objections to a Section 7(a) use, React notice that meets Rule 3 + privacy centre, MySQL and SQLite data access |
-| v0.3 | Breach records with deadlines (Section 8(6), Rule 7: people and the Board without delay, detailed report to the Board within 72 hours), children and guardian consent (Section 9, Rule 10), inactivity erasure with 48 hours' warning for large e-commerce, gaming and social media platforms (Rule 8(1)–(2), Third Schedule), Consent Manager interop (Sections 6(7)–6(9), Rule 4), Prisma store |
+| **v0.3.0** | Security safeguards (Rule 6): access log with review and one-year retention, `dpdp-kit/protect` (encryption, virtual tokens, masking), `protect` / `contract` / `security` in the config, `dpdp-kit safeguards`; Fastify and NestJS guards; `logAccess` for every framework; events (`dpdp.on`); `erase` replacements for `NOT NULL` columns; `dpdp.daily()` and `startDaily` |
+| next | Notices that meet Rule 3 from the config, recording objections to a Section 7(a) use, an HTTP API with Express, Hono and Next.js adapters |
+| then | Prisma and MongoDB stores and data access, MySQL and SQLite data access, React and React Native consent screens |
+| later | Breach records with deadlines (Section 8(6), Rule 7), children and guardian consent (Section 9, Rule 10), inactivity erasure (Rule 8(1)–(2), Third Schedule), erasure beyond SQL (files, caches, search indexes), Consent Manager interop (Sections 6(7)–6(9), Rule 4) |
 
 ## When the Rules apply
 
