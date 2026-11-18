@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { DpdpConfig } from "./config.js";
+import { type DpdpConfig, erasedValue } from "./config.js";
 import type { DataAccess } from "./data-access.js";
 import { type Duration, durationMs, maxDuration } from "./duration.js";
 import type { ErasurePlan } from "./erasure.js";
@@ -115,7 +115,11 @@ async function carryOut(task: ErasureTask, input: RunInput): Promise<{ affected?
   if (task.kind === "delete-rows") {
     return { affected: await input.data.deleteRows(def.table, def.subject, task.subjectId) };
   }
-  return { affected: await input.data.eraseFields(def.table, def.subject, task.subjectId, task.fields ?? []) };
+  const fields = task.fields ?? [];
+  const values = Object.fromEntries(
+    fields.map((field) => [field, erasedValue(def.fields[field]?.erase, { subjectId: task.subjectId, table: task.table ?? "", field })]),
+  );
+  return { affected: await input.data.eraseFields(def.table, def.subject, task.subjectId, fields, values) };
 }
 
 /** Carry out every due task once. Safe to run from several processes at the same time. */

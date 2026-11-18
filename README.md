@@ -233,7 +233,17 @@ const report = await dpdp.retention.run();   // { done, failed, manual }
 - **Failures are retried**, up to 5 times. `lastError` keeps the database's message for developers, for example when a column is `NOT NULL`.
 - **A processor with no hook** gives a `manual` task. Handle it yourself (email their support), then `retention.markDone(taskId, "ticket 4411")`.
 - **Consent records are never erased.** Section 6(10) makes you prove consent, and Rule 8(3) requires keeping records of processing.
-- **Erasure sets columns to `NULL`**, so erasable columns must be nullable. Data access currently covers Postgres.
+- **Erasure sets columns to `NULL` by default.** For a `NOT NULL` column, say what to write instead with the field's `erase` setting (below). Data access currently covers Postgres.
+
+```ts
+fields: {
+  nickname: { category: "identity", purposes: ["newsletter"], erase: "redact" }, // "[erased]"
+  points:   { category: "behavioural", purposes: ["newsletter"], erase: { value: 0 } },
+  email:    { category: "contact", purposes: ["newsletter"], erase: { value: ({ subjectId }) => `erased-${subjectId}@invalid` } }, // NOT NULL UNIQUE
+},
+```
+
+The replacement must not identify the person: use their internal id, never a hash of their data.
 
 ## 5. Rights requests
 

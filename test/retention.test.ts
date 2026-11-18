@@ -138,3 +138,11 @@ describe("retention: running", () => {
     await expect(dpdp.rights.open("u1", "access")).rejects.toMatchObject({ code: "store-unsupported" });
   });
 });
+
+describe("erase values in memory", () => {
+  it("sets each field to its replacement, including false and 0", async () => {
+    const data = memoryData({ t: [{ id: "a", x: "secret", y: true, z: 5, w: "gone" }] });
+    await data.eraseFields("t", "id", "a", ["x", "y", "z", "w"], { x: "[erased]", y: false, z: 0 });
+    expect(data.tables.t).toEqual([{ id: "a", x: "[erased]", y: false, z: 0, w: null }]);
+  });
+});

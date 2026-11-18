@@ -191,3 +191,57 @@ describe("access log on Postgres (PGlite)", () => {
     expect(await dpdp.access.list()).toEqual([]);
   });
 });
+
+describe("erasing NOT NULL columns on Postgres (PGlite)", () => {
+  const client = new PGlite();
+  const db = drizzle(client);
+  let t = Date.parse("2026-01-01T00:00:00.000Z");
+  const members = pgTable("members", { id: text("id").primaryKey(), email: text("email"), nickname: text("nickname"), points: text("points") });
+  const eraseConfig = defineConfig({
+    fiduciary: { name: "Acme", grievanceUrl: "/g" },
+    purposes: {
+      account: { basis: "legitimate-use", retain: "while-active" },
+      newsletter: { basis: "consent", retain: { afterWithdrawal: "0d" } },
+    },
+    data: {
+      members: {
+        table: "members",
+        subject: "id",
+        fields: {
+          email: { category: "contact", purposes: ["newsletter"], erase: { value: ({ subjectId }) => `erased-${subjectId}@invalid` } },
+          nickname: { category: "identity", purposes: ["newsletter"], erase: "redact" },
+          points: { category: "behavioural", purposes: ["newsletter"], erase: { value: 0 } },
+        },
+      },
+    },
+    minimumRetention: "1y",
+  });
+  const dpdp = createDpdp({ config: eraseConfig, store: drizzleStore(db), data: drizzleData(db, { schema: { members } }), now: () => new Date(t) });
+
+  beforeAll(async () => {
+    await client.exec(DPDP_DDL);
+    await client.exec(`
+      CREATE TABLE members (id text PRIMARY KEY, email text NOT NULL UNIQUE, nickname text NOT NULL, points integer NOT NULL);
+      INSERT INTO members VALUES ('m1', 'asha@example.com', 'ash', 120), ('m2', 'ravi@example.com', 'rav', 40);
+    `);
+  });
+  afterAll(async () => {
+    await client.close();
+  });
+
+  it("writes each field's replacement, so constraints hold", async () => {
+    for (const id of ["m1", "m2"]) {
+      await dpdp.consent.grant(id, ["newsletter"]);
+      await dpdp.consent.withdraw(id, ["newsletter"]);
+    }
+    t += 366 * 24 * 60 * 60 * 1000;
+    const report = await dpdp.retention.run();
+    expect(report.failed).toEqual([]);
+    expect(report.done).toHaveLength(2);
+    const rows = (await client.query("SELECT id, email, nickname, points FROM members ORDER BY id")).rows;
+    expect(rows).toEqual([
+      { id: "m1", email: "erased-m1@invalid", nickname: "[erased]", points: 0 },
+      { id: "m2", email: "erased-m2@invalid", nickname: "[erased]", points: 0 },
+    ]);
+  });
+});

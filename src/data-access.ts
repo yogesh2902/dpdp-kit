@@ -1,3 +1,5 @@
+import type { ErasedValue } from "./config.js";
+
 /**
  * How dpdp-kit reaches the personal data in your own tables: to show a person what you hold
  * (Section 11) and to carry out erasure (Section 8(7)). Names are as written in the data map
@@ -6,8 +8,17 @@
 export interface DataAccess {
   /** The person's rows, with only the listed columns. */
   read(table: string, subjectColumn: string, subjectId: string, columns: readonly string[]): Promise<Record<string, unknown>[]>;
-  /** Set the listed columns to null in the person's rows. Returns rows changed. */
-  eraseFields(table: string, subjectColumn: string, subjectId: string, columns: readonly string[]): Promise<number>;
+  /**
+   * Erase the listed columns in the person's rows: set each to its value in `values`, or to null
+   * when it has none (the field's `erase` setting in the config). Returns rows changed.
+   */
+  eraseFields(
+    table: string,
+    subjectColumn: string,
+    subjectId: string,
+    columns: readonly string[],
+    values?: Readonly<Record<string, ErasedValue>>,
+  ): Promise<number>;
   /** Delete the person's rows. Returns rows deleted. */
   deleteRows(table: string, subjectColumn: string, subjectId: string): Promise<number>;
 }
@@ -25,9 +36,9 @@ export function memoryData(tables: Record<string, Row[]>): DataAccess & { readon
         .filter(mine(subjectColumn, subjectId))
         .map((row) => Object.fromEntries(columns.map((c) => [c, row[c] ?? null])));
     },
-    async eraseFields(table, subjectColumn, subjectId, columns) {
+    async eraseFields(table, subjectColumn, subjectId, columns, values = {}) {
       const rows = rowsOf(table).filter(mine(subjectColumn, subjectId));
-      for (const row of rows) for (const c of columns) row[c] = null;
+      for (const row of rows) for (const c of columns) row[c] = Object.hasOwn(values, c) ? values[c] : null;
       return rows.length;
     },
     async deleteRows(table, subjectColumn, subjectId) {

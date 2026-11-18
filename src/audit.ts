@@ -33,7 +33,8 @@ export interface Issue {
     | "unprotected-high-risk-field"
     | "processor-contract-missing"
     | "security-measure-missing"
-    | "access-log-retention-too-short";
+    | "access-log-retention-too-short"
+    | "invalid-erase";
   /** Where in the config (`data.users.fields.phone`), or in the schema (`schema.users.phone`). */
   path: string;
   message: string;
@@ -256,8 +257,29 @@ export function audit(config: DpdpConfig<string>): Issue[] {
   }
 
   checkSecurity(config, issues);
+  checkErase(config, issues);
 
   return issues;
+}
+
+/** Each field's `erase` setting must be "null", "redact" or { value }. */
+function checkErase(config: DpdpConfig<string>, issues: Issue[]) {
+  for (const [key, table] of Object.entries(config.data ?? {})) {
+    for (const [field, def] of Object.entries(table.fields ?? {})) {
+      const erase = def.erase as unknown;
+      if (erase === undefined || erase === "null" || erase === "redact") continue;
+      if (erase && typeof erase === "object" && "value" in erase) {
+        const value = (erase as { value: unknown }).value;
+        if (value === null || ["string", "number", "boolean", "function"].includes(typeof value)) continue;
+      }
+      issues.push({
+        level: "error",
+        code: "invalid-erase",
+        path: `data.${key}.fields.${field}.erase`,
+        message: 'erase must be "null", "redact", or { value } with a string, number, boolean, null, or a function returning one.',
+      });
+    }
+  }
 }
 
 /** Identifiers whose exposure does the most harm: government ids and bank or card numbers. */

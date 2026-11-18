@@ -56,6 +56,27 @@ export type Category =
  */
 export type Protection = "encrypted" | "tokenised" | "masked" | "hashed";
 
+/** A value a field can be set to when it's erased. */
+export type ErasedValue = string | number | boolean | null;
+
+/** Text written by `erase: "redact"`. */
+export const REDACTED = "[erased]";
+
+/**
+ * What a field becomes when it's erased. Default `"null"`.
+ * - `"null"`: set to `NULL`. The column must be nullable.
+ * - `"redact"`: set to the text `"[erased]"`, for `NOT NULL` text columns.
+ * - `{ value }`: a fixed value, or a function of the person and field, for columns with other
+ *   constraints, e.g. a `NOT NULL UNIQUE` email:
+ *   `{ value: ({ subjectId }) => \`erased-${subjectId}@invalid\` }`.
+ *
+ * The replacement must not identify the person: use their internal id, never a hash of their data.
+ */
+export type EraseWith =
+  | "null"
+  | "redact"
+  | { value: ErasedValue | ((field: { subjectId: string; table: string; field: string }) => ErasedValue) };
+
 export interface PersonalField<P extends string = string> {
   category: Category;
   /** Every purpose this field is held for. When all of them end, the field must go. */
@@ -68,6 +89,8 @@ export interface PersonalField<P extends string = string> {
    * has none.
    */
   protect?: Protection;
+  /** What the field becomes when it's erased. Default `"null"`. See `EraseWith`. */
+  erase?: EraseWith;
 }
 
 /**
@@ -180,4 +203,11 @@ export function defineConfig<const P extends string>(config: DpdpConfig<P>): Dpd
 
 export function purposeNames<P extends string>(config: DpdpConfig<P>): P[] {
   return Object.keys(config.purposes) as P[];
+}
+
+/** The value a field is set to when it's erased, from its `erase` setting. */
+export function erasedValue(erase: EraseWith | undefined, field: { subjectId: string; table: string; field: string }): ErasedValue {
+  if (erase === undefined || erase === "null") return null;
+  if (erase === "redact") return REDACTED;
+  return typeof erase.value === "function" ? erase.value(field) : erase.value;
 }

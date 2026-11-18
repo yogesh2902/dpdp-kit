@@ -73,6 +73,8 @@ Your tables, keyed by a name you choose.
 - **`fields`**: each personal column, with a `category` (`contact`, `identity`, `behavioural`…) and the `purposes` it's held for.
 - **`legalHold`**: another law makes you keep these rows, for example tax or KYC records. Section 8(7) requires erasure "unless retention is necessary for compliance with any law". Held rows wait `keep`, then are anonymised or deleted, as `then` says.
 
+A field can say what it becomes when it's erased, with `erase`: `"null"` (the default), `"redact"` (the text `"[erased]"`), or `{ value }`, a fixed value or a function of the person, for `NOT NULL` or `UNIQUE` columns. See [Erasure and retention](../erasure/).
+
 Each field can also say how it's protected where it's stored, with `protect`: `"encrypted"`, `"tokenised"`, `"masked"` or `"hashed"` (Rule 6(1)(a)). The audit warns when a high-risk identifier, such as Aadhaar, PAN or a bank account number, has none. See [Security and access logs](../security/).
 
 ## processors

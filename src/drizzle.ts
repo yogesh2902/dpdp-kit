@@ -515,10 +515,10 @@ export function drizzleData(db: AnyPgDatabase, options: { schema?: Record<string
       );
       return rowsOf(result);
     },
-    async eraseFields(table, subjectColumn, subjectId, columns) {
+    async eraseFields(table, subjectColumn, subjectId, columns, values = {}) {
       if (columns.length === 0) return 0;
       const set = sql.join(
-        columns.map((c) => sql`${col(table, c)} = NULL`),
+        columns.map((c) => (Object.hasOwn(values, c) && values[c] !== null ? sql`${col(table, c)} = ${values[c]}` : sql`${col(table, c)} = NULL`)),
         sql`, `,
       );
       const result = await db.execute(

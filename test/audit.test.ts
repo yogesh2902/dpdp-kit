@@ -115,3 +115,20 @@ describe("audit: Rule 6 security safeguards", () => {
     expect(codes(bad as unknown as DpdpConfig<string>)).toEqual(["error:invalid-duration:security.accessLogRetention"]);
   });
 });
+
+describe("audit: erase settings", () => {
+  it("accepts null, redact and { value }, and rejects anything else", () => {
+    const withErase = (erase: unknown) =>
+      ({
+        fiduciary: { name: "X", grievanceUrl: "/g" },
+        purposes: { a: { basis: "legitimate-use", retain: "while-active" } },
+        data: { users: { table: "users", subject: "id", fields: { email: { category: "contact", purposes: ["a"], erase } } } },
+        minimumRetention: "1y",
+        security: { accessControl: "x", backups: "x", measures: "x" },
+      }) as unknown as DpdpConfig<string>;
+    for (const ok of ["null", "redact", { value: "" }, { value: 0 }, { value: null }, { value: () => "x" }]) expect(codes(withErase(ok))).toEqual([]);
+    for (const bad of ["blank", { with: "x" }, { value: { nested: 1 } }]) {
+      expect(codes(withErase(bad))).toEqual(["error:invalid-erase:data.users.fields.email.erase"]);
+    }
+  });
+});

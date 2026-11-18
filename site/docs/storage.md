@@ -39,7 +39,7 @@ Implement `DpdpStore`:
 
 `insert` must throw `SeqConflictError` on a duplicate `(subjectId, seq)`, and `claimTask` must be atomic. A store with only the three consent methods still works for consent; rights and retention then throw `store-unsupported`.
 
-Implement `DataAccess` (`read`, `eraseFields`, `deleteRows`) for another database.
+Implement `DataAccess` (`read`, `eraseFields`, `deleteRows`) for another database. `eraseFields` receives the replacement for each column (from each field's `erase` setting); a column without one becomes null.
 
 ## For tests
 
