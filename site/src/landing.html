@@ -78,6 +78,8 @@
         <tr><td>A notice in English or any Eighth Schedule language</td><td>Sections 5(3), 6(3)</td><td>All 22 languages built in</td></tr>
         <tr><td>Erase on withdrawal or when the purpose ends, unless another law says keep it</td><td>Section 8(7)</td><td>Erasure plans and a retention runner, with legal holds</td></tr>
         <tr><td>Keep data, traffic data and logs of processing for at least a year</td><td>Rule 8(3)</td><td><code>minimumRetention</code>, enforced by the audit</td></tr>
+        <tr><td>Log, monitor and review who accesses personal data, and keep the logs for a year</td><td>Rule 6(1)(c), (e)</td><td>An access log with review, flags reads outside a field's purpose</td></tr>
+        <tr><td>Encryption, masking or virtual tokens</td><td>Rule 6(1)(a)</td><td><code>dpdp-kit/protect</code>: AES-256-GCM, keyed tokens, masking</td></tr>
         <tr><td>Answer access, correction, erasure, grievance and nomination requests</td><td>Sections 11–14</td><td>Rights requests with due dates</td></tr>
         <tr><td>Answer grievances within 90 days</td><td>Rule 14(3)</td><td>A default due date, enforced by the audit</td></tr>
         <tr><td>Tell processors to stop, and to erase</td><td>Sections 6(6), 8(7)(b)</td><td>Processor hooks, or a manual task when there's no hook</td></tr>
@@ -282,6 +284,7 @@ jobs:
       <div class="col now reveal">
         <div class="col-head"><span class="pill building"><i></i>Building now</span><span class="ver">0.3</span></div>
         <ul>
+          <li><b>Security safeguards and access logs ✓ built</b>Rule 6: who accessed what, encryption, tokens, masking, a safeguards report</li>
           <li><b>Rule 3 notices from the config</b>in every offered language, with an automatic notice version</li>
           <li><b>Objections to a legitimate use</b>Section 7(a), respected by <code>has()</code></li>
           <li><b>HTTP API</b>notice, consent and rights routes, with Express, Hono and Next.js adapters</li>

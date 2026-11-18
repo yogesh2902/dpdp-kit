@@ -12,6 +12,7 @@ Most teams handle this with a privacy policy page and a spreadsheet. Nothing in 
 - **Declare why you hold each piece of personal data**, in one typed config file. A misspelt purpose is a type error.
 - **Keep consent records that show tampering.** Each person's grants and withdrawals form a hash chain, with the notice version and language they saw.
 - **Know what to erase, and erase it.** When consent is withdrawn or an account is deleted, get a plan (which fields go, which stay and why, which tables are under a legal hold, which third parties to tell), then let the retention runner carry it out on time.
+- **Show who touched what.** An access log records who read whose data and why, flags reads outside a field's purpose, and keeps a year of entries (Rule 6). Encryption, tokens and masking come in `dpdp-kit/protect`.
 - **Answer rights requests on time.** Access, correction, erasure, grievance and nomination requests are recorded with due dates.
 - **Check it in CI.** `dpdp-kit audit` fails the build when the data map is inconsistent, and `--schema` catches drift between the map and your Drizzle schema. The GitHub Action puts each problem on the pull request.
 

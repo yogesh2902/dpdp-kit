@@ -11,6 +11,7 @@
 - **Declare why you hold each piece of personal data**, in one typed config file. A misspelt purpose is a type error.
 - **Keep consent records that show tampering.** Each person's grants and withdrawals form a hash chain, with the notice version and language they saw.
 - **Know what to erase.** When consent is withdrawn or an account is deleted, get a plan: which fields go, which stay (and why), which tables are under a legal hold, which third parties to tell.
+- **Show who touched what.** An access log records who read whose data and why, flags reads outside a field's purpose, and keeps a year of entries, as Rule 6 requires. Encryption, tokens and masking for Aadhaar, PAN and other identifiers come in `dpdp-kit/protect`.
 - **Check it in CI.** `dpdp-kit audit` fails the build when the data map is inconsistent, and the GitHub Action puts each problem on the pull request.
 - **Catch drift.** `dpdp-kit audit --schema` reads your Drizzle schema and fails the build when someone adds a `phone`, `email` or `aadhaar_number` column without saying what it's for, or when the data map points at columns that no longer exist. Compliance that can't quietly fall out of date.
 
@@ -268,7 +269,70 @@ Corrections and nominations are recorded with the request (`details`); your app 
 rights: { responseWithin: { grievance: "30d", access: "30d" } },
 ```
 
-## 6. Guard routes
+## 6. Security safeguards and access logs
+
+Rule 6(1) of the DPDP Rules sets the minimum security safeguards, and a breach of Section 8(5) carries the Act's highest penalty, up to ₹250 crore. The parts that live in code are built in.
+
+**Access log (Rule 6(1)(c) and (e)).** Record who accessed whose data, why, and which fields:
+
+```ts
+await dpdp.access.log({
+  actor: "support:priya",            // who
+  subjectId: userId,                 // whose data
+  purpose: "account",                // why: one of your purposes
+  fields: ["users.phone", "orders"], // what: "table.field", or a whole table
+  reason: "ticket 4411",
+});
+
+await dpdp.access.list({ subjectId: userId });  // investigate one person, an actor, or a period
+await dpdp.access.review();                     // daily: find unauthorised access
+await dpdp.access.prune();                      // keeps at least a year, as Rule 6(1)(e) requires
+```
+
+A field read for a purpose it isn't held for is recorded as `outOfPurpose` (or refused, with `createDpdp({ ..., access: { outOfPurpose: "throw" } })`). `review()` reports reads outside their purpose, consent purposes used when the person hadn't consented at that moment, and one actor reaching more than 100 people within an hour (both adjustable). Or log whole routes:
+
+```ts
+import { logAccess } from "dpdp-kit/express"; // or "dpdp-kit/hono"
+app.get("/admin/users/:id", logAccess(dpdp, {
+  purpose: "account",
+  fields: ["users"],
+  actor: (req) => req.staff?.id,
+  subject: (req) => req.params.id,
+}), handler);
+```
+
+**Encryption, masking and virtual tokens (Rule 6(1)(a)).** `dpdp-kit/protect` has AES-256-GCM field encryption with key rotation, keyed tokens for lookups, and masking:
+
+```ts
+import { createEncryptor, createTokenizer, maskAadhaar } from "dpdp-kit/protect";
+
+const enc = createEncryptor({ keys: { k1: process.env.DPDP_KEY_1! }, current: "k1" });
+const stored = enc.encrypt(aadhaar, `users.aadhaar:${user.id}`); // bound to this row
+enc.decrypt(stored, `users.aadhaar:${user.id}`);
+
+const tokens = createTokenizer({ key: process.env.DPDP_TOKEN_KEY! });
+tokens.token(email); // same email → same token, so you can look rows up without storing the email in the clear
+
+maskAadhaar("1234 5678 9012"); // "XXXX XXXX 9012"
+```
+
+Generate keys with `generateKey()` and keep them in your secrets manager. To rotate, add a new key, make it `current`, and re-encrypt values where `needsRotation(value)` is true.
+
+**The rest, as evidence in the config.** Say how each field is protected, where each processor contract has its security clause (Rule 6(1)(f)), and the safeguards that live outside code:
+
+```ts
+data: { users: { /* … */ fields: { aadhaar: { category: "identity", purposes: ["kyc"], protect: "encrypted" } } } },
+processors: { msg91: { purposes: ["marketing_sms"], contract: "DPA signed 2026-03-01, clause 7" } },
+security: {
+  accessControl: "SSO with least-privilege roles",           // Rule 6(1)(b)
+  backups: "Encrypted daily backups, restore tested monthly", // Rule 6(1)(d)
+  measures: "Annual security training, quarterly access reviews", // Rule 6(1)(g)
+},
+```
+
+The audit warns about high-risk identifiers (Aadhaar, PAN, passport, bank account, card numbers, health and biometric data) without `protect`, processors without `contract`, and missing `security` entries. `npx dpdp-kit safeguards` prints the whole of Rule 6(1), (a) to (g), with what's recorded and what's missing (`--strict` fails on gaps).
+
+## 7. Guard routes
 
 ```ts
 // Express
@@ -290,18 +354,20 @@ Add the tables to your schema so drizzle-kit creates them:
 
 ```ts
 // schema.ts
-export { consentEvents, erasureTasks, rightsRequests } from "dpdp-kit/drizzle";
+export { accessLog, consentEvents, erasureTasks, rightsRequests } from "dpdp-kit/drizzle";
 ```
 
 If you don't use drizzle-kit, run `DPDP_DDL` (exported from `dpdp-kit/drizzle`). This works with any Drizzle Postgres driver: node-postgres, postgres.js, Neon, PGlite.
 
 > **Upgrading from 0.1.x?** Add `rightsRequests` and `erasureTasks` to your schema and generate a migration, or run `RECORDS_DDL`. `withdraw()` now schedules erasure tasks, so it needs the `dpdp_erasure_tasks` table.
+>
+> **Upgrading from 0.2.x?** Add `accessLog` to your schema and generate a migration, or run `ACCESS_LOG_DDL`, before using `dpdp.access`. The audit now warns about the Rule 6 safeguards; if you run it with `--strict`, add a `security` block and processor `contract`s first.
 
 `drizzleData(db, { schema })` reaches your own tables. Pass your schema module when the data map uses Drizzle property names (`userId`) rather than column names (`user_id`).
 
 ### Anything else
 
-Implement `DpdpStore`: consent events (`lastEvent`, `insert`, `events`), requests and tasks (see `RequestStore` and `TaskStore`). `insert` must throw `SeqConflictError` on a duplicate `(subjectId, seq)`, and `claimTask` must be atomic. A store with only the three consent methods still works for consent; rights and retention then throw `store-unsupported`. Implement `DataAccess` (`read`, `eraseFields`, `deleteRows`) for another database. `memoryStore()` and `memoryData()` are included for tests.
+Implement `DpdpStore`: consent events (`lastEvent`, `insert`, `events`), requests and tasks (see `RequestStore` and `TaskStore`), and `AccessLogStore` for the access log. `insert` must throw `SeqConflictError` on a duplicate `(subjectId, seq)`, and `claimTask` must be atomic. A store with only the three consent methods still works for consent; rights and retention then throw `store-unsupported`. Implement `DataAccess` (`read`, `eraseFields`, `deleteRows`) for another database. `memoryStore()` and `memoryData()` are included for tests.
 
 ## How the consent record works
 
@@ -319,6 +385,7 @@ Section 6(10) puts the burden on you: if consent is questioned in a proceeding, 
 | **v0.1** | Config and types, `audit` + CLI, consent records, erasure plans, Drizzle store, Express/Hono guards |
 | **v0.1.2** | Schema drift check: `audit --schema`, `checkSchema`, `drizzleSchema`, `notPersonal` |
 | **v0.2.0** | Rights requests (Sections 11–14, Rule 14), retention runner that carries out erasure (Section 8(7), Rule 8(3), legal holds), processor hooks, `drizzleData`, GitHub Action with pull request annotations |
+| **next** | Security safeguards (Rule 6): the access log with review and one-year retention, `dpdp-kit/protect` (encryption, tokens, masking), `protect` / `contract` / `security` in the config, `dpdp-kit safeguards`, `logAccess` middleware |
 | later | Recording objections to a Section 7(a) use, React notice that meets Rule 3 + privacy centre, MySQL and SQLite data access |
 | v0.3 | Breach records with deadlines (Section 8(6), Rule 7: people and the Board without delay, detailed report to the Board within 72 hours), children and guardian consent (Section 9, Rule 10), inactivity erasure with 48 hours' warning for large e-commerce, gaming and social media platforms (Rule 8(1)–(2), Third Schedule), Consent Manager interop (Sections 6(7)–6(9), Rule 4), Prisma store |
 

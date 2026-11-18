@@ -13,6 +13,10 @@ description: Which Sections and Rules dpdp-kit implements, when they apply, and 
 | Have processors erase too | Section 8(7)(b) | `processor-erase` tasks and hooks |
 | A grievance mechanism, named in the notice | Sections 8(10), 5(1)(ii) | `fiduciary.grievanceUrl`, checked by the audit |
 | Keep data, traffic data and logs of processing for at least a year | Rule 8(3) | `minimumRetention`, enforced by the audit |
+| Encryption, obfuscation, masking or virtual tokens | Rule 6(1)(a) | `dpdp-kit/protect`, and `protect` on each field |
+| Logs, monitoring and review of access to personal data | Rule 6(1)(c) | The access log, `review()` and `logAccess` middleware |
+| Keep those logs for a year | Rule 6(1)(e) | The access log keeps at least a year, enforced by the audit |
+| Security provisions in contracts with processors | Rule 6(1)(f) | `contract` on each processor, checked by the audit |
 | Access, correction, erasure, grievance and nomination | Sections 11–14 | Rights requests with due dates |
 | Answer grievances within 90 days | Rule 14(3) | A default due date, enforced by the audit |
 | Maximum penalty | Schedule, item 1 | ₹250 crore, for failing to take reasonable security safeguards |

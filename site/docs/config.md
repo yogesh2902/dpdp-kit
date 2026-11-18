@@ -73,9 +73,26 @@ Your tables, keyed by a name you choose.
 - **`fields`**: each personal column, with a `category` (`contact`, `identity`, `behavioural`…) and the `purposes` it's held for.
 - **`legalHold`**: another law makes you keep these rows, for example tax or KYC records. Section 8(7) requires erasure "unless retention is necessary for compliance with any law". Held rows wait `keep`, then are anonymised or deleted, as `then` says.
 
+Each field can also say how it's protected where it's stored, with `protect`: `"encrypted"`, `"tokenised"`, `"masked"` or `"hashed"` (Rule 6(1)(a)). The audit warns when a high-risk identifier, such as Aadhaar, PAN or a bank account number, has none. See [Security and access logs](../security/).
+
 ## processors
 
 Third parties that process data for you (Data Processors), with the purposes they serve. When a purpose ends, dpdp-kit tells you which processors to notify, and the retention runner calls their hooks. See [Erasure and retention](../erasure/).
+
+Add `contract`: where your contract with the processor requires reasonable security safeguards, for example `"DPA signed 2026-03-01, clause 7"`. Rule 6(1)(f) requires such a provision, and the audit warns when it's missing.
+
+## security
+
+The security safeguards of Rule 6(1) that live outside your code, described in a sentence each as evidence. The audit warns about any you leave out.
+
+```ts
+security: {
+  accessControl: "SSO with least-privilege roles",               // Rule 6(1)(b)
+  backups: "Encrypted daily backups, restore tested monthly",     // Rule 6(1)(d)
+  measures: "Annual security training, quarterly access reviews", // Rule 6(1)(g)
+  accessLogRetention: "1y",                                       // Rule 6(1)(e): default and minimum
+},
+```
 
 ## minimumRetention
 

@@ -15,6 +15,7 @@ dpdp-kit is growing from a backend toolkit into a full-stack one: the same `dpdp
 
 ## Building now: 0.3
 
+- **Security safeguards and access logs** (Rule 6): **built**, shipping in 0.3. An access log with review and one-year retention, `dpdp-kit/protect` for encryption, virtual tokens and masking, `protect` / `contract` / `security` in the config, the `dpdp-kit safeguards` report, and `logAccess` middleware. See [Security and access logs](../security/).
 - **Notices that meet Rule 3**, built from the config: per-language text for each purpose, labels for each field, your Data Protection Officer's contact and how to complain to the Board. Every edit gives a new notice version automatically, and each consent event stores the version the person saw. The audit checks that every offered language is complete.
 - **Objections to a legitimate use** (Section 7(a)): a new `object` action in the consent ledger, respected by `has()`.
 - **An HTTP API** for notices, consent and rights requests, on the standard Fetch `Request` and `Response`, with adapters for Express, Hono and the Next.js App Router. The person is always taken from your session, never the request body, and a stale notice version is rejected.
