@@ -69,6 +69,14 @@
       "types": "./dist/protect.d.ts",
       "default": "./dist/protect.js"
     },
+    "./postgres": {
+      "types": "./dist/postgres.d.ts",
+      "default": "./dist/postgres.js"
+    },
+    "./prisma": {
+      "types": "./dist/prisma.d.ts",
+      "default": "./dist/prisma.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -94,6 +102,8 @@
     "@nestjs/common": "^12.5.1",
     "@nestjs/core": "^12.5.1",
     "@nestjs/platform-express": "^12.5.1",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
@@ -103,6 +113,7 @@
     "hono": "^4.13.19",
     "marked": "^18.2.1",
     "pg": "^8.23.1",
+    "prisma": "7.10.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "shiki": "^4.6.0",

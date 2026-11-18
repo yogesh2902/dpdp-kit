@@ -14,7 +14,7 @@
 - **Handle a breach on time.** Record it, find and tell the people affected, and track the Board's 72-hour deadline (Section 8(6), Rule 7).
 - **Show who touched what.** An access log records who read whose data and why, flags reads outside a field's purpose, and keeps a year of entries, as Rule 6 requires. Encryption, tokens and masking for Aadhaar, PAN and other identifiers come in `dpdp-kit/protect`.
 - **Check it in CI.** `dpdp-kit audit` fails the build when the data map is inconsistent, and the GitHub Action puts each problem on the pull request.
-- **Catch drift.** `dpdp-kit audit --schema` reads your Drizzle schema and fails the build when someone adds a `phone`, `email` or `aadhaar_number` column without saying what it's for, or when the data map points at columns that no longer exist. Compliance that can't quietly fall out of date.
+- **Catch drift.** `dpdp-kit audit --schema` reads your Drizzle or Prisma schema and fails the build when someone adds a `phone`, `email` or `aadhaar_number` column without saying what it's for, or when the data map points at columns that no longer exist. Compliance that can't quietly fall out of date.
 
 ## Node-native
 
@@ -22,7 +22,7 @@ dpdp-kit is a TypeScript library that runs **inside your Node.js process**, not 
 
 - **No separate server.** There's nothing to deploy, no sidecar to keep running, and no REST API between your code and your consent records.
 - **No hosted service.** No account, no API key, and no network calls. Personal data never leaves your infrastructure.
-- **Your own database.** Consent records go into your own Postgres, through the Drizzle setup you already have, in the same database as the rest of your data.
+- **Your own database.** Consent records go into your own Postgres, through the Drizzle or Prisma setup you already have (or any Postgres client), in the same database as the rest of your data.
 - **Fits your Node stack.** Typed config, guards for Express, Hono, Fastify and NestJS, a CLI for CI, and works with ESM, `require()` and TypeScript.
 
 > **Not legal advice.** dpdp-kit helps you put compliance into practice; it does not make an app compliant on its own. Section and rule references point you to the text so you can check them. Have your own lawyer review your purposes, notices and retention periods.
@@ -101,10 +101,11 @@ The same checks run when the app starts: `createDpdp` throws if the config has e
 
 ### Catch schema drift
 
-A data map is only useful while it matches the database. Point the audit at your Drizzle schema (Postgres, MySQL or SQLite):
+A data map is only useful while it matches the database. Point the audit at your Drizzle schema (Postgres, MySQL or SQLite) or your Prisma schema:
 
 ```bash
 npx dpdp-kit audit --schema src/db/schema.ts
+npx dpdp-kit audit --schema prisma/schema.prisma   # or a folder of .prisma files
 ```
 
 ```
@@ -121,6 +122,7 @@ It checks both directions:
 
 - **New personal columns nobody mapped.** Columns are recognised by name: phone and email, Aadhaar, PAN, passport and voter ID, date of birth, names, addresses and PIN codes, UPI, IFSC and bank details, IP addresses and device IDs, health, biometric and location data. Clear cases are errors. Columns that are personal only sometimes, like `name`, `gender` or `city`, or anything named for a company or branch, are warnings.
 - **A data map that points at nothing.** Tables or columns that were renamed or dropped.
+- **Erase settings a column can't take.** Erasing a `NOT NULL` column to null, or writing text into a number column.
 
 Columns that describe data rather than hold it, such as `email_verified_at`, `phone_confirmed` and `address_type`, are not flagged. For anything that only looks personal, list it in the config:
 
@@ -128,7 +130,7 @@ Columns that describe data rather than hold it, such as `email_verified_at`, `ph
 notPersonal: ["products.name", "branches.*"], // database table and column names
 ```
 
-From code, `checkSchema(config, drizzleSchema(schema))` returns the same issues. `drizzleSchema` comes from `dpdp-kit/drizzle`. Matching is by column name, so it can't see personal data hidden inside a JSON column or a vaguely named field. Review those by hand.
+From code, `checkSchema(config, drizzleSchema(schema))` returns the same issues. `drizzleSchema` comes from `dpdp-kit/drizzle`, and `prismaSchema(text)` from `dpdp-kit/prisma`. With Prisma, the data map can use model and field names (`User`, `phoneNumber`) or the database's (`users`, `phone_number`). Matching is by column name, so it can't see personal data hidden inside a JSON column or a vaguely named field. Review those by hand.
 
 ### In GitHub Actions
 
@@ -437,6 +439,41 @@ If you don't use drizzle-kit, run `DPDP_DDL` (exported from `dpdp-kit/drizzle`).
 > **Upgrading from 0.2.x?** Add `accessLog` to your schema and generate a migration, or run `ACCESS_LOG_DDL`, before using `dpdp.access`. The audit now warns about the Rule 6 safeguards; if you run it with `--strict`, add a `security` block and processor `contract`s first.
 
 `drizzleData(db, { schema })` reaches your own tables. Pass your schema module when the data map uses Drizzle property names (`userId`) rather than column names (`user_id`).
+
+### Prisma (Postgres)
+
+Add dpdp-kit's models to `schema.prisma` and run `prisma migrate dev`:
+
+```ts
+import { PRISMA_MODELS } from "dpdp-kit/prisma";
+console.log(PRISMA_MODELS); // paste into schema.prisma, or save as prisma/schema/dpdp.prisma
+```
+
+```ts
+import { readFileSync } from "node:fs";
+import { createDpdp } from "dpdp-kit";
+import { prismaData, prismaSchema, prismaStore } from "dpdp-kit/prisma";
+
+const schema = prismaSchema(readFileSync("prisma/schema.prisma", "utf8"));
+const dpdp = createDpdp({ config, store: prismaStore(prisma), data: prismaData(prisma, { schema }) });
+```
+
+It runs parameterised SQL through `prisma.$queryRawUnsafe`, so it works with Prisma 5, 6 and 7 and any driver adapter, and inside `prisma.$transaction(async (tx) => …)` with `prismaStore(tx)`. The models match `DPDP_DDL`, so either can create the tables.
+
+### Any other Postgres client
+
+`dpdp-kit/postgres` needs only a function that runs a query with `$1` parameters: node-postgres, postgres.js, Kysely, Knex or Slonik.
+
+```ts
+import pg from "pg";
+import { postgresData, postgresStore } from "dpdp-kit/postgres";
+
+const pool = new pg.Pool();
+const query = async (text: string, params: readonly unknown[]) => (await pool.query(text, [...params])).rows;
+const dpdp = createDpdp({ config, store: postgresStore(query), data: postgresData(query) });
+```
+
+Create the tables by running `DPDP_DDL`, a plain SQL string exported by `dpdp-kit/postgres`.
 
 ### Anything else
 

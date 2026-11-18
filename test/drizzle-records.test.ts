@@ -1,9 +1,9 @@
 import { PGlite } from "@electric-sql/pglite";
-import { drizzle } from "drizzle-orm/pglite";
-import { pgTable, text } from "drizzle-orm/pg-core";
+import { integer, pgTable, text } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { DPDP_DDL, drizzleData, drizzleStore } from "../src/drizzle.js";
+import { DPDP_DDL } from "../src/drizzle.js";
 import { createDpdp, defineConfig } from "../src/index.js";
+import { backends } from "./pg-backends.js";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -48,15 +48,14 @@ const config = defineConfig({
   minimumRetention: "1y",
 });
 
-describe("rights and retention on Postgres (PGlite)", () => {
+describe.each(backends)("rights and retention on Postgres (PGlite): $name", (backend) => {
   const client = new PGlite();
-  const db = drizzle(client);
   let t = Date.parse("2026-11-17T10:00:00.000Z");
   const sms = { stop: vi.fn(), erase: vi.fn() };
   const dpdp = createDpdp({
     config,
-    store: drizzleStore(db),
-    data: drizzleData(db, { schema }),
+    store: backend.store(client),
+    data: backend.data(client, schema),
     processors: { sms },
     now: () => new Date(t),
   });
@@ -146,11 +145,10 @@ describe("rights and retention on Postgres (PGlite)", () => {
   });
 });
 
-describe("access log on Postgres (PGlite)", () => {
+describe.each(backends)("access log on Postgres (PGlite): $name", (backend) => {
   const client = new PGlite();
-  const db = drizzle(client);
   let t = Date.parse("2026-01-01T09:00:00.000Z");
-  const dpdp = createDpdp({ config, store: drizzleStore(db), now: () => new Date(t) });
+  const dpdp = createDpdp({ config, store: backend.store(client), now: () => new Date(t) });
 
   beforeAll(async () => {
     await client.exec(DPDP_DDL);
@@ -192,11 +190,10 @@ describe("access log on Postgres (PGlite)", () => {
   });
 });
 
-describe("erasing NOT NULL columns on Postgres (PGlite)", () => {
+describe.each(backends)("erasing NOT NULL columns on Postgres (PGlite): $name", (backend) => {
   const client = new PGlite();
-  const db = drizzle(client);
   let t = Date.parse("2026-01-01T00:00:00.000Z");
-  const members = pgTable("members", { id: text("id").primaryKey(), email: text("email"), nickname: text("nickname"), points: text("points") });
+  const members = pgTable("members", { id: text("id").primaryKey(), email: text("email"), nickname: text("nickname"), points: integer("points") });
   const eraseConfig = defineConfig({
     fiduciary: { name: "Acme", grievanceUrl: "/g" },
     purposes: {
@@ -216,7 +213,7 @@ describe("erasing NOT NULL columns on Postgres (PGlite)", () => {
     },
     minimumRetention: "1y",
   });
-  const dpdp = createDpdp({ config: eraseConfig, store: drizzleStore(db), data: drizzleData(db, { schema: { members } }), now: () => new Date(t) });
+  const dpdp = createDpdp({ config: eraseConfig, store: backend.store(client), data: backend.data(client, { members }), now: () => new Date(t) });
 
   beforeAll(async () => {
     await client.exec(DPDP_DDL);
@@ -246,11 +243,10 @@ describe("erasing NOT NULL columns on Postgres (PGlite)", () => {
   });
 });
 
-describe("breach records on Postgres (PGlite)", () => {
+describe.each(backends)("breach records on Postgres (PGlite): $name", (backend) => {
   const client = new PGlite();
-  const db = drizzle(client);
   let t = Date.parse("2027-06-01T10:00:00.000Z");
-  const dpdp = createDpdp({ config, store: drizzleStore(db), now: () => new Date(t) });
+  const dpdp = createDpdp({ config, store: backend.store(client), now: () => new Date(t) });
 
   beforeAll(async () => {
     await client.exec(DPDP_DDL);

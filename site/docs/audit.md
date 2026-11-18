@@ -21,10 +21,11 @@ The config is found automatically (`dpdp.config.ts` and similar), or pass `--con
 
 ## Catch schema drift
 
-A data map is only useful while it matches the database. Point the audit at your Drizzle schema (Postgres, MySQL or SQLite):
+A data map is only useful while it matches the database. Point the audit at your Drizzle schema (Postgres, MySQL or SQLite) or your Prisma schema:
 
 ```bash
 npx dpdp-kit audit --schema src/db/schema.ts
+npx dpdp-kit audit --schema prisma/schema.prisma   # or a folder of .prisma files
 ```
 
 ```
@@ -41,6 +42,7 @@ It checks both directions:
 
 - **New personal columns nobody mapped.** Columns are recognised by name: phone and email, Aadhaar, PAN, passport and voter ID, date of birth, names, addresses and PIN codes, UPI, IFSC and bank details, IP addresses and device IDs, health, biometric and location data. Clear cases are errors. Columns that are personal only sometimes, like `name`, `gender` or `city`, or anything named for a company or branch, are warnings.
 - **A data map that points at nothing.** Tables or columns that were renamed or dropped.
+- **Erase settings a column can't take.** Erasing a `NOT NULL` column to null, or writing text into a number column. See [Erasure](../erasure/).
 
 Columns that describe data rather than hold it, such as `email_verified_at`, `phone_confirmed` and `address_type`, are not flagged. For anything that only looks personal, list it under `notPersonal` in the config:
 
@@ -48,7 +50,9 @@ Columns that describe data rather than hold it, such as `email_verified_at`, `ph
 notPersonal: ["products.name", "branches.*"], // database table and column names
 ```
 
-From code, `checkSchema(config, drizzleSchema(schema))` returns the same issues. `drizzleSchema` comes from `dpdp-kit/drizzle`.
+From code, `checkSchema(config, drizzleSchema(schema))` returns the same issues. `drizzleSchema` comes from `dpdp-kit/drizzle`, and `prismaSchema(text)` from `dpdp-kit/prisma`.
+
+With Prisma, the data map can use model and field names or the database's: `table: "User"` and `table: "users"` both work for a model with `@@map("users")`, and so do `phoneNumber` and `phone_number` for a field with `@map("phone_number")`. The same goes for `notPersonal`.
 
 > Matching is by column name, so it can't see personal data hidden inside a JSON column or a vaguely named field. Review those by hand.
 

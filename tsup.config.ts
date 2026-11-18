@@ -12,6 +12,8 @@ export default defineConfig({
     nestjs: "src/nestjs.ts",
     protect: "src/protect.ts",
     schedule: "src/schedule.ts",
+    postgres: "src/postgres.ts",
+    prisma: "src/prisma.ts",
     cli: "src/cli.ts",
   },
   format: ["esm"],

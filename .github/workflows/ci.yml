@@ -71,6 +71,8 @@ jobs:
           POSTGRES_USER: dpdp
           POSTGRES_PASSWORD: dpdp
           POSTGRES_DB: dpdp_test
+          # A server in IST, as many Indian apps run: timestamps must not shift.
+          TZ: Asia/Kolkata
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U dpdp"
@@ -87,7 +89,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm vitest run test/postgres-server.test.ts
+      - run: pnpm vitest run test/postgres-server.test.ts test/prisma-server.test.ts
 
   action:
     name: GitHub Action on a sample project

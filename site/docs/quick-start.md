@@ -48,7 +48,7 @@ Every option is explained in [Declare your data](../config/).
 npx dpdp-kit audit --schema src/db/schema.ts
 ```
 
-It exits with code 1 on errors, so it can gate CI. `--schema` also compares the data map with your Drizzle schema. See [Audit and CI](../audit/).
+It exits with code 1 on errors, so it can gate CI. `--schema` also compares the data map with your Drizzle schema, or your Prisma schema with `--schema prisma/schema.prisma`. See [Audit and CI](../audit/).
 
 ## 4. Create the dpdp instance
 
@@ -56,7 +56,7 @@ Add dpdp-kit's tables to your Drizzle schema so drizzle-kit creates them:
 
 ```ts
 // src/db/schema.ts
-export { consentEvents, erasureTasks, rightsRequests } from "dpdp-kit/drizzle";
+export { accessLog, breachNotices, breaches, consentEvents, erasureTasks, rightsRequests } from "dpdp-kit/drizzle";
 ```
 
 Then create one instance for your app:
@@ -76,6 +76,8 @@ export const dpdp = createDpdp({
 ```
 
 `createDpdp` runs the same checks as the audit and throws if the config has errors.
+
+Using Prisma? Add `PRISMA_MODELS` from `dpdp-kit/prisma` to `schema.prisma`, run `prisma migrate dev`, and pass `store: prismaStore(prisma)` and `data: prismaData(prisma, { schema: prismaSchema(text) })`. See [Storage](../storage/#prisma-postgres).
 
 ## 5. Record consent, and run the retention runner
 

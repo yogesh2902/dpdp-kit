@@ -16,6 +16,7 @@ await import("dpdp-kit/fastify");
 await import("dpdp-kit/nestjs");
 await import("dpdp-kit/schedule");
 await import("dpdp-kit/drizzle");
+await import("dpdp-kit/postgres");
 
 const config = defineConfig({
   fiduciary: { name: "Smoke Test", grievanceUrl: "/grievance" },
@@ -109,4 +110,20 @@ console.log("✔ access log + dpdp-kit/protect + dpdp-kit safeguards");
 }
 console.log("✔ breach records");
 
+
+// 8. Prisma and plain-SQL Postgres, on PGlite
+{
+  const { PGlite } = await import("@electric-sql/pglite");
+  const { DPDP_DDL } = await import("dpdp-kit/postgres");
+  const { prismaStore, prismaSchema, PRISMA_MODELS } = await import("dpdp-kit/prisma");
+  const db = new PGlite();
+  await db.exec(DPDP_DDL);
+  const prisma = { $queryRawUnsafe: async (text, ...params) => (await db.query(text, params)).rows };
+  const kit = createDpdp({ config, store: prismaStore(prisma) });
+  await kit.consent.grant("u1", ["promo"]);
+  if ((await kit.consent.verify("u1")).ok !== true) fail("prisma store chain");
+  if (prismaSchema(PRISMA_MODELS).tables.length !== 6) fail("PRISMA_MODELS parse");
+  await db.close();
+}
+console.log("✔ dpdp-kit/prisma + dpdp-kit/postgres");
 console.log(`All smoke checks passed on Node ${process.version}`);

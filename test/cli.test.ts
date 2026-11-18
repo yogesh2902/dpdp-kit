@@ -71,6 +71,23 @@ describe("dpdp-kit audit", () => {
     expect(out).toMatch(/4 error\(s\), 2 warning\(s\)/);
   });
 
+  it("--schema reads a Prisma schema, as a file or a folder of .prisma files", async () => {
+    const file = await audit(["--config", "config.ts", "--schema", "schema.prisma"], fixtures);
+    expect(file.out).toContain("No problems found");
+    expect(file.code).toBe(0);
+
+    const dir = mkdtempSync(join(tmpdir(), "dpdp-kit-prisma-"));
+    const { readFileSync, mkdirSync } = await import("node:fs");
+    mkdirSync(join(dir, "schema"));
+    const text = readFileSync(join(fixtures, "schema.prisma"), "utf8");
+    const split = text.indexOf("model AnalyticsEvent");
+    writeFileSync(join(dir, "schema", "main.prisma"), text.slice(0, split));
+    writeFileSync(join(dir, "schema", "more.prisma"), `${text.slice(split)}\nmodel Lead {\n  id    String @id\n  email String\n}\n`);
+    const folder = await audit(["--config", join(fixtures, "config.ts"), "--schema", "schema"], dir);
+    expect(folder.code).toBe(1);
+    expect(folder.out).toContain("schema.Lead.email");
+  });
+
   it("--schema reports a missing file, or a file with no tables", async () => {
     expect((await audit(["--config", "config.ts", "--schema", "nope.ts"], fixtures)).code).toBe(1);
     await expect(audit(["--config", "config.ts", "--schema", "config.ts"], fixtures)).rejects.toThrow(/no Drizzle tables/);

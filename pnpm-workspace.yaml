@@ -1,5 +1,9 @@
 # pnpm settings for this single-package repo.
 # esbuild's install script only re-checks its binary, which already comes from its
 # platform package, so it is declined. Without an explicit choice, pnpm fails in CI.
+# Prisma's (dev dependency, for the real-Prisma test) fetch the schema engine that
+# `prisma db push` and `prisma migrate diff` run.
 allowBuilds:
   esbuild: false
+  "@prisma/engines": true
+  prisma: true

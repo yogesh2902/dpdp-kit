@@ -9,6 +9,8 @@ import type { NoticeLanguage } from "./languages.js";
 import type { Schema, SchemaTable } from "./schema-check.js";
 import type { ConsentEvent, DpdpStore } from "./store.js";
 
+export { ACCESS_LOG_DDL, BREACH_DDL, CONSENT_EVENTS_DDL, DPDP_DDL, RECORDS_DDL } from "./ddl.js";
+
 /**
  * The consent events table. Export it from your Drizzle schema so drizzle-kit creates it:
  *
@@ -33,22 +35,6 @@ export const consentEvents = pgTable(
   },
   (t) => [primaryKey({ columns: [t.subjectId, t.seq] })],
 );
-
-/** The same table as plain SQL, if you don't use drizzle-kit for migrations. */
-export const CONSENT_EVENTS_DDL = `CREATE TABLE IF NOT EXISTS dpdp_consent_events (
-  subject_id text NOT NULL,
-  seq integer NOT NULL,
-  action text NOT NULL CHECK (action IN ('grant', 'withdraw')),
-  purposes jsonb NOT NULL,
-  notice_version text,
-  language text,
-  channel text,
-  evidence jsonb,
-  at timestamptz NOT NULL,
-  prev_hash text,
-  hash text NOT NULL,
-  PRIMARY KEY (subject_id, seq)
-);`;
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -94,42 +80,6 @@ export const erasureTasks = pgTable(
   (t) => [index("dpdp_erasure_tasks_subject_idx").on(t.subjectId), index("dpdp_erasure_tasks_status_due_idx").on(t.status, t.dueAt)],
 );
 
-/** Rights requests and erasure tasks as plain SQL, if you don't use drizzle-kit for migrations. */
-export const RECORDS_DDL = `CREATE TABLE IF NOT EXISTS dpdp_requests (
-  id text PRIMARY KEY,
-  subject_id text NOT NULL,
-  type text NOT NULL,
-  status text NOT NULL,
-  opened_at timestamptz NOT NULL,
-  due_at timestamptz NOT NULL,
-  closed_at timestamptz,
-  details jsonb,
-  history jsonb NOT NULL
-);
-CREATE INDEX IF NOT EXISTS dpdp_requests_subject_idx ON dpdp_requests (subject_id);
-CREATE INDEX IF NOT EXISTS dpdp_requests_status_due_idx ON dpdp_requests (status, due_at);
-CREATE TABLE IF NOT EXISTS dpdp_erasure_tasks (
-  id text PRIMARY KEY,
-  subject_id text NOT NULL,
-  reason text NOT NULL,
-  kind text NOT NULL,
-  table_key text,
-  fields jsonb,
-  processor text,
-  purposes jsonb,
-  created_at timestamptz NOT NULL,
-  due_at timestamptz NOT NULL,
-  status text NOT NULL,
-  attempts integer NOT NULL,
-  claimed_at timestamptz,
-  done_at timestamptz,
-  affected integer,
-  last_error text,
-  note text
-);
-CREATE INDEX IF NOT EXISTS dpdp_erasure_tasks_subject_idx ON dpdp_erasure_tasks (subject_id);
-CREATE INDEX IF NOT EXISTS dpdp_erasure_tasks_status_due_idx ON dpdp_erasure_tasks (status, due_at);`;
-
 /**
  * The access log (Rule 6(1)(c) and (e)): who accessed whose personal data, when, for which purpose.
  * Export it from your Drizzle schema with `consentEvents`.
@@ -154,23 +104,6 @@ export const accessLog = pgTable(
     index("dpdp_access_log_actor_idx").on(t.actor, t.at),
   ],
 );
-
-/** The access log as plain SQL, if you don't use drizzle-kit for migrations. */
-export const ACCESS_LOG_DDL = `CREATE TABLE IF NOT EXISTS dpdp_access_log (
-  id text PRIMARY KEY,
-  at timestamptz NOT NULL,
-  actor text NOT NULL,
-  subject_id text NOT NULL,
-  action text NOT NULL,
-  purpose text NOT NULL,
-  fields jsonb,
-  out_of_purpose jsonb,
-  reason text,
-  evidence jsonb
-);
-CREATE INDEX IF NOT EXISTS dpdp_access_log_at_idx ON dpdp_access_log (at);
-CREATE INDEX IF NOT EXISTS dpdp_access_log_subject_idx ON dpdp_access_log (subject_id, at);
-CREATE INDEX IF NOT EXISTS dpdp_access_log_actor_idx ON dpdp_access_log (actor, at);`;
 
 /** Personal data breaches (Section 8(6), Rule 7). Export it from your Drizzle schema with `consentEvents`. */
 export const breaches = pgTable(
@@ -198,29 +131,6 @@ export const breachNotices = pgTable(
   },
   (t) => [primaryKey({ columns: [t.breachId, t.subjectId] }), index("dpdp_breach_notices_status_idx").on(t.breachId, t.status, t.addedAt)],
 );
-
-/** The breach tables as plain SQL, if you don't use drizzle-kit for migrations. */
-export const BREACH_DDL = `CREATE TABLE IF NOT EXISTS dpdp_breaches (
-  id text PRIMARY KEY,
-  status text NOT NULL,
-  aware_at timestamptz NOT NULL,
-  report_due_at timestamptz NOT NULL,
-  data jsonb NOT NULL
-);
-CREATE INDEX IF NOT EXISTS dpdp_breaches_status_idx ON dpdp_breaches (status, aware_at);
-CREATE TABLE IF NOT EXISTS dpdp_breach_notices (
-  breach_id text NOT NULL,
-  subject_id text NOT NULL,
-  status text NOT NULL,
-  added_at timestamptz NOT NULL,
-  sent_at timestamptz,
-  channel text,
-  PRIMARY KEY (breach_id, subject_id)
-);
-CREATE INDEX IF NOT EXISTS dpdp_breach_notices_status_idx ON dpdp_breach_notices (breach_id, status, added_at);`;
-
-/** Every dpdp-kit table as plain SQL. */
-export const DPDP_DDL = `${CONSENT_EVENTS_DDL}\n${RECORDS_DDL}\n${ACCESS_LOG_DDL}\n${BREACH_DDL}`;
 
 type NoticeRow = typeof breachNotices.$inferSelect;
 
@@ -620,7 +530,7 @@ export function drizzleSchema(module: Record<string, unknown>): Schema {
     if (tables.has(name)) continue;
     const columns = Object.entries(getTableColumns(value)).map(([key, column]) => {
       const type = ["string", "number", "boolean"].includes(column.dataType) ? (column.dataType as "string" | "number" | "boolean") : "other";
-      return { name: column.name, ...(key === column.name ? {} : { key }), notNull: column.notNull, type } as const;
+      return { name: column.name, ...(key === column.name ? {} : { key }), notNull: column.notNull, type, sqlType: column.getSQLType() } as const;
     });
     tables.set(name, { name, columns });
   }

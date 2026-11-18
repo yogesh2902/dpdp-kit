@@ -10,14 +10,19 @@ export interface SchemaColumn {
   notNull?: boolean;
   /** Kind of value the column holds, when known. Used to check each field's `erase` setting. */
   type?: "string" | "number" | "boolean" | "other";
+  /** The column's SQL type (`integer`, `uuid`, `varchar(255)`…), when known. SQL data access casts parameters to it. */
+  sqlType?: string;
 }
 
 export interface SchemaTable {
+  /** The table's name in the database. */
   name: string;
+  /** The name in code, if different: a Prisma model name (`User` for `@@map("users")`). The data map may use either. */
+  key?: string;
   columns: readonly SchemaColumn[];
 }
 
-/** Your database schema in a neutral shape. `drizzleSchema()` builds one from a Drizzle schema. */
+/** Your database schema in a neutral shape. `drizzleSchema()` and `prismaSchema()` build one. */
 export interface Schema {
   tables: readonly SchemaTable[];
 }
@@ -86,6 +91,7 @@ export function checkSchema(config: DpdpConfig<string>, schema: Schema): Issue[]
   const issues: Issue[] = [];
   const byName = new Map<string, SchemaTable>();
   for (const table of schema.tables) if (!byName.has(table.name)) byName.set(table.name, table);
+  for (const table of schema.tables) if (table.key && !byName.has(table.key)) byName.set(table.key, table);
 
   // 1. The data map must point at real tables and columns.
   const mapped = new Map<string, SchemaColumn[]>();
@@ -147,13 +153,14 @@ export function checkSchema(config: DpdpConfig<string>, schema: Schema): Issue[]
   }
 
   // 3. Every column that looks personal must be in the data map or in notPersonal.
-  for (const table of byName.values()) {
-    if (table.name.startsWith(OWN_TABLE_PREFIX) || ignore.tables.has(table.name)) continue;
+  for (const table of new Set(byName.values())) {
+    const tableNames = table.key ? [table.name, table.key] : [table.name];
+    if (table.name.startsWith(OWN_TABLE_PREFIX) || tableNames.some((t) => ignore.tables.has(t))) continue;
     const known = mapped.get(table.name) ?? [];
     for (const column of table.columns) {
       if (known.includes(column)) continue;
-      if (ignore.columns.has(`${table.name}.${column.name}`)) continue;
-      if (column.key && ignore.columns.has(`${table.name}.${column.key}`)) continue;
+      const columnNames = column.key ? [column.name, column.key] : [column.name];
+      if (tableNames.some((t) => columnNames.some((c) => ignore.columns.has(`${t}.${c}`)))) continue;
       const guess = strongest(guessPersonal(column.name), column.key ? guessPersonal(column.key) : undefined);
       if (!guess) continue;
       issues.push({

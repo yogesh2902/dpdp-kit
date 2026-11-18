@@ -1,14 +1,13 @@
 import { PGlite } from "@electric-sql/pglite";
-import { drizzle } from "drizzle-orm/pglite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { DPDP_DDL, drizzleStore } from "../src/drizzle.js";
+import { DPDP_DDL } from "../src/drizzle.js";
 import { createDpdp, SeqConflictError } from "../src/index.js";
 import { config } from "./fixtures/config.js";
+import { backends } from "./pg-backends.js";
 
-describe("drizzle store (Postgres via PGlite)", () => {
+describe.each(backends)("$name store (Postgres via PGlite)", (backend) => {
   const client = new PGlite();
-  const db = drizzle(client);
-  const store = drizzleStore(db);
+  const store = backend.store(client);
   const dpdp = createDpdp({ config, store });
 
   beforeAll(async () => {

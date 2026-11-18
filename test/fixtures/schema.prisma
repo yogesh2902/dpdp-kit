@@ -1,0 +1,54 @@
+// A Prisma schema that matches test/fixtures/config.ts exactly.
+generator client {
+  provider = "prisma-client"
+  output   = "../../node_modules/.prisma-test"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id              String    @id
+  phone           String?
+  name            String?
+  interests       String?
+  emailVerifiedAt DateTime? @map("email_verified_at") // describes data, isn't personal itself
+  createdAt       DateTime  @default(now()) @map("created_at")
+  orders          Order[]
+
+  @@map("users")
+}
+
+model Order {
+  id      String  @id
+  user    User    @relation(fields: [userId], references: [id])
+  userId  String  @map("user_id")
+  address String?
+  total   Int?
+
+  @@map("orders")
+}
+
+model AnalyticsEvent {
+  id     String  @id
+  userId String  @map("user_id")
+  device String?
+
+  @@map("analytics_events")
+}
+
+model Product {
+  id   String @id
+  name String // listed in notPersonal
+  kind Kind   @default(PHYSICAL)
+
+  @@map("products")
+}
+
+enum Kind {
+  PHYSICAL
+  DIGITAL
+
+  @@map("product_kind")
+}

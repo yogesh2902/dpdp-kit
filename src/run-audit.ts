@@ -1,5 +1,5 @@
-import { existsSync } from "node:fs";
-import { relative, resolve } from "node:path";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { audit, type Issue } from "./audit.js";
 import type { DpdpConfig } from "./config.js";
@@ -82,6 +82,29 @@ export async function loadDrizzleSchema(file: string): Promise<Schema> {
   return schema;
 }
 
+/**
+ * Read a Prisma schema: a schema.prisma file, or a folder of .prisma files (a multi-file schema,
+ * e.g. prisma/schema).
+ */
+export async function loadPrismaSchema(path: string): Promise<Schema> {
+  const files = statSync(path).isDirectory()
+    ? readdirSync(path, { recursive: true, encoding: "utf8" })
+        .filter((f) => f.endsWith(".prisma"))
+        .sort()
+        .map((f) => join(path, f))
+    : [path];
+  const { prismaSchema } = await import("./prisma.js");
+  const schema = prismaSchema(files.map((f) => readFileSync(f, "utf8")).join("\n"));
+  if (schema.tables.length === 0) throw new Error(`${path} has no Prisma models. Point --schema at schema.prisma.`);
+  return schema;
+}
+
+/** A Prisma schema (.prisma file or a folder of them), or else a Drizzle schema module. */
+export function loadSchema(path: string): Promise<Schema> {
+  const prisma = path.endsWith(".prisma") || (statSync(path).isDirectory() && readdirSync(path, { recursive: true, encoding: "utf8" }).some((f) => f.endsWith(".prisma")));
+  return prisma ? loadPrismaSchema(path) : loadDrizzleSchema(path);
+}
+
 const flagValue = (argv: readonly string[], flag: string) => {
   const i = argv.indexOf(flag);
   return i >= 0 ? argv[i + 1] : undefined;
@@ -114,7 +137,7 @@ export async function runAudit(argv: readonly string[], cwd: string, log: (line:
   }
   const config = await loadConfig(file);
   const issues = audit(config);
-  if (schemaFile) issues.push(...checkSchema(config, await loadDrizzleSchema(schemaFile)));
+  if (schemaFile) issues.push(...checkSchema(config, await loadSchema(schemaFile)));
   if (format === "github" && issues.length > 0) {
     log(formatGithubAnnotations(issues, { config: file, schema: schemaFile }, process.env.GITHUB_WORKSPACE ?? cwd));
   }
