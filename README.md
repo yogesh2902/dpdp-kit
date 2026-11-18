@@ -381,6 +381,20 @@ dpdp.on("access.logged", ({ entries }) => {
 
 Events: `consent.granted`, `consent.withdrawn`, `erasure.scheduled`, `retention.ran`, `rights.opened`, `rights.closed`, `access.logged`. Listeners run after the change is saved and after the call returns, and a listener that throws can't break it: errors go to `onListenerError` (default `console.error`). For work that must happen exactly once, like telling a vendor to erase, use processor hooks and the retention runner instead.
 
+## 9. Daily upkeep
+
+One call does the jobs that must happen on time: carry out due erasure, prune access logs older than a year, review the last day of access, and list overdue rights requests.
+
+```ts
+const report = await dpdp.daily(); // { retention, accessPruned, review, overdueRequests, skipped }
+
+// schedule it in-process, with no dependencies:
+import { startDaily } from "dpdp-kit/schedule";
+startDaily(dpdp, { at: "03:00", onReport: (r) => r.retention?.failed.length && alert(r) });
+```
+
+Or call `dpdp.daily()` from node-cron, a BullMQ repeatable job (to run it once across servers), or your platform's cron. It's safe to run from several servers at once.
+
 ## Storage
 
 ### Drizzle (Postgres)

@@ -89,14 +89,16 @@ await dpdp.consent.grant(userId, ["marketing_sms"], {
 await dpdp.consent.has(userId, "marketing_sms"); // true
 ```
 
-When someone withdraws, `withdraw()` schedules the erasure. Run the retention runner once a day to carry it out:
+When someone withdraws, `withdraw()` schedules the erasure. Run the daily upkeep to carry it out, prune old access logs and review access:
 
 ```ts
 await dpdp.consent.withdraw(userId, ["marketing_sms"]);
 
-// from a daily cron job:
-await dpdp.retention.run(); // { done, failed, manual }
+import { startDaily } from "dpdp-kit/schedule";
+startDaily(dpdp, { at: "03:00" }); // or call dpdp.daily() from node-cron, BullMQ or your platform's cron
 ```
+
+See [Daily upkeep](../daily/) for the options.
 
 ## Next
 

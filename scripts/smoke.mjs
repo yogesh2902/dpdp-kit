@@ -14,6 +14,7 @@ const { requireConsent } = await import("dpdp-kit/express");
 await import("dpdp-kit/hono");
 await import("dpdp-kit/fastify");
 await import("dpdp-kit/nestjs");
+await import("dpdp-kit/schedule");
 await import("dpdp-kit/drizzle");
 
 const config = defineConfig({

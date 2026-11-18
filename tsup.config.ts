@@ -11,6 +11,7 @@ export default defineConfig({
     fastify: "src/fastify.ts",
     nestjs: "src/nestjs.ts",
     protect: "src/protect.ts",
+    schedule: "src/schedule.ts",
     cli: "src/cli.ts",
   },
   format: ["esm"],

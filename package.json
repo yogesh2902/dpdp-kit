@@ -60,6 +60,10 @@
       "types": "./dist/nestjs.d.ts",
       "default": "./dist/nestjs.js"
     },
+    "./schedule": {
+      "types": "./dist/schedule.d.ts",
+      "default": "./dist/schedule.js"
+    },
     "./protect": {
       "types": "./dist/protect.d.ts",
       "default": "./dist/protect.js"

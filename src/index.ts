@@ -37,6 +37,7 @@ export {
   type AccessOptions,
   type ConsentMeta,
   createDpdp,
+  type DailyReport,
   type DpdpEventName,
   type DpdpEvents,
   type DpdpListener,

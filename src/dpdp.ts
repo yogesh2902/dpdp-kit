@@ -89,6 +89,22 @@ export interface DpdpEvents {
   "rights.opened": { request: RightsRequest };
   "rights.closed": { request: RightsRequest };
   "access.logged": { entries: AccessEntry[] };
+  "daily.ran": { report: DailyReport };
+}
+
+/** What `daily()` did. A part the store can't do (a custom store without the access log) is listed in `skipped`. */
+export interface DailyReport {
+  /** When the run started (ISO 8601). */
+  at: string;
+  /** Erasure tasks carried out by `retention.run()`. */
+  retention?: RunReport;
+  /** Access log entries older than the retention period, deleted by `access.prune()`. */
+  accessPruned?: number;
+  /** `access.review()` of the last day. */
+  review?: AccessReview;
+  /** Open rights requests past their due date. */
+  overdueRequests?: RightsRequest[];
+  skipped: Array<"retention" | "access" | "rights">;
 }
 
 export type DpdpEventName = keyof DpdpEvents;
@@ -130,6 +146,13 @@ export interface Dpdp<P extends string> {
    * ```
    */
   on<E extends DpdpEventName>(event: E, listener: DpdpListener<E>): () => void;
+  /**
+   * The daily upkeep in one call: carry out due erasure (`retention.run()`), prune access logs past
+   * their retention (`access.prune()`), review the last day of access (`access.review()`), and list
+   * overdue rights requests. Run it once a day: from `startDaily()` in `dpdp-kit/schedule`, node-cron,
+   * a BullMQ repeatable job, or your platform's cron. Safe to run from several servers at once.
+   */
+  daily(input?: { review?: { window?: Duration; maxSubjects?: number; ignoreActors?: readonly string[] } }): Promise<DailyReport>;
   readonly consent: {
     /** Record that the person agreed to these consent purposes. */
     grant(subjectId: string, purposes: readonly P[], meta?: ConsentMeta): Promise<ConsentEvent>;
@@ -418,8 +441,26 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
     });
   }
 
-  return {
+  const api: Dpdp<P> = {
     config,
+
+    async daily(input = {}) {
+      const report: DailyReport = { at: nowIso(), skipped: [] };
+      if (isDpdpStore(store)) {
+        report.retention = await api.retention.run();
+        report.overdueRequests = await api.rights.list({ overdue: true });
+      } else {
+        report.skipped.push("retention", "rights");
+      }
+      if (isAccessLogStore(store)) {
+        report.accessPruned = (await api.access.prune()).deleted;
+        report.review = await api.access.review(input.review ?? {});
+      } else {
+        report.skipped.push("access");
+      }
+      emit("daily.ran", { report });
+      return report;
+    },
 
     on(event, listener) {
       let set = listeners.get(event);
@@ -668,4 +709,5 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
       },
     },
   };
+  return api;
 }
