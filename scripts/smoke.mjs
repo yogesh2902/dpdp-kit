@@ -126,4 +126,13 @@ console.log("✔ breach records");
   await db.close();
 }
 console.log("✔ dpdp-kit/prisma + dpdp-kit/postgres");
+// 9. MongoDB: the module loads without the driver, and reads a Mongoose-shaped model
+{
+  const { mongoStore, mongoData, mongooseSchema } = await import("dpdp-kit/mongodb");
+  const User = { modelName: "User", collection: { collectionName: "users" }, schema: { paths: { phone: { instance: "String" }, _id: { instance: "ObjectId" } }, virtuals: { id: {} } } };
+  const schema = mongooseSchema([User]);
+  if (schema.tables[0]?.name !== "users" || schema.tables[0].columns[1]?.key !== "id") fail(`mongooseSchema: ${JSON.stringify(schema)}`);
+  if (typeof mongoStore(() => undefined).insert !== "function" || typeof mongoData(() => undefined).read !== "function") fail("mongo store shape");
+}
+console.log("✔ dpdp-kit/mongodb");
 console.log(`All smoke checks passed on Node ${process.version}`);

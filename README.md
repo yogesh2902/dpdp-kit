@@ -14,7 +14,7 @@
 - **Handle a breach on time.** Record it, find and tell the people affected, and track the Board's 72-hour deadline (Section 8(6), Rule 7).
 - **Show who touched what.** An access log records who read whose data and why, flags reads outside a field's purpose, and keeps a year of entries, as Rule 6 requires. Encryption, tokens and masking for Aadhaar, PAN and other identifiers come in `dpdp-kit/protect`.
 - **Check it in CI.** `dpdp-kit audit` fails the build when the data map is inconsistent, and the GitHub Action puts each problem on the pull request.
-- **Catch drift.** `dpdp-kit audit --schema` reads your Drizzle or Prisma schema and fails the build when someone adds a `phone`, `email` or `aadhaar_number` column without saying what it's for, or when the data map points at columns that no longer exist. Compliance that can't quietly fall out of date.
+- **Catch drift.** `dpdp-kit audit --schema` reads your Drizzle, Prisma or Mongoose schema and fails the build when someone adds a `phone`, `email` or `aadhaar_number` column without saying what it's for, or when the data map points at columns that no longer exist. Compliance that can't quietly fall out of date.
 
 ## Node-native
 
@@ -22,7 +22,7 @@ dpdp-kit is a TypeScript library that runs **inside your Node.js process**, not 
 
 - **No separate server.** There's nothing to deploy, no sidecar to keep running, and no REST API between your code and your consent records.
 - **No hosted service.** No account, no API key, and no network calls. Personal data never leaves your infrastructure.
-- **Your own database.** Consent records go into your own Postgres, through the Drizzle or Prisma setup you already have (or any Postgres client), in the same database as the rest of your data.
+- **Your own database.** Consent records go into your own Postgres or MongoDB, through the Drizzle, Prisma or Mongoose setup you already have (or any Postgres client), in the same database as the rest of your data.
 - **Fits your Node stack.** Typed config, guards for Express, Hono, Fastify and NestJS, a CLI for CI, and works with ESM, `require()` and TypeScript.
 
 > **Not legal advice.** dpdp-kit helps you put compliance into practice; it does not make an app compliant on its own. Section and rule references point you to the text so you can check them. Have your own lawyer review your purposes, notices and retention periods.
@@ -101,11 +101,12 @@ The same checks run when the app starts: `createDpdp` throws if the config has e
 
 ### Catch schema drift
 
-A data map is only useful while it matches the database. Point the audit at your Drizzle schema (Postgres, MySQL or SQLite) or your Prisma schema:
+A data map is only useful while it matches the database. Point the audit at your Drizzle schema (Postgres, MySQL or SQLite), your Prisma schema or your Mongoose models:
 
 ```bash
 npx dpdp-kit audit --schema src/db/schema.ts
 npx dpdp-kit audit --schema prisma/schema.prisma   # or a folder of .prisma files
+npx dpdp-kit audit --schema src/models.ts          # a file that exports Mongoose models
 ```
 
 ```
@@ -130,7 +131,7 @@ Columns that describe data rather than hold it, such as `email_verified_at`, `ph
 notPersonal: ["products.name", "branches.*"], // database table and column names
 ```
 
-From code, `checkSchema(config, drizzleSchema(schema))` returns the same issues. `drizzleSchema` comes from `dpdp-kit/drizzle`, and `prismaSchema(text)` from `dpdp-kit/prisma`. With Prisma, the data map can use model and field names (`User`, `phoneNumber`) or the database's (`users`, `phone_number`). Matching is by column name, so it can't see personal data hidden inside a JSON column or a vaguely named field. Review those by hand.
+From code, `checkSchema(config, drizzleSchema(schema))` returns the same issues. `drizzleSchema` comes from `dpdp-kit/drizzle`, `prismaSchema(text)` from `dpdp-kit/prisma`, and `mongooseSchema(models)` from `dpdp-kit/mongodb`. With Prisma, the data map can use model and field names (`User`, `phoneNumber`) or the database's (`users`, `phone_number`). Matching is by column name, so it can't see personal data hidden inside a JSON column or a vaguely named field. Review those by hand.
 
 ### In GitHub Actions
 
@@ -474,6 +475,30 @@ const dpdp = createDpdp({ config, store: postgresStore(query), data: postgresDat
 ```
 
 Create the tables by running `DPDP_DDL`, a plain SQL string exported by `dpdp-kit/postgres`.
+
+### MongoDB and Mongoose
+
+```ts
+import { createDpdp } from "dpdp-kit";
+import { mongoData, mongooseSchema, mongoStore } from "dpdp-kit/mongodb";
+
+// the official driver
+const dpdp = createDpdp({ config, store: mongoStore(client.db()), data: mongoData(client.db(), { ObjectId }) });
+
+// Mongoose: a function, so dpdp can be created before mongoose.connect()
+const db = () => mongoose.connection.db;
+const dpdp = createDpdp({
+  config,
+  store: mongoStore(db),
+  data: mongoData(db, { schema: mongooseSchema(mongoose), ObjectId: mongoose.Types.ObjectId }),
+});
+```
+
+- Records go into `dpdp_*` collections. The store creates their indexes before its first write, including the unique `(subjectId, seq)` index that keeps each consent chain from forking. Call `createMongoIndexes(db)` from a deploy script if the app's user can't create indexes.
+- In the data map, `table` is a collection, or a Mongoose model name with `schema`. Fields are document paths, so `"address.city"` works. With a Mongoose schema, `id` means `_id`.
+- Pass `ObjectId` to find people by an ObjectId `_id`. Ids that look like numbers also match number fields.
+- Erasure removes a field (`$unset`), or sets the field's `erase` replacement.
+- `dpdp-kit audit --schema src/models.ts` reads the Mongoose models a file exports.
 
 ### Anything else
 

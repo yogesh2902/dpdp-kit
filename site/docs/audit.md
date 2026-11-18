@@ -21,11 +21,12 @@ The config is found automatically (`dpdp.config.ts` and similar), or pass `--con
 
 ## Catch schema drift
 
-A data map is only useful while it matches the database. Point the audit at your Drizzle schema (Postgres, MySQL or SQLite) or your Prisma schema:
+A data map is only useful while it matches the database. Point the audit at your Drizzle schema (Postgres, MySQL or SQLite), your Prisma schema or your Mongoose models:
 
 ```bash
 npx dpdp-kit audit --schema src/db/schema.ts
 npx dpdp-kit audit --schema prisma/schema.prisma   # or a folder of .prisma files
+npx dpdp-kit audit --schema src/models.ts          # a file that exports Mongoose models
 ```
 
 ```
@@ -50,7 +51,7 @@ Columns that describe data rather than hold it, such as `email_verified_at`, `ph
 notPersonal: ["products.name", "branches.*"], // database table and column names
 ```
 
-From code, `checkSchema(config, drizzleSchema(schema))` returns the same issues. `drizzleSchema` comes from `dpdp-kit/drizzle`, and `prismaSchema(text)` from `dpdp-kit/prisma`.
+From code, `checkSchema(config, drizzleSchema(schema))` returns the same issues. `drizzleSchema` comes from `dpdp-kit/drizzle`, `prismaSchema(text)` from `dpdp-kit/prisma`, and `mongooseSchema(models)` from `dpdp-kit/mongodb`. Mongoose models are tables named after their collections, with the model name as a key; nested fields are paths like `profile.phone`, and `id` means `_id`.
 
 With Prisma, the data map can use model and field names or the database's: `table: "User"` and `table: "users"` both work for a model with `@@map("users")`, and so do `phoneNumber` and `phone_number` for a field with `@map("phone_number")`. The same goes for `notPersonal`.
 

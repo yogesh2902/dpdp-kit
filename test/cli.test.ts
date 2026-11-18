@@ -88,6 +88,12 @@ describe("dpdp-kit audit", () => {
     expect(folder.out).toContain("schema.Lead.email");
   });
 
+  it("--schema reads Mongoose models from a module", async () => {
+    const { code, out } = await audit(["--config", "config.ts", "--schema", "models.ts"], fixtures);
+    expect(out).toContain("No problems found");
+    expect(code).toBe(0);
+  });
+
   it("--schema reports a missing file, or a file with no tables", async () => {
     expect((await audit(["--config", "config.ts", "--schema", "nope.ts"], fixtures)).code).toBe(1);
     await expect(audit(["--config", "config.ts", "--schema", "config.ts"], fixtures)).rejects.toThrow(/no Drizzle tables/);

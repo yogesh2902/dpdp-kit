@@ -1,6 +1,6 @@
 ---
 title: Storage
-description: Postgres through Drizzle, Prisma or any client, or bring your own store.
+description: Postgres through Drizzle, Prisma or any client, MongoDB and Mongoose, or bring your own store.
 ---
 
 ## Drizzle (Postgres)
@@ -78,6 +78,30 @@ export const dpdp = createDpdp({ config, store: postgresStore(query), data: post
 Create the tables by running `DPDP_DDL`, a plain SQL string exported by `dpdp-kit/postgres` (and `dpdp-kit/drizzle`). Pass `postgresData(query, { schema })` a schema from `prismaSchema()` or `drizzleSchema()` to map names and cast values to column types.
 
 > Timestamps are read back as UTC text, so they come back exactly as written whatever the server's time zone (many Indian servers run in `Asia/Kolkata`) and however the driver parses dates.
+
+## MongoDB and Mongoose
+
+```ts
+import { createDpdp } from "dpdp-kit";
+import { mongoData, mongooseSchema, mongoStore } from "dpdp-kit/mongodb";
+
+// the official driver
+const dpdp = createDpdp({ config, store: mongoStore(client.db()), data: mongoData(client.db(), { ObjectId }) });
+
+// Mongoose: a function, so dpdp can be created before mongoose.connect()
+const db = () => mongoose.connection.db;
+const dpdp = createDpdp({
+  config,
+  store: mongoStore(db),
+  data: mongoData(db, { schema: mongooseSchema(mongoose), ObjectId: mongoose.Types.ObjectId }),
+});
+```
+
+- Records go into `dpdp_*` collections. The store creates their indexes before its first write, including the unique `(subjectId, seq)` index that keeps each consent chain from forking. Call `createMongoIndexes(db)` from a deploy script if the app's user can't create indexes.
+- In the data map, `table` is a collection, or a Mongoose model name with `schema`. Fields are document paths, so `"address.city"` works. With a Mongoose schema, `id` means `_id`.
+- Pass `ObjectId` to find people by an ObjectId `_id`. Ids that look like numbers also match number fields.
+- Erasure removes a field (`$unset`), or sets the field's `erase` replacement.
+- `dpdp-kit audit --schema src/models.ts` reads the Mongoose models a file exports.
 
 ## Anything else
 

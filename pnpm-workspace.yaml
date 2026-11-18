@@ -7,3 +7,6 @@ allowBuilds:
   esbuild: false
   "@prisma/engines": true
   prisma: true
+# mongodb-memory-server (dev dependency, for the MongoDB tests) would fetch mongod on install;
+# declined, so it fetches it on first use instead, only where the tests run.
+  mongodb-memory-server: false

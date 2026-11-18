@@ -8,13 +8,14 @@ Usage:
   dpdp-kit safeguards [--config <file>] [--strict]
 
   Checks your data map and purposes. With --schema, also compares the data map with your
-  Drizzle or Prisma schema: personal-looking columns missing from the map, map entries that no
+  Drizzle, Prisma or Mongoose schema: personal-looking columns missing from the map, map entries that no
   longer exist, and erase settings a column can't take.
 
 Options:
   --config <file>   Config file (default: dpdp.config.ts / .mts / .js / .mjs)
   --schema <file>   Drizzle schema file (Postgres, MySQL or SQLite), e.g. src/db/schema.ts,
                     or Prisma schema, e.g. prisma/schema.prisma (or a folder of .prisma files)
+                    or a file that exports Mongoose models, e.g. src/models.ts
   --strict          Fail on warnings too
   --format github   Also print GitHub Actions annotations, so problems show on the pull request
 

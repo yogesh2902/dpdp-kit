@@ -14,6 +14,7 @@ export default defineConfig({
     schedule: "src/schedule.ts",
     postgres: "src/postgres.ts",
     prisma: "src/prisma.ts",
+    mongodb: "src/mongodb.ts",
     cli: "src/cli.ts",
   },
   format: ["esm"],

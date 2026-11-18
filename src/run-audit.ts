@@ -66,9 +66,12 @@ export function formatGithubAnnotations(
     .join("\n");
 }
 
-/** Load a Drizzle schema file and read its tables. */
+/** Load a schema module and read its tables: Mongoose models it exports, or else Drizzle tables. */
 export async function loadDrizzleSchema(file: string): Promise<Schema> {
   const mod = await loadModule(file);
+  const { mongooseSchema } = await import("./mongodb.js");
+  const mongoose = mongooseSchema(mod);
+  if (mongoose.tables.length > 0) return mongoose;
   let drizzleSchema: (m: Record<string, unknown>) => Schema;
   try {
     ({ drizzleSchema } = await import("./drizzle.js"));
@@ -77,7 +80,7 @@ export async function loadDrizzleSchema(file: string): Promise<Schema> {
   }
   const schema = drizzleSchema(mod);
   if (schema.tables.length === 0) {
-    throw new Error(`${file} exports no Drizzle tables. Point --schema at the file that defines them.`);
+    throw new Error(`${file} exports no Drizzle tables or Mongoose models. Point --schema at the file that defines them.`);
   }
   return schema;
 }

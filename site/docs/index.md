@@ -15,7 +15,7 @@ Most teams handle this with a privacy policy page and a spreadsheet. Nothing in 
 - **Handle a breach on time.** Record it, find and tell the people affected, and track the Board's 72-hour deadline (Section 8(6), Rule 7).
 - **Show who touched what.** An access log records who read whose data and why, flags reads outside a field's purpose, and keeps a year of entries (Rule 6). Encryption, tokens and masking come in `dpdp-kit/protect`.
 - **Answer rights requests on time.** Access, correction, erasure, grievance and nomination requests are recorded with due dates.
-- **Check it in CI.** `dpdp-kit audit` fails the build when the data map is inconsistent, and `--schema` catches drift between the map and your Drizzle or Prisma schema. The GitHub Action puts each problem on the pull request.
+- **Check it in CI.** `dpdp-kit audit` fails the build when the data map is inconsistent, and `--schema` catches drift between the map and your Drizzle, Prisma or Mongoose schema. The GitHub Action puts each problem on the pull request.
 
 ## Node-native
 
