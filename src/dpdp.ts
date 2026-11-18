@@ -13,6 +13,20 @@ import {
   reviewAccess,
 } from "./access.js";
 import { audit, hasErrors } from "./audit.js";
+import {
+  BOARD_REPORT_WITHIN_HOURS,
+  type Breach,
+  type BreachInput,
+  type BreachNotice,
+  type BoardReport,
+  type BoardReportInput,
+  type BreachStatus,
+  type BreachStore,
+  breachStatus,
+  isBreachStore,
+  type PersonNotice,
+  personNotice,
+} from "./breach.js";
 import type { DpdpConfig } from "./config.js";
 import type { DataAccess } from "./data-access.js";
 import { type Duration, durationMs } from "./duration.js";
@@ -90,6 +104,9 @@ export interface DpdpEvents {
   "rights.closed": { request: RightsRequest };
   "access.logged": { entries: AccessEntry[] };
   "daily.ran": { report: DailyReport };
+  "breach.opened": { breach: Breach };
+  "breach.reported": { breach: Breach };
+  "breach.closed": { breach: Breach };
 }
 
 /** What `daily()` did. A part the store can't do (a custom store without the access log) is listed in `skipped`. */
@@ -104,9 +121,11 @@ export interface DailyReport {
   review?: AccessReview;
   /** Open rights requests past their due date. */
   overdueRequests?: RightsRequest[];
-  skipped: Array<"retention" | "access" | "rights">;
+  /** Open breaches with their Rule 7 deadlines and what's left to do. */
+  breaches?: BreachStatus[];
+  skipped: Array<"retention" | "access" | "rights" | "breaches">;
   /** Steps that failed. The other steps still ran. */
-  errors: Array<{ step: "retention" | "rights" | "access-prune" | "access-review"; message: string; error: unknown }>;
+  errors: Array<{ step: "retention" | "rights" | "access-prune" | "access-review" | "breaches"; message: string; error: unknown }>;
 }
 
 export type DpdpEventName = keyof DpdpEvents;
@@ -234,6 +253,46 @@ export interface Dpdp<P extends string> {
      * Rule 6(1)(e)). Run it with the retention runner.
      */
     prune(): Promise<{ deleted: number; before: string }>;
+  };
+  /**
+   * Personal data breaches (Section 8(6), Rule 7): record one, find and tell the people affected,
+   * and track the Board's deadlines. Needs a store that keeps breaches: `memoryStore()`,
+   * `drizzleStore(db)`, or your own `BreachStore`.
+   */
+  readonly breach: {
+    /** Record a breach. The 72-hour clock for the Board's detailed report starts at `awareAt` (default now). */
+    open(input: BreachInput): Promise<Breach>;
+    /** Fill in or correct details, e.g. consequences and safety steps once they're known. */
+    update(id: string, input: Partial<Omit<BreachInput, "awareAt">>): Promise<Breach>;
+    get(id: string): Promise<Breach | undefined>;
+    /** Breaches, newest first. */
+    list(filter?: { status?: Breach["status"] }): Promise<Breach[]>;
+    /** Deadlines and what's left to do. */
+    status(id: string): Promise<BreachStatus>;
+    /** Record people affected. People already recorded are left as they are. Returns how many were new. */
+    addAffected(id: string, subjectIds: readonly string[]): Promise<number>;
+    /**
+     * Record as affected everyone in the access log matching the filter, e.g. everyone a compromised
+     * account read: `{ actor: "support:ravi", from: "2027-06-01T00:00:00Z" }`. Returns how many were new.
+     */
+    addAffectedFromAccessLog(id: string, filter: Omit<AccessFilter, "limit">): Promise<number>;
+    /** The notice to send each affected person, Rule 7(1)(a)–(e). `missing` lists parts still to fill in. */
+    notice(id: string): Promise<PersonNotice>;
+    /** People not yet told, oldest first. */
+    pending(id: string, limit?: number): Promise<BreachNotice[]>;
+    /** Record that these people were told. Returns how many changed. */
+    markNotified(id: string, subjectIds: readonly string[], input?: { channel?: string; at?: string }): Promise<number>;
+    /** Record that you told the Board, without delay (Rule 7(2)(a)). */
+    boardNotified(id: string, input?: { at?: string }): Promise<Breach>;
+    /** Save parts (i)–(v) of the detailed report. */
+    updateReport(id: string, parts: BoardReportInput): Promise<Breach>;
+    /** The detailed report, Rule 7(2)(b)(i)–(vi). Part (vi) comes from the notice records. */
+    boardReport(id: string): Promise<BoardReport>;
+    /** Record that you sent the detailed report to the Board. */
+    reportSent(id: string, input?: { at?: string }): Promise<Breach>;
+    /** Record a longer period the Board allowed on your written request (Rule 7(2)(b)). */
+    extend(id: string, input: { until: string; reference: string }): Promise<Breach>;
+    close(id: string, note?: string): Promise<Breach>;
   };
   readonly rights: {
     /** Record a request (Sections 11–14). It's due after `config.rights.responseWithin` (default 90 days). */
@@ -411,6 +470,45 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
     }
   }
 
+  function breachStore(): BreachStore {
+    if (!isBreachStore(store)) {
+      throw new DpdpError(
+        "store-unsupported",
+        "Breach records need a store that keeps them: memoryStore(), drizzleStore(db), or your own BreachStore",
+      );
+    }
+    return store;
+  }
+
+  function checkIso(value: string | undefined, name: string): void {
+    if (value !== undefined && (typeof value !== "string" || Number.isNaN(Date.parse(value)))) {
+      throw new DpdpError("invalid-input", `${name} must be an ISO 8601 date and time, e.g. "2027-06-01T10:00:00Z"`);
+    }
+  }
+
+  async function requireBreach(id: string, open = false): Promise<Breach> {
+    const breach = await breachStore().getBreach(id);
+    if (!breach) throw new DpdpError("breach-not-found", `No breach with id ${JSON.stringify(id)}`);
+    if (open && breach.status !== "open") throw new DpdpError("breach-closed", `Breach ${id} is closed`);
+    return breach;
+  }
+
+  async function saveBreach(breach: Breach, event: string, note?: string): Promise<Breach> {
+    const next: Breach = { ...breach, history: [...breach.history, { at: nowIso(), event, ...(note !== undefined ? { note } : {}) }] };
+    await breachStore().updateBreach(next);
+    return next;
+  }
+
+  function breachFields(keys: readonly string[] | undefined): string[] {
+    const { fields, unknown } = resolveFields(config, keys ?? []);
+    if (unknown.length > 0) {
+      throw new DpdpError("unknown-field", `Not in the data map: ${unknown.map((k) => JSON.stringify(k)).join(", ")}`);
+    }
+    return fields;
+  }
+
+  const BREACH_TEXT = ["occurredAt", "description", "extent", "location", "likelyImpact", "consequences", "measures", "safetySteps"] as const;
+
   function accessStore(): AccessLogStore {
     if (!isAccessLogStore(store)) {
       throw new DpdpError(
@@ -478,6 +576,14 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
         });
       } else {
         report.skipped.push("retention", "rights");
+      }
+      if (isBreachStore(store)) {
+        await step("breaches", async () => {
+          const open = await breachStore().listBreaches({ status: "open" });
+          report.breaches = await Promise.all(open.map((b) => api.breach.status(b.id)));
+        });
+      } else {
+        report.skipped.push("breaches");
       }
       if (isAccessLogStore(store)) {
         await step("access-prune", async () => {
@@ -673,6 +779,141 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
         const keepMs = Math.max(durationMs(keep), durationMs(DEFAULT_ACCESS_LOG_RETENTION));
         const before = new Date(now().getTime() - keepMs).toISOString();
         return { deleted: await accessStore().pruneAccess(before), before };
+      },
+    },
+
+    breach: {
+      async open(input) {
+        if (!input || typeof input.description !== "string" || input.description.trim() === "") {
+          throw new DpdpError("invalid-input", "Describe the breach: description is required (Rule 7(1)(a), 7(2)(a))");
+        }
+        checkIso(input.awareAt, "awareAt");
+        checkIso(input.occurredAt, "occurredAt");
+        const awareAt = input.awareAt ? new Date(input.awareAt).toISOString() : nowIso();
+        const text = Object.fromEntries(BREACH_TEXT.filter((k) => input[k] !== undefined).map((k) => [k, input[k]]));
+        const breach: Breach = {
+          id: randomUUID(),
+          ...text,
+          description: input.description,
+          awareAt,
+          fields: breachFields(input.fields),
+          reportDueAt: new Date(Date.parse(awareAt) + BOARD_REPORT_WITHIN_HOURS * 3_600_000).toISOString(),
+          report: {},
+          status: "open",
+          history: [{ at: nowIso(), event: "opened" }],
+        };
+        await breachStore().insertBreach(breach);
+        emit("breach.opened", { breach });
+        return breach;
+      },
+
+      async update(id, input) {
+        const breach = await requireBreach(id, true);
+        checkIso(input.occurredAt, "occurredAt");
+        const text = Object.fromEntries(BREACH_TEXT.filter((k) => input[k] !== undefined).map((k) => [k, input[k]]));
+        return saveBreach({ ...breach, ...text, ...(input.fields ? { fields: breachFields(input.fields) } : {}) }, "updated");
+      },
+
+      get: (id) => breachStore().getBreach(id),
+
+      list: (filter = {}) => breachStore().listBreaches(filter),
+
+      async status(id) {
+        const breach = await requireBreach(id);
+        return breachStatus(breach, await breachStore().countNotices(id), nowIso());
+      },
+
+      async addAffected(id, subjectIds) {
+        await requireBreach(id, true);
+        for (const subjectId of subjectIds) checkSubject(subjectId);
+        const addedAt = nowIso();
+        return breachStore().addNotices([...new Set(subjectIds)].map((subjectId) => ({ breachId: id, subjectId, status: "pending", addedAt })));
+      },
+
+      async addAffectedFromAccessLog(id, filter) {
+        await requireBreach(id, true);
+        const entries = await accessStore().listAccess(filter);
+        return api.breach.addAffected(id, [...new Set(entries.map((e) => e.subjectId))]);
+      },
+
+      async notice(id) {
+        return personNotice(config, await requireBreach(id));
+      },
+
+      pending: async (id, limit) => {
+        await requireBreach(id);
+        return breachStore().listNotices(id, { status: "pending", ...(limit !== undefined ? { limit } : {}) });
+      },
+
+      async markNotified(id, subjectIds, input = {}) {
+        await requireBreach(id);
+        checkIso(input.at, "at");
+        const at = input.at ? new Date(input.at).toISOString() : nowIso();
+        return breachStore().markNotices(id, [...new Set(subjectIds)], at, input.channel);
+      },
+
+      async boardNotified(id, input = {}) {
+        const breach = await requireBreach(id);
+        checkIso(input.at, "at");
+        return saveBreach({ ...breach, boardNotifiedAt: input.at ? new Date(input.at).toISOString() : nowIso() }, "board notified");
+      },
+
+      async updateReport(id, parts) {
+        const breach = await requireBreach(id);
+        const keys = ["details", "facts", "mitigation", "findings", "remedial"] as const;
+        const given = Object.fromEntries(keys.filter((k) => parts[k] !== undefined).map((k) => [k, parts[k]]));
+        return saveBreach({ ...breach, report: { ...breach.report, ...given } }, "report updated");
+      },
+
+      async boardReport(id) {
+        const breach = await requireBreach(id);
+        const counts = await breachStore().countNotices(id);
+        const status = breachStatus(breach, counts, nowIso());
+        return {
+          breachId: id,
+          awareAt: breach.awareAt,
+          dueAt: breach.reportDueAt,
+          details: breach.report.details ?? "",
+          facts: breach.report.facts ?? "",
+          mitigation: breach.report.mitigation ?? "",
+          findings: breach.report.findings ?? "",
+          remedial: breach.report.remedial ?? "",
+          intimations: {
+            total: counts.total,
+            sent: counts.sent,
+            pending: counts.total - counts.sent,
+            ...(counts.firstSentAt ? { firstSentAt: counts.firstSentAt } : {}),
+            ...(counts.lastSentAt ? { lastSentAt: counts.lastSentAt } : {}),
+          },
+          missing: status.report.missing,
+        };
+      },
+
+      async reportSent(id, input = {}) {
+        const breach = await requireBreach(id);
+        checkIso(input.at, "at");
+        const saved = await saveBreach({ ...breach, reportSentAt: input.at ? new Date(input.at).toISOString() : nowIso() }, "report sent");
+        emit("breach.reported", { breach: saved });
+        return saved;
+      },
+
+      async extend(id, input) {
+        const breach = await requireBreach(id, true);
+        checkIso(input.until, "until");
+        if (!input.reference) throw new DpdpError("invalid-input", "Record the Board's written permission: reference is required");
+        const until = new Date(input.until).toISOString();
+        return saveBreach(
+          { ...breach, reportDueAt: until, extension: { until, reference: input.reference, recordedAt: nowIso() } },
+          "extended",
+          input.reference,
+        );
+      },
+
+      async close(id, note) {
+        const breach = await requireBreach(id, true);
+        const saved = await saveBreach({ ...breach, status: "closed", closedAt: nowIso() }, "closed", note);
+        emit("breach.closed", { breach: saved });
+        return saved;
       },
     },
 

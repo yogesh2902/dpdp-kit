@@ -35,7 +35,7 @@ describe("dpdp.daily()", () => {
     const { lastEvent, insert, events } = memoryStore();
     const store: ConsentStore = { lastEvent, insert, events };
     const report = await createDpdp({ config, store }).daily();
-    expect(report.skipped).toEqual(["retention", "rights", "access"]);
+    expect(report.skipped).toEqual(["retention", "rights", "breaches", "access"]);
   });
 });
 

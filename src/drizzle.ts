@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, getTableColumns, getTableName, gte, is, lt, lte, or, type SQL, sql, Table } from "drizzle-orm";
+import { and, asc, count, desc, eq, getTableColumns, getTableName, gte, inArray, is, lt, lte, max, min, or, type SQL, sql, Table } from "drizzle-orm";
 import { index, integer, jsonb, type PgDatabase, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 import type { AccessEntry, AccessLogStore } from "./access.js";
+import type { Breach, BreachNotice, BreachStore } from "./breach.js";
 import type { DataAccess } from "./data-access.js";
 import type { ErasureTask, RequestStatus, RequestType, RightsRequest, TaskKind, TaskStatus } from "./records.js";
 import { SeqConflictError } from "./errors.js";
@@ -171,8 +172,70 @@ CREATE INDEX IF NOT EXISTS dpdp_access_log_at_idx ON dpdp_access_log (at);
 CREATE INDEX IF NOT EXISTS dpdp_access_log_subject_idx ON dpdp_access_log (subject_id, at);
 CREATE INDEX IF NOT EXISTS dpdp_access_log_actor_idx ON dpdp_access_log (actor, at);`;
 
+/** Personal data breaches (Section 8(6), Rule 7). Export it from your Drizzle schema with `consentEvents`. */
+export const breaches = pgTable(
+  "dpdp_breaches",
+  {
+    id: text("id").primaryKey(),
+    status: text("status").$type<Breach["status"]>().notNull(),
+    awareAt: ts("aware_at").notNull(),
+    reportDueAt: ts("report_due_at").notNull(),
+    data: jsonb("data").$type<Breach>().notNull(),
+  },
+  (t) => [index("dpdp_breaches_status_idx").on(t.status, t.awareAt)],
+);
+
+/** The people affected by each breach, and whether they've been told (Rule 7(1)). */
+export const breachNotices = pgTable(
+  "dpdp_breach_notices",
+  {
+    breachId: text("breach_id").notNull(),
+    subjectId: text("subject_id").notNull(),
+    status: text("status").$type<BreachNotice["status"]>().notNull(),
+    addedAt: ts("added_at").notNull(),
+    sentAt: ts("sent_at"),
+    channel: text("channel"),
+  },
+  (t) => [primaryKey({ columns: [t.breachId, t.subjectId] }), index("dpdp_breach_notices_status_idx").on(t.breachId, t.status, t.addedAt)],
+);
+
+/** The breach tables as plain SQL, if you don't use drizzle-kit for migrations. */
+export const BREACH_DDL = `CREATE TABLE IF NOT EXISTS dpdp_breaches (
+  id text PRIMARY KEY,
+  status text NOT NULL,
+  aware_at timestamptz NOT NULL,
+  report_due_at timestamptz NOT NULL,
+  data jsonb NOT NULL
+);
+CREATE INDEX IF NOT EXISTS dpdp_breaches_status_idx ON dpdp_breaches (status, aware_at);
+CREATE TABLE IF NOT EXISTS dpdp_breach_notices (
+  breach_id text NOT NULL,
+  subject_id text NOT NULL,
+  status text NOT NULL,
+  added_at timestamptz NOT NULL,
+  sent_at timestamptz,
+  channel text,
+  PRIMARY KEY (breach_id, subject_id)
+);
+CREATE INDEX IF NOT EXISTS dpdp_breach_notices_status_idx ON dpdp_breach_notices (breach_id, status, added_at);`;
+
 /** Every dpdp-kit table as plain SQL. */
-export const DPDP_DDL = `${CONSENT_EVENTS_DDL}\n${RECORDS_DDL}\n${ACCESS_LOG_DDL}`;
+export const DPDP_DDL = `${CONSENT_EVENTS_DDL}\n${RECORDS_DDL}\n${ACCESS_LOG_DDL}\n${BREACH_DDL}`;
+
+type NoticeRow = typeof breachNotices.$inferSelect;
+
+function noticeFromRow(row: NoticeRow): BreachNotice {
+  return {
+    breachId: row.breachId,
+    subjectId: row.subjectId,
+    status: row.status,
+    addedAt: row.addedAt.toISOString(),
+    ...(row.sentAt ? { sentAt: row.sentAt.toISOString() } : {}),
+    ...(row.channel !== null ? { channel: row.channel } : {}),
+  };
+}
+
+const breachRow = (b: Breach) => ({ id: b.id, status: b.status, awareAt: new Date(b.awareAt), reportDueAt: new Date(b.reportDueAt), data: b });
 
 type AccessRow = typeof accessLog.$inferSelect;
 
@@ -330,10 +393,91 @@ function runnable(when: { now: string; staleBefore: string; maxAttempts: number 
 /**
  * Store on Postgres through Drizzle: consent events, rights requests and erasure tasks. Works with
  * node-postgres, postgres.js, Neon, PGlite and other Drizzle Postgres drivers. Needs the tables
- * `consentEvents`, `rightsRequests`, `erasureTasks` and `accessLog` (or `DPDP_DDL`).
+ * `consentEvents`, `rightsRequests`, `erasureTasks`, `accessLog`, `breaches` and `breachNotices` (or `DPDP_DDL`).
  */
-export function drizzleStore(db: AnyPgDatabase): DpdpStore & AccessLogStore {
+export function drizzleStore(db: AnyPgDatabase): DpdpStore & AccessLogStore & BreachStore {
   return {
+    async insertBreach(breach) {
+      await db.insert(breaches).values(breachRow(breach));
+    },
+    async getBreach(id) {
+      const rows = await db.select({ data: breaches.data }).from(breaches).where(eq(breaches.id, id)).limit(1);
+      return rows[0]?.data;
+    },
+    async updateBreach(breach) {
+      const { id, ...rest } = breachRow(breach);
+      await db.update(breaches).set(rest).where(eq(breaches.id, id));
+    },
+    async listBreaches(filter) {
+      const rows = await db
+        .select({ data: breaches.data })
+        .from(breaches)
+        .where(filter.status ? eq(breaches.status, filter.status) : undefined)
+        .orderBy(desc(breaches.awareAt));
+      return rows.map((r) => r.data);
+    },
+    async addNotices(list) {
+      if (list.length === 0) return 0;
+      let added = 0;
+      for (let i = 0; i < list.length; i += 1000) {
+        const rows = list.slice(i, i + 1000).map((n) => ({
+          breachId: n.breachId,
+          subjectId: n.subjectId,
+          status: n.status,
+          addedAt: new Date(n.addedAt),
+          sentAt: n.sentAt ? new Date(n.sentAt) : null,
+          channel: n.channel ?? null,
+        }));
+        const inserted = await db.insert(breachNotices).values(rows).onConflictDoNothing().returning({ one: sql<number>`1` });
+        added += inserted.length;
+      }
+      return added;
+    },
+    async markNotices(breachId, subjectIds, sentAt, channel) {
+      let changed = 0;
+      for (let i = 0; i < subjectIds.length; i += 1000) {
+        const updated = await db
+          .update(breachNotices)
+          .set({ status: "sent", sentAt: new Date(sentAt), channel: channel ?? null })
+          .where(
+            and(
+              eq(breachNotices.breachId, breachId),
+              eq(breachNotices.status, "pending"),
+              inArray(breachNotices.subjectId, [...subjectIds.slice(i, i + 1000)]),
+            ),
+          )
+          .returning({ one: sql<number>`1` });
+        changed += updated.length;
+      }
+      return changed;
+    },
+    async listNotices(breachId, filter) {
+      const query = db
+        .select()
+        .from(breachNotices)
+        .where(and(eq(breachNotices.breachId, breachId), filter.status ? eq(breachNotices.status, filter.status) : undefined))
+        .orderBy(asc(breachNotices.addedAt), asc(breachNotices.subjectId));
+      const rows = filter.limit === undefined ? await query : await query.limit(filter.limit);
+      return rows.map(noticeFromRow);
+    },
+    async countNotices(breachId) {
+      const [row] = await db
+        .select({
+          total: count(),
+          sent: sql<number>`count(*) filter (where ${breachNotices.status} = 'sent')`.mapWith(Number),
+          first: min(breachNotices.sentAt),
+          last: max(breachNotices.sentAt),
+        })
+        .from(breachNotices)
+        .where(eq(breachNotices.breachId, breachId));
+      return {
+        total: Number(row?.total ?? 0),
+        sent: Number(row?.sent ?? 0),
+        ...(row?.first ? { firstSentAt: new Date(row.first).toISOString() } : {}),
+        ...(row?.last ? { lastSentAt: new Date(row.last).toISOString() } : {}),
+      };
+    },
+
     async insertAccess(entries) {
       if (entries.length > 0) await db.insert(accessLog).values(entries.map(accessToRow));
     },

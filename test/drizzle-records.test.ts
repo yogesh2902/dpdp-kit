@@ -245,3 +245,46 @@ describe("erasing NOT NULL columns on Postgres (PGlite)", () => {
     ]);
   });
 });
+
+describe("breach records on Postgres (PGlite)", () => {
+  const client = new PGlite();
+  const db = drizzle(client);
+  let t = Date.parse("2027-06-01T10:00:00.000Z");
+  const dpdp = createDpdp({ config, store: drizzleStore(db), now: () => new Date(t) });
+
+  beforeAll(async () => {
+    await client.exec(DPDP_DDL);
+  });
+  afterAll(async () => {
+    await client.close();
+  });
+
+  it("stores breaches and notices, counts them, and lists open ones newest first", async () => {
+    const first = await dpdp.breach.open({ description: "First", awareAt: "2027-06-01T08:00:00Z", fields: ["customers"] });
+    const second = await dpdp.breach.open({ description: "Second", awareAt: "2027-06-01T09:00:00Z" });
+    const ids = Array.from({ length: 2500 }, (_, i) => `c${i}`);
+    expect(await dpdp.breach.addAffected(first.id, ids)).toBe(2500);
+    expect(await dpdp.breach.addAffected(first.id, ["c1", "c2", "new"])).toBe(1);
+
+    t += 60_000;
+    expect(await dpdp.breach.markNotified(first.id, ids.slice(0, 1500), { channel: "email" })).toBe(1500);
+    t += 60_000;
+    expect(await dpdp.breach.markNotified(first.id, ["c1600"], { channel: "sms" })).toBe(1);
+
+    const report = await dpdp.breach.boardReport(first.id);
+    expect(report.intimations).toEqual({
+      total: 2501,
+      sent: 1501,
+      pending: 1000,
+      firstSentAt: "2027-06-01T10:01:00.000Z",
+      lastSentAt: "2027-06-01T10:02:00.000Z",
+    });
+    expect((await dpdp.breach.pending(first.id, 2)).map((n) => n.subjectId)).toEqual(["c1500", "c1501"]);
+    expect((await dpdp.breach.list({ status: "open" })).map((b) => b.description)).toEqual(["Second", "First"]);
+
+    await dpdp.breach.updateReport(first.id, { details: "d" });
+    await dpdp.breach.close(second.id);
+    expect((await dpdp.breach.get(first.id))!.report).toEqual({ details: "d" });
+    expect((await dpdp.breach.list({ status: "open" })).map((b) => b.id)).toEqual([first.id]);
+  });
+});

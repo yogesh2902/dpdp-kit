@@ -99,4 +99,14 @@ console.log("✔ rights + retention");
 }
 console.log("✔ access log + dpdp-kit/protect + dpdp-kit safeguards");
 
+// 7. Breach records
+{
+  const kit = createDpdp({ config, store: memoryStore() });
+  const breach = await kit.breach.open({ description: "Smoke test breach" });
+  await kit.breach.addAffected(breach.id, ["u1"]);
+  const status = await kit.breach.status(breach.id);
+  if (status.people.total !== 1 || status.report.hoursLeft !== 72) fail(`breach status: ${JSON.stringify(status)}`);
+}
+console.log("✔ breach records");
+
 console.log(`All smoke checks passed on Node ${process.version}`);

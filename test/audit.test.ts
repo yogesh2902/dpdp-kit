@@ -47,6 +47,7 @@ describe("audit", () => {
         "error:missing-subject-column:data.orders.subject",
         "error:unknown-purpose:processors.sms.purposes",
         "warning:grievance-missing:fiduciary.grievanceUrl",
+        "warning:contact-missing:fiduciary.dpo",
         "warning:table-without-fields:data.orders.fields",
         "warning:unused-purpose:purposes.promo",
         "warning:unused-purpose:purposes.spare",
@@ -65,6 +66,7 @@ describe("audit", () => {
       data: { users: { table: "users", subject: "id", fields: { phone: { category: "contact", purposes: ["account"] } } } },
     } as unknown as DpdpConfig<string>;
     expect(codes(bad)).toEqual([
+      "warning:contact-missing:fiduciary.dpo",
       "error:invalid-retention:purposes.account.retain",
       "warning:minimum-retention-missing:minimumRetention",
       "warning:security-measure-missing:security.accessControl",
@@ -76,7 +78,7 @@ describe("audit", () => {
 
 describe("audit: Rule 6 security safeguards", () => {
   const base = {
-    fiduciary: { name: "X", grievanceUrl: "/g" },
+    fiduciary: { name: "X", grievanceUrl: "/g", dpo: "dpo@x.example" },
     purposes: { kyc: { basis: "legitimate-use", retain: "while-active" } },
     minimumRetention: "1y",
     security: { accessControl: "SSO", backups: "Daily", measures: "Training" },
@@ -120,7 +122,7 @@ describe("audit: erase settings", () => {
   it("accepts null, redact and { value }, and rejects anything else", () => {
     const withErase = (erase: unknown) =>
       ({
-        fiduciary: { name: "X", grievanceUrl: "/g" },
+        fiduciary: { name: "X", grievanceUrl: "/g", dpo: "dpo@x.example" },
         purposes: { a: { basis: "legitimate-use", retain: "while-active" } },
         data: { users: { table: "users", subject: "id", fields: { email: { category: "contact", purposes: ["a"], erase } } } },
         minimumRetention: "1y",

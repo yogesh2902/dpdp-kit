@@ -20,6 +20,7 @@ export interface Issue {
     | "minimum-retention-missing"
     | "minimum-retention-too-short"
     | "grievance-missing"
+    | "contact-missing"
     | "fiduciary-missing"
     | "invalid-not-personal"
     // from checkSchema(), comparing the data map with the real database schema
@@ -119,6 +120,16 @@ export function audit(config: DpdpConfig<string>): Issue[] {
       path: "fiduciary.grievanceUrl",
       message:
         "Add where people can raise a grievance. Section 8(10) requires a grievance mechanism, and Section 5(1)(ii) requires the notice to say how to use it.",
+    });
+  }
+
+  if (!config.fiduciary?.dpo) {
+    issues.push({
+      level: "warning",
+      code: "contact-missing",
+      path: "fiduciary.dpo",
+      message:
+        "Add your Data Protection Officer, or a person who can answer questions about personal data, with their business contact. Section 8(9) requires publishing it, and Rule 7(1)(e) requires it in every breach notice.",
     });
   }
 

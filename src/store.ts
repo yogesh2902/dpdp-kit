@@ -1,4 +1,5 @@
 import type { AccessEntry, AccessLogStore } from "./access.js";
+import type { Breach, BreachNotice, BreachStore } from "./breach.js";
 import { SeqConflictError } from "./errors.js";
 import type { NoticeLanguage } from "./languages.js";
 import { type ErasureTask, isRunnable, type RequestStore, type RightsRequest, type TaskStore } from "./records.js";
@@ -50,22 +51,84 @@ export function isDpdpStore(store: ConsentStore): store is DpdpStore {
 
 /** Keeps everything in memory. For tests and trying the library out; everything is lost on restart. */
 export function memoryStore(): DpdpStore &
-  AccessLogStore & {
+  AccessLogStore &
+  BreachStore & {
     readonly all: Map<string, ConsentEvent[]>;
     readonly requests: Map<string, RightsRequest>;
     readonly tasks: Map<string, ErasureTask>;
     readonly accessLog: AccessEntry[];
+    readonly breaches: Map<string, Breach>;
+    readonly notices: Map<string, BreachNotice>;
   } {
   const all = new Map<string, ConsentEvent[]>();
   const requests = new Map<string, RightsRequest>();
   const tasks = new Map<string, ErasureTask>();
   const accessLog: AccessEntry[] = [];
+  const breaches = new Map<string, Breach>();
+  const notices = new Map<string, BreachNotice>();
+  const noticeKey = (breachId: string, subjectId: string) => `${breachId}\u0000${subjectId}`;
+  const noticesOf = (breachId: string) => [...notices.values()].filter((n) => n.breachId === breachId);
   const byDue = (a: ErasureTask, b: ErasureTask) => (a.dueAt < b.dueAt ? -1 : a.dueAt > b.dueAt ? 1 : 0);
   return {
     all,
     requests,
     tasks,
     accessLog,
+    breaches,
+    notices,
+
+    async insertBreach(breach) {
+      breaches.set(breach.id, structuredClone(breach));
+    },
+    async getBreach(id) {
+      const b = breaches.get(id);
+      return b && structuredClone(b);
+    },
+    async updateBreach(breach) {
+      breaches.set(breach.id, structuredClone(breach));
+    },
+    async listBreaches(filter) {
+      return [...breaches.values()]
+        .filter((b) => !filter.status || b.status === filter.status)
+        .sort((a, b) => (a.awareAt < b.awareAt ? 1 : a.awareAt > b.awareAt ? -1 : 0))
+        .map((b) => structuredClone(b));
+    },
+    async addNotices(list) {
+      let added = 0;
+      for (const n of list) {
+        const key = noticeKey(n.breachId, n.subjectId);
+        if (notices.has(key)) continue;
+        notices.set(key, structuredClone(n));
+        added++;
+      }
+      return added;
+    },
+    async markNotices(breachId, subjectIds, sentAt, channel) {
+      let changed = 0;
+      for (const subjectId of subjectIds) {
+        const n = notices.get(noticeKey(breachId, subjectId));
+        if (!n || n.status === "sent") continue;
+        notices.set(noticeKey(breachId, subjectId), { ...n, status: "sent", sentAt, ...(channel !== undefined ? { channel } : {}) });
+        changed++;
+      }
+      return changed;
+    },
+    async listNotices(breachId, filter) {
+      const list = noticesOf(breachId)
+        .filter((n) => !filter.status || n.status === filter.status)
+        .sort((a, b) => (a.addedAt < b.addedAt ? -1 : a.addedAt > b.addedAt ? 1 : 0))
+        .map((n) => structuredClone(n));
+      return filter.limit === undefined ? list : list.slice(0, filter.limit);
+    },
+    async countNotices(breachId) {
+      const list = noticesOf(breachId);
+      const sentTimes = list.flatMap((n) => (n.sentAt ? [n.sentAt] : [])).sort();
+      return {
+        total: list.length,
+        sent: sentTimes.length,
+        ...(sentTimes.length ? { firstSentAt: sentTimes[0]!, lastSentAt: sentTimes[sentTimes.length - 1]! } : {}),
+      };
+    },
 
     async insertAccess(entries) {
       for (const e of entries) accessLog.push(structuredClone(e));

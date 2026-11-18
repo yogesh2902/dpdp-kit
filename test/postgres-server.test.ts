@@ -48,7 +48,7 @@ describe.skipIf(!url)("on a real Postgres server (node-postgres)", () => {
   const dpdp = createDpdp({ config, store: drizzleStore(db), data: drizzleData(db, { schema: { people } }), now });
 
   beforeAll(async () => {
-    await pool.query("DROP TABLE IF EXISTS dpdp_consent_events, dpdp_requests, dpdp_erasure_tasks, dpdp_access_log, pg_people");
+    await pool.query("DROP TABLE IF EXISTS dpdp_consent_events, dpdp_requests, dpdp_erasure_tasks, dpdp_access_log, dpdp_breaches, dpdp_breach_notices, pg_people");
     await pool.query(DPDP_DDL);
     await pool.query(DPDP_DDL); // idempotent
     await pool.query(`CREATE TABLE pg_people (id text PRIMARY KEY, email text NOT NULL UNIQUE, nickname text NOT NULL, points integer NOT NULL, city text)`);
@@ -105,6 +105,13 @@ describe.skipIf(!url)("on a real Postgres server (node-postgres)", () => {
     await dpdp.access.log({ actor: "crm", subjectIds: ["p3", "p4"], purpose: "promo" });
     const { findings } = await dpdp.access.review({ from: new Date(t - 1000).toISOString() });
     expect(findings.map((f) => `${f.kind}:${f.subjectId}`)).toEqual(["no-consent:p4"]);
+  });
+
+  it("records a breach, its affected people and notices", async () => {
+    const breach = await dpdp.breach.open({ description: "Exposed export", fields: ["people.email"] });
+    expect(await dpdp.breach.addAffectedFromAccessLog(breach.id, { actor: "crm" })).toBe(2);
+    expect(await dpdp.breach.markNotified(breach.id, ["p3"], { channel: "email" })).toBe(1);
+    expect((await dpdp.breach.boardReport(breach.id)).intimations).toMatchObject({ total: 2, sent: 1, pending: 1 });
   });
 
   it("daily() runs every step against the server", async () => {

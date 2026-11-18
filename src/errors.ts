@@ -21,7 +21,9 @@ export type DpdpErrorCode =
   | "invalid-key"
   | "invalid-input"
   | "decrypt-failed"
-  | "invalid-erase";
+  | "invalid-erase"
+  | "breach-not-found"
+  | "breach-closed";
 
 /** Thrown for mistakes in how the library is called. Messages are for developers, not end users. */
 export class DpdpError extends Error {

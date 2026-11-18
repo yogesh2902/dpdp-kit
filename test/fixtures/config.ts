@@ -2,7 +2,11 @@ import { defineConfig } from "../../src/index.js";
 
 /** A small e-commerce app, used across the tests. */
 export const config = defineConfig({
-  fiduciary: { name: "Acme Pvt Ltd", grievanceUrl: "https://acme.example/privacy/grievance" },
+  fiduciary: {
+    name: "Acme Pvt Ltd",
+    grievanceUrl: "https://acme.example/privacy/grievance",
+    dpo: "Meera Iyer, Data Protection Officer, privacy@acme.example, +91 80 4000 1234",
+  },
   purposes: {
     account: { basis: "legitimate-use", retain: "while-active" },
     order_updates: { basis: "consent", retain: "while-active" },

@@ -9,6 +9,21 @@ export {
   DEFAULT_ACCESS_LOG_RETENTION,
   isAccessLogStore,
 } from "./access.js";
+export {
+  BOARD_REPORT_WITHIN_HOURS,
+  type BoardReport,
+  type BoardReportInput,
+  type Breach,
+  type BreachInput,
+  type BreachNotice,
+  type BreachStatus,
+  type BreachStore,
+  breachStatus,
+  isBreachStore,
+  type NoticeCounts,
+  type PersonNotice,
+  personNotice,
+} from "./breach.js";
 export { audit, hasErrors, isHighRisk, type Issue, type IssueLevel } from "./audit.js";
 export {
   type Basis,
