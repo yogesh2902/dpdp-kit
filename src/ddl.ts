@@ -5,7 +5,7 @@
 export const CONSENT_EVENTS_DDL = `CREATE TABLE IF NOT EXISTS dpdp_consent_events (
   subject_id text NOT NULL,
   seq integer NOT NULL,
-  action text NOT NULL CHECK (action IN ('grant', 'withdraw')),
+  action text NOT NULL CONSTRAINT dpdp_consent_events_action_check CHECK (action IN ('grant', 'withdraw', 'object', 'lift-objection')),
   purposes jsonb NOT NULL,
   notice_version text,
   language text,
@@ -92,3 +92,13 @@ CREATE INDEX IF NOT EXISTS dpdp_breach_notices_status_idx ON dpdp_breach_notices
 
 /** Every dpdp-kit table as plain SQL. */
 export const DPDP_DDL = `${CONSENT_EVENTS_DDL}\n${RECORDS_DDL}\n${ACCESS_LOG_DDL}\n${BREACH_DDL}`;
+
+/**
+ * Upgrades tables created by an earlier version to 0.5: consent events may now record objections
+ * (`object`, `lift-objection`). Safe to run more than once, and on tables created by drizzle-kit
+ * or Prisma, which have no such constraint. The constraint is added NOT VALID and then validated,
+ * so a large table isn't locked while existing rows are checked.
+ */
+export const MIGRATE_0_5_DDL = `ALTER TABLE dpdp_consent_events DROP CONSTRAINT IF EXISTS dpdp_consent_events_action_check;
+ALTER TABLE dpdp_consent_events ADD CONSTRAINT dpdp_consent_events_action_check CHECK (action IN ('grant', 'withdraw', 'object', 'lift-objection')) NOT VALID;
+ALTER TABLE dpdp_consent_events VALIDATE CONSTRAINT dpdp_consent_events_action_check;`;

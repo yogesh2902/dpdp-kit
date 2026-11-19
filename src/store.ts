@@ -4,7 +4,12 @@ import { SeqConflictError } from "./errors.js";
 import type { NoticeLanguage } from "./languages.js";
 import { type ErasureTask, isRunnable, type RequestStore, type RightsRequest, type TaskStore } from "./records.js";
 
-export type ConsentAction = "grant" | "withdraw";
+/**
+ * - `grant` / `withdraw`: consent for consent purposes (Section 6).
+ * - `object` / `lift-objection`: the person says they don't want their data used for a Section 7(a)
+ *   legitimate use, or changes their mind.
+ */
+export type ConsentAction = "grant" | "withdraw" | "object" | "lift-objection";
 
 /** One entry in a person's consent record. Entries are only ever added, never changed. */
 export interface ConsentEvent {
@@ -234,8 +239,24 @@ export function grantedPurposes(events: readonly ConsentEvent[], until?: string)
     if (until !== undefined && e.at > until) break;
     for (const p of e.purposes) {
       if (e.action === "grant") granted.add(p);
-      else granted.delete(p);
+      else if (e.action === "withdraw") granted.delete(p);
     }
   }
   return granted;
+}
+
+/**
+ * Section 7(a) purposes the person has objected to and not changed their mind about. Pass `until`
+ * (ISO 8601) for the state at that moment.
+ */
+export function objectedPurposes(events: readonly ConsentEvent[], until?: string): Set<string> {
+  const objected = new Set<string>();
+  for (const e of events) {
+    if (until !== undefined && e.at > until) break;
+    for (const p of e.purposes) {
+      if (e.action === "object") objected.add(p);
+      else if (e.action === "lift-objection") objected.delete(p);
+    }
+  }
+  return objected;
 }

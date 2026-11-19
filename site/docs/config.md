@@ -61,6 +61,7 @@ Who you are, as the Data Fiduciary.
 Each purpose you hold personal data for.
 
 - **`basis`**: `"consent"` (Section 6) or `"legitimate-use"` (Section 7). For most apps a legitimate use means Section 7(a): data the person voluntarily gave you for a specified purpose, until they tell you they don't want it used. Keeping data because a law requires it is not a legitimate use; use `legalHold` for that.
+- **`legitimateUse`**: for a legitimate-use purpose, the clause of Section 7 it relies on, `"7(a)"` to `"7(i)"`. Purposes with `"7(a)"` accept [objections](../objections/).
 - **`retain`**: `"while-active"`, a duration such as `"1y"`, or `{ afterWithdrawal: "7d" }` for consent purposes. Durations use `h`, `d` or `y`. Section 8(7)(a) says to erase upon withdrawal, so keep `afterWithdrawal` to the delay your systems really need.
 - **`description`**: optional, in plain words.
 

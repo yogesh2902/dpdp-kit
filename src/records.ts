@@ -47,8 +47,9 @@ export type TaskKind = "erase-fields" | "delete-rows" | "processor-stop" | "proc
  * - `done`: carried out.
  * - `failed`: the last attempt threw; retried on the next run (up to 5 attempts).
  * - `manual`: needs a person, e.g. a processor with no `erase` hook. Mark it done when handled.
+ * - `cancelled`: no longer needed, e.g. the person lifted the objection that scheduled it.
  */
-export type TaskStatus = "pending" | "running" | "done" | "failed" | "manual";
+export type TaskStatus = "pending" | "running" | "done" | "failed" | "manual" | "cancelled";
 
 export interface ErasureTask {
   id: string;

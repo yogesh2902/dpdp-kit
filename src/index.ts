@@ -35,6 +35,8 @@ export {
   type EraseWith,
   type FiduciaryDef,
   type LegalHold,
+  LEGITIMATE_USES,
+  type LegitimateUse,
   type PersonalField,
   type ProcessorDef,
   type PurposeDef,

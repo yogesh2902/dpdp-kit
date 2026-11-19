@@ -34,8 +34,10 @@ export interface AccessSummary {
   }>;
   /** Consent purposes currently granted. */
   consents: string[];
-  /** Legitimate-use purposes that apply without consent (Section 7). */
+  /** Legitimate-use purposes that apply without consent (Section 7), minus any the person objected to. */
   legitimateUses: string[];
+  /** Section 7(a) purposes the person objected to. Only present when there are any. */
+  objections?: string[];
   /**
    * Processors that receive data for a purpose that applies to this person (Section 11(1)(b)).
    * Section 11(2) exempts sharing with authorities for preventing or investigating offences;
@@ -49,11 +51,13 @@ export async function buildAccessSummary(input: {
   data: DataAccess;
   subjectId: string;
   consents: string[];
+  objections?: string[];
   now: string;
 }): Promise<AccessSummary> {
   const { config, data, subjectId, consents, now } = input;
+  const objections = input.objections ?? [];
   const legitimateUses = Object.entries(config.purposes)
-    .filter(([, def]) => def.basis === "legitimate-use")
+    .filter(([name, def]) => def.basis === "legitimate-use" && !objections.includes(name))
     .map(([name]) => name);
   const applies = new Set([...consents, ...legitimateUses]);
 
@@ -81,5 +85,13 @@ export async function buildAccessSummary(input: {
     }))
     .filter((p) => p.purposes.length > 0);
 
-  return { subjectId, generatedAt: now, data: tables, consents, legitimateUses, sharedWith };
+  return {
+    subjectId,
+    generatedAt: now,
+    data: tables,
+    consents,
+    legitimateUses,
+    ...(objections.length > 0 ? { objections: [...objections] } : {}),
+    sharedWith,
+  };
 }

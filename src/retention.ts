@@ -71,6 +71,8 @@ export function tasksFromPlan(config: DpdpConfig<string>, plan: ErasurePlan, now
       kind: table.action === "delete-rows" ? "delete-rows" : "erase-fields",
       table: table.key,
       ...(table.action === "delete-rows" ? {} : { fields: erasable.map((f) => f.field) }),
+      // Objection tasks record the purposes they serve, so lifting the objection can cancel them.
+      ...(plan.reason === "objection" ? { purposes: [...plan.ended] } : {}),
       dueAt: due(wait),
     });
   }

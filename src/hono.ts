@@ -1,5 +1,5 @@
 import type { Dpdp } from "./dpdp.js";
-import { type AccessLogOptions, CONSENT_REQUIRED_BODY, checkConsent, type GuardOptions, recordAccess } from "./guard.js";
+import { type AccessLogOptions, checkConsent, consentDeniedBody, type GuardOptions, recordAccess } from "./guard.js";
 
 /** The parts of Hono's context this middleware uses. */
 interface ContextLike {
@@ -27,7 +27,7 @@ export function requireConsent<P extends string, C extends ContextLike = any>(
   return async (c: C, next: () => Promise<void>): Promise<Response | void> => {
     if (await checkConsent(dpdp, purpose, options, c)) return next();
     if (options.onDenied) return options.onDenied(c, purpose);
-    return c.json(CONSENT_REQUIRED_BODY(purpose), 403);
+    return c.json(consentDeniedBody(dpdp, purpose), 403);
   };
 }
 

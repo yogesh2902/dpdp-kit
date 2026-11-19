@@ -28,11 +28,22 @@ export type Basis = "consent" | "legitimate-use";
  */
 export type Retention = "while-active" | Duration | { afterWithdrawal: Duration };
 
+/**
+ * Which clause of Section 7 a legitimate use relies on. Only `"7(a)"` (data the person gave
+ * voluntarily for a specified purpose) can be objected to: Section 7(a) holds only while the person
+ * "has not indicated … that she does not consent", so `consent.object()` stops it.
+ */
+export type LegitimateUse = "7(a)" | "7(b)" | "7(c)" | "7(d)" | "7(e)" | "7(f)" | "7(g)" | "7(h)" | "7(i)";
+
+export const LEGITIMATE_USES: readonly LegitimateUse[] = ["7(a)", "7(b)", "7(c)", "7(d)", "7(e)", "7(f)", "7(g)", "7(h)", "7(i)"];
+
 export interface PurposeDef {
   basis: Basis;
   retain: Retention;
   /** Plain-language description, as shown to people in the notice. */
   description?: string;
+  /** For a legitimate-use purpose: the clause of Section 7 it relies on. `"7(a)"` purposes accept objections. */
+  legitimateUse?: LegitimateUse;
 }
 
 /** Kind of personal data. Free text is allowed; these are the common ones. */

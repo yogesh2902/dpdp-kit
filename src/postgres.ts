@@ -11,7 +11,7 @@ import type { ErasureTask, RightsRequest } from "./records.js";
 import type { Schema } from "./schema-check.js";
 import type { ConsentEvent, DpdpStore } from "./store.js";
 
-export { ACCESS_LOG_DDL, BREACH_DDL, CONSENT_EVENTS_DDL, DPDP_DDL, RECORDS_DDL } from "./ddl.js";
+export { ACCESS_LOG_DDL, BREACH_DDL, CONSENT_EVENTS_DDL, DPDP_DDL, MIGRATE_0_5_DDL, RECORDS_DDL } from "./ddl.js";
 
 /**
  * Runs one parameterised SQL statement (`$1`, `$2`… placeholders) and resolves with its rows.

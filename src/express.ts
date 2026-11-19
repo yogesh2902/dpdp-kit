@@ -1,5 +1,5 @@
 import type { Dpdp } from "./dpdp.js";
-import { type AccessLogOptions, CONSENT_REQUIRED_BODY, checkConsent, type GuardOptions, recordAccess } from "./guard.js";
+import { type AccessLogOptions, checkConsent, consentDeniedBody, type GuardOptions, recordAccess } from "./guard.js";
 
 /** The parts of Express's response this middleware uses. */
 interface ResponseLike {
@@ -30,7 +30,7 @@ export function requireConsent<P extends string, Req = any, Res extends Response
       (ok) => {
         if (ok) return next();
         if (options.onDenied) return options.onDenied(req, res, purpose);
-        res.status(403).json(CONSENT_REQUIRED_BODY(purpose));
+        res.status(403).json(consentDeniedBody(dpdp, purpose));
       },
       (err) => next(err),
     );

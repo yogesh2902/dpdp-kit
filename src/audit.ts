@@ -1,4 +1,4 @@
-import type { DpdpConfig, Retention } from "./config.js";
+import { type DpdpConfig, LEGITIMATE_USES, type Retention } from "./config.js";
 import { durationMs, isDuration } from "./duration.js";
 import { guessPersonal } from "./personal.js";
 import { REQUEST_TYPES } from "./records.js";
@@ -11,6 +11,7 @@ export interface Issue {
     | "no-purposes"
     | "invalid-basis"
     | "invalid-retention"
+    | "invalid-legitimate-use"
     | "invalid-duration"
     | "unknown-purpose"
     | "field-without-purpose"
@@ -160,6 +161,23 @@ export function audit(config: DpdpConfig<string>): Issue[] {
         message:
           "afterWithdrawal only applies to consent purposes (Section 6(4)). Use \"while-active\" or a duration for a legitimate use.",
       });
+    }
+    if (def.legitimateUse !== undefined) {
+      if (def.basis !== "legitimate-use") {
+        issues.push({
+          level: "error",
+          code: "invalid-legitimate-use",
+          path: `${path}.legitimateUse`,
+          message: "legitimateUse only applies to legitimate-use purposes. Remove it, or set basis: \"legitimate-use\".",
+        });
+      } else if (!LEGITIMATE_USES.includes(def.legitimateUse)) {
+        issues.push({
+          level: "error",
+          code: "invalid-legitimate-use",
+          path: `${path}.legitimateUse`,
+          message: `legitimateUse must be one of ${LEGITIMATE_USES.join(", ")}: the clause of Section 7 this use relies on.`,
+        });
+      }
     }
   }
 

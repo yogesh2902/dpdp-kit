@@ -23,7 +23,8 @@ export type DpdpErrorCode =
   | "decrypt-failed"
   | "invalid-erase"
   | "breach-not-found"
-  | "breach-closed";
+  | "breach-closed"
+  | "not-objectable";
 
 /** Thrown for mistakes in how the library is called. Messages are for developers, not end users. */
 export class DpdpError extends Error {

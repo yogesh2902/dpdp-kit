@@ -17,6 +17,8 @@ off(); // stop listening
 |---|---|---|
 | `consent.granted` | `consent.grant()` saved | `{ event }` |
 | `consent.withdrawn` | `consent.withdraw()` saved | `{ event, erasure, tasks }` |
+| `consent.objected` | `consent.object()` saved | `{ event, erasure, tasks }` |
+| `consent.objection-lifted` | `consent.liftObjection()` saved | `{ event, cancelled, tasks }` |
 | `erasure.scheduled` | erasure tasks were saved, from a withdrawal, an account deletion or an erasure request | `{ plan, tasks }` |
 | `retention.ran` | `retention.run()` finished | `{ report }` |
 | `rights.opened` | `rights.open()` saved | `{ request }` |

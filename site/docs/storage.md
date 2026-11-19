@@ -23,6 +23,8 @@ If you don't use drizzle-kit, run `DPDP_DDL` (exported from `dpdp-kit/drizzle`).
 | `dpdp_breaches` | personal data breaches and their deadlines (Rule 7) |
 | `dpdp_breach_notices` | who each breach affected, and whether they were told |
 
+> **Upgrading from 0.4.x?** Run `MIGRATE_0_5_DDL` once, or generate a Drizzle migration, so the consent table accepts [objections](../objections/). Prisma tables and MongoDB need nothing.
+
 > **Upgrading from 0.1.x?** Add `rightsRequests` and `erasureTasks` to your schema and generate a migration, or run `RECORDS_DDL`. `withdraw()` now schedules erasure tasks, so it needs the `dpdp_erasure_tasks` table.
 >
 > **Upgrading from 0.3.x?** Add `breaches` and `breachNotices` to your schema and generate a migration, or run `BREACH_DDL`.

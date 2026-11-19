@@ -1,5 +1,5 @@
 import type { Dpdp } from "./dpdp.js";
-import { type AccessLogOptions, CONSENT_REQUIRED_BODY, checkConsent, type GuardOptions, recordAccess } from "./guard.js";
+import { type AccessLogOptions, checkConsent, consentDeniedBody, type GuardOptions, recordAccess } from "./guard.js";
 
 /** The parts of Fastify's reply these hooks use. */
 interface ReplyLike {
@@ -30,7 +30,7 @@ export function requireConsent<P extends string, Req = any, Reply = any>(
     if (await checkConsent(dpdp, purpose, options, request)) return undefined;
     if (options.onDenied) await options.onDenied(request, reply as Reply, purpose);
     // Without a reply the request would hang, so fall back to the default 403.
-    if (!reply.sent) reply.code(403).send(CONSENT_REQUIRED_BODY(purpose));
+    if (!reply.sent) reply.code(403).send(consentDeniedBody(dpdp, purpose));
     return reply;
   };
 }

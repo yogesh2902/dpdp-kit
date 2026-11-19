@@ -7,12 +7,29 @@ export interface GuardOptions<Ctx> {
   subject: (ctx: Ctx) => string | null | undefined | Promise<string | null | undefined>;
 }
 
-/** Body sent when consent is missing. Safe to show to end users. */
-export const CONSENT_REQUIRED_BODY = (purpose: string) => ({
-  error: "consent_required" as const,
-  purpose,
-  message: "You haven't agreed to this yet. You can turn it on in your privacy settings.",
-});
+/**
+ * Body sent when consent is missing, or (with `reason: "objected"`) when the person objected to a
+ * Section 7(a) use. Safe to show to end users.
+ */
+export const CONSENT_REQUIRED_BODY = (purpose: string, reason?: "objected") =>
+  reason === "objected"
+    ? {
+        error: "consent_required" as const,
+        purpose,
+        reason,
+        message: "You've asked us not to use your data for this. You can change that in your privacy settings.",
+      }
+    : {
+        error: "consent_required" as const,
+        purpose,
+        message: "You haven't agreed to this yet. You can turn it on in your privacy settings.",
+      };
+
+/** The body for a refused request: says "objected" for a Section 7(a) purpose, since consent isn't what's missing. */
+export function consentDeniedBody<P extends string>(dpdp: Dpdp<P>, purpose: P) {
+  const def = dpdp.config.purposes[purpose];
+  return CONSENT_REQUIRED_BODY(purpose, def?.basis === "legitimate-use" ? "objected" : undefined);
+}
 
 /** Shared by the Express and Hono middleware. */
 export async function checkConsent<P extends string, Ctx>(

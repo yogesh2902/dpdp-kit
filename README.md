@@ -205,7 +205,7 @@ await dpdp.consent.history(userId);                // every event, oldest first
 await dpdp.consent.verify(userId);                 // { ok: true, events: 1 }
 ```
 
-`has()` answers "do I hold consent, or not need it, for this purpose?". It is always `true` for legitimate-use purposes. Under Section 7(a) you must still stop once the person tells you they don't want their data used; v0.1 doesn't record that yet.
+`has()` answers "do I hold consent, or not need it, for this purpose?". For a consent purpose it is `true` while the latest choice is a grant. For a Section 7(a) purpose (`legitimateUse: "7(a)"`) it is `true` until the person objects with `consent.object()` (from 0.5). Other legitimate uses are always `true`.
 
 ## 4. Withdrawals and deletions
 

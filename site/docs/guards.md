@@ -45,6 +45,8 @@ Without consent, the middleware responds:
 { "error": "consent_required", "purpose": "marketing_sms", "message": "…" }
 ```
 
+When the purpose is a Section 7(a) use the person [objected](../objections/) to, the body also has `"reason": "objected"`, and the message tells them they can change it in their privacy settings.
+
 with status `403`. The message is plain enough to show to people. Pass `onDenied` to send your own response instead.
 
 Legitimate-use purposes always pass, because they don't need consent.

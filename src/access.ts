@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { DpdpConfig } from "./config.js";
 import { type Duration, durationMs } from "./duration.js";
-import { type ConsentEvent, grantedPurposes } from "./store.js";
+import { type ConsentEvent, grantedPurposes, objectedPurposes } from "./store.js";
 
 /** What was done with the data. Free text is allowed; these are the common ones. */
 export type AccessAction = "read" | "export" | "update" | "delete" | "search" | (string & {});
@@ -108,7 +108,7 @@ export function fieldsOutsidePurpose(config: DpdpConfig<string>, fields: readonl
   });
 }
 
-export type AccessFindingKind = "out-of-purpose" | "no-consent" | "bulk-access";
+export type AccessFindingKind = "out-of-purpose" | "no-consent" | "objected" | "bulk-access";
 
 export interface AccessFinding {
   kind: AccessFindingKind;
@@ -157,7 +157,8 @@ async function eachLimited<T>(items: readonly T[], limit: number, fn: (item: T) 
 
 /**
  * Look through access log entries for signs of unauthorised access (Rule 6(1)(c)): fields read for
- * a purpose they aren't held for, consent purposes used without consent at the time, and one actor
+ * a purpose they aren't held for, consent purposes used without consent at the time, Section 7(a)
+ * purposes used after the person objected, and one actor
  * reaching an unusual number of people in a short time.
  */
 export async function reviewAccess(input: ReviewInput): Promise<AccessReview> {
@@ -178,12 +179,28 @@ export async function reviewAccess(input: ReviewInput): Promise<AccessReview> {
   }
 
   const consentPurposes = new Set(Object.keys(config.purposes).filter((p) => config.purposes[p]?.basis === "consent"));
+  const objectable = new Set(
+    Object.keys(config.purposes).filter((p) => config.purposes[p]?.basis === "legitimate-use" && config.purposes[p]?.legitimateUse === "7(a)"),
+  );
   const needConsent = entries.filter((e) => consentPurposes.has(e.purpose));
+  const needNoObjection = entries.filter((e) => objectable.has(e.purpose));
   const histories = new Map<string, readonly ConsentEvent[]>();
   // Load each person's consent history once, a few at a time rather than one after another.
-  await eachLimited([...new Set(needConsent.map((e) => e.subjectId))], 16, async (subjectId) => {
+  await eachLimited([...new Set([...needConsent, ...needNoObjection].map((e) => e.subjectId))], 16, async (subjectId) => {
     histories.set(subjectId, await input.history(subjectId));
   });
+  for (const e of needNoObjection) {
+    if (objectedPurposes(histories.get(e.subjectId) ?? [], e.at).has(e.purpose)) {
+      findings.push({
+        kind: "objected",
+        actor: e.actor,
+        subjectId: e.subjectId,
+        purpose: e.purpose,
+        entries: [e.id],
+        message: `${e.actor} accessed data for "${e.purpose}" after the person objected to that use (Section 7(a)).`,
+      });
+    }
+  }
   for (const e of needConsent) {
     if (!grantedPurposes(histories.get(e.subjectId) ?? [], e.at).has(e.purpose)) {
       findings.push({

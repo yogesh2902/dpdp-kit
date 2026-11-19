@@ -20,7 +20,7 @@ Each duty is marked:
 | Take consent that is free, specific, informed and unambiguous | Section 6(1)–(3) | Shared | Records each grant with its channel and evidence. `requireConsent` blocks processing for anyone who hasn't agreed. | Asks for consent with a clear affirmative action, per purpose, in the person's language. |
 | Prove that notice and consent were given | Section 6(10) | Built in | Hash-chained consent records; `verify()` finds edited, reordered or removed events. | Keeps the latest hash somewhere the database admin can't change, so deleting the newest events is caught too. |
 | Make withdrawal as easy as giving consent, then stop | Section 6(4)–(6) | Shared | `withdraw()` stops guarded processing at once, tells processors through their hooks and schedules erasure. | Puts a withdraw option in the app that is as easy to use as the one that gave consent. |
-| Stop a Section 7(a) use when the person says no | Section 7(a) | Yours | Not yet. Recording these objections is planned for 0.5. | Records and respects them in the app. |
+| Stop a Section 7(a) use when the person says no | Section 7(a) | Yours | From 0.5: `consent.object()` records it, and `has()`, the guards, summaries and access reviews respect it. See [Objections](../objections/). | Records and respects them in the app. |
 
 ## Keeping and erasing data
 

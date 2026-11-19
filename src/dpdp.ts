@@ -50,6 +50,7 @@ import {
   type ConsentStore,
   type DpdpStore,
   grantedPurposes,
+  objectedPurposes,
   isDpdpStore,
 } from "./store.js";
 
@@ -98,6 +99,8 @@ export interface AccessOptions {
 export interface DpdpEvents {
   "consent.granted": { event: ConsentEvent };
   "consent.withdrawn": { event: ConsentEvent; erasure: ErasurePlan; tasks: ErasureTask[] };
+  "consent.objected": { event: ConsentEvent; erasure: ErasurePlan; tasks: ErasureTask[] };
+  "consent.objection-lifted": { event: ConsentEvent; cancelled: ErasureTask[]; tasks: ErasureTask[] };
   "erasure.scheduled": { plan: ErasurePlan; tasks: ErasureTask[] };
   "retention.ran": { report: RunReport };
   "rights.opened": { request: RightsRequest };
@@ -195,14 +198,34 @@ export interface Dpdp<P extends string> {
       meta?: ConsentMeta,
     ): Promise<{ event: ConsentEvent; erasure: ErasurePlan; tasks: ErasureTask[] }>;
     /**
+     * Record that the person doesn't want their data used for these Section 7(a) purposes
+     * (legitimate uses with `legitimateUse: "7(a)"`). `has()` turns false for them at once, and
+     * erasure is planned as for a withdrawal: fields whose purposes have all ended, never whole rows.
+     */
+    object(
+      subjectId: string,
+      purposes: readonly P[],
+      meta?: ConsentMeta,
+    ): Promise<{ event: ConsentEvent; erasure: ErasurePlan; tasks: ErasureTask[] }>;
+    /**
+     * Record that the person changed their mind about an objection. Erasure tasks the objection
+     * scheduled and that haven't run yet are cancelled; data already erased stays erased.
+     */
+    liftObjection(
+      subjectId: string,
+      purposes: readonly P[],
+      meta?: ConsentMeta,
+    ): Promise<{ event: ConsentEvent; cancelled: ErasureTask[]; tasks: ErasureTask[] }>;
+    /**
      * Whether you hold consent, or don't need it, for this purpose. For consent purposes: true when
-     * the person's latest choice was a grant. For legitimate-use purposes: always true, because
-     * there's nothing to record. But under Section 7(a) you must stop once the person tells you they
-     * don't want their data used; v0.1 doesn't record that yet.
+     * the person's latest choice was a grant. For Section 7(a) purposes: true unless the person has
+     * objected. For other legitimate uses: always true.
      */
     has(subjectId: string, purpose: P): Promise<boolean>;
     /** Consent purposes this person currently has granted. */
     active(subjectId: string): Promise<P[]>;
+    /** Section 7(a) purposes this person currently objects to. */
+    objections(subjectId: string): Promise<P[]>;
     history(subjectId: string): Promise<ConsentEvent[]>;
     /** Recompute every hash for this person and check nothing was edited, removed or reordered. */
     verify(subjectId: string): Promise<VerifyResult>;
@@ -360,11 +383,24 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
     }
   }
 
-  function checkConsentPurposes(list: readonly string[]) {
+  const objectable = (p: string) => purposes[p]?.basis === "legitimate-use" && purposes[p]?.legitimateUse === "7(a)";
+
+  function checkConsentPurposes(list: readonly string[], action: ConsentAction) {
     if (list.length === 0) throw new DpdpError("no-purposes", "Pass at least one purpose");
     for (const p of list) {
       const def = purposes[p];
       if (!def) throw new DpdpError("unknown-purpose", `Unknown purpose ${JSON.stringify(p)}`);
+      if (action === "object" || action === "lift-objection") {
+        if (!objectable(p)) {
+          throw new DpdpError(
+            "not-objectable",
+            def.basis === "consent"
+              ? `${JSON.stringify(p)} is a consent purpose: withdraw consent instead of objecting`
+              : `${JSON.stringify(p)} isn't a Section 7(a) use: set legitimateUse: "7(a)" on it if the person gave this data voluntarily`,
+          );
+        }
+        continue;
+      }
       if (def.basis !== "consent") {
         throw new DpdpError(
           "not-a-consent-purpose",
@@ -381,7 +417,7 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
     meta: ConsentMeta = {},
   ): Promise<ConsentEvent> {
     checkSubject(subjectId);
-    checkConsentPurposes(list);
+    checkConsentPurposes(list, action);
     if (meta.language !== undefined && !isNoticeLanguage(meta.language)) {
       throw new DpdpError("invalid-language", `Unknown notice language ${JSON.stringify(meta.language)}`);
     }
@@ -422,6 +458,12 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
   async function activeFor(subjectId: string): Promise<P[]> {
     checkSubject(subjectId);
     return [...grantedPurposes(await store.events(subjectId))] as P[];
+  }
+
+  /** Purposes that still apply to the person: consent still granted, and legitimate uses not objected to. */
+  function remainingFrom(events: readonly ConsentEvent[]): string[] {
+    const objected = objectedPurposes(events);
+    return [...legitimate.filter((p) => !objected.has(p)), ...grantedPurposes(events)];
   }
 
   const nowIso = () => now().toISOString();
@@ -627,27 +669,79 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
 
       async withdraw(subjectId, list, meta) {
         const event = await append(subjectId, "withdraw", list, meta);
-        const stillGranted = await activeFor(subjectId);
         const erasure = planErasure(config, {
           subjectId,
           reason: "withdrawal",
           ended: event.purposes,
-          remaining: [...legitimate, ...stillGranted],
+          remaining: remainingFrom(await store.events(subjectId)),
         });
         const tasks = isDpdpStore(store) ? await schedule(erasure) : [];
         emit("consent.withdrawn", { event, erasure, tasks });
         return { event, erasure, tasks };
       },
 
+      async object(subjectId, list, meta) {
+        checkSubject(subjectId);
+        const before = objectedPurposes(await store.events(subjectId));
+        const event = await append(subjectId, "object", list, meta);
+        // Erasure only for purposes newly objected to: repeating an objection schedules nothing twice.
+        const ended = event.purposes.filter((p) => !before.has(p));
+        const erasure = planErasure(config, {
+          subjectId,
+          reason: "objection",
+          ended,
+          remaining: remainingFrom(await store.events(subjectId)),
+        });
+        const tasks = isDpdpStore(store) && ended.length > 0 ? await schedule(erasure) : [];
+        emit("consent.objected", { event, erasure, tasks });
+        return { event, erasure, tasks };
+      },
+
+      async liftObjection(subjectId, list, meta) {
+        const event = await append(subjectId, "lift-objection", list, meta);
+        const lifted = new Set(event.purposes);
+        const cancelled: ErasureTask[] = [];
+        let tasks: ErasureTask[] = [];
+        if (isDpdpStore(store)) {
+          const stillObjected = objectedPurposes(await store.events(subjectId));
+          const replan = new Set<string>();
+          for (const status of ["pending", "failed"] as const) {
+            for (const task of await store.listTasks({ subjectId, status })) {
+              if (task.reason !== "objection" || !task.purposes?.some((p) => lifted.has(p))) continue;
+              const done: ErasureTask = { ...task, status: "cancelled", note: "Objection lifted" };
+              await store.updateTask(done);
+              cancelled.push(done);
+              // A task can serve several purposes; those still objected to are planned again.
+              for (const p of task.purposes) if (stillObjected.has(p)) replan.add(p);
+            }
+          }
+          if (replan.size > 0) {
+            tasks = await schedule(
+              planErasure(config, { subjectId, reason: "objection", ended: [...replan], remaining: remainingFrom(await store.events(subjectId)) }),
+            );
+          }
+        }
+        emit("consent.objection-lifted", { event, cancelled, tasks });
+        return { event, cancelled, tasks };
+      },
+
       async has(subjectId, purpose) {
         checkSubject(subjectId);
         const def = purposes[purpose];
         if (!def) throw new DpdpError("unknown-purpose", `Unknown purpose ${JSON.stringify(purpose)}`);
-        if (def.basis === "legitimate-use") return true;
+        if (def.basis === "legitimate-use") {
+          // Only Section 7(a) uses can be objected to, so only they need the person's history.
+          return objectable(purpose) ? !objectedPurposes(await store.events(subjectId)).has(purpose) : true;
+        }
         return grantedPurposes(await store.events(subjectId)).has(purpose);
       },
 
       active: activeFor,
+
+      async objections(subjectId) {
+        checkSubject(subjectId);
+        return [...objectedPurposes(await store.events(subjectId))] as P[];
+      },
 
       async history(subjectId) {
         checkSubject(subjectId);
@@ -966,11 +1060,13 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
 
       async summary(subjectId) {
         checkSubject(subjectId);
+        const events = await store.events(subjectId);
         return buildAccessSummary({
           config,
           data: dataAccess(),
           subjectId,
-          consents: await activeFor(subjectId),
+          consents: [...grantedPurposes(events)],
+          objections: [...objectedPurposes(events)],
           now: nowIso(),
         });
       },

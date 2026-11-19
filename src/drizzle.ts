@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq, getTableColumns, getTableName, gte, inArray, is, lt, lte, max, min, or, type SQL, sql, Table } from "drizzle-orm";
 import { getTableConfig as mysqlTableConfig, MySqlTable } from "drizzle-orm/mysql-core";
-import { getTableConfig as pgTableConfig, index, integer, jsonb, type PgDatabase, PgTable, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
+import { check, getTableConfig as pgTableConfig, index, integer, jsonb, type PgDatabase, PgTable, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 import { SQLiteTable, getTableConfig as sqliteTableConfig } from "drizzle-orm/sqlite-core";
 import type { AccessEntry, AccessFilter, AccessLogStore } from "./access.js";
 import type { Breach, BreachNotice, BreachStore } from "./breach.js";
@@ -11,7 +11,7 @@ import type { NoticeLanguage } from "./languages.js";
 import type { Schema, SchemaReference, SchemaTable } from "./schema-check.js";
 import type { ConsentEvent, DpdpStore } from "./store.js";
 
-export { ACCESS_LOG_DDL, BREACH_DDL, CONSENT_EVENTS_DDL, DPDP_DDL, RECORDS_DDL } from "./ddl.js";
+export { ACCESS_LOG_DDL, BREACH_DDL, CONSENT_EVENTS_DDL, DPDP_DDL, MIGRATE_0_5_DDL, RECORDS_DDL } from "./ddl.js";
 
 /**
  * The consent events table. Export it from your Drizzle schema so drizzle-kit creates it:
@@ -25,7 +25,7 @@ export const consentEvents = pgTable(
   {
     subjectId: text("subject_id").notNull(),
     seq: integer("seq").notNull(),
-    action: text("action", { enum: ["grant", "withdraw"] }).notNull(),
+    action: text("action", { enum: ["grant", "withdraw", "object", "lift-objection"] }).notNull(),
     purposes: jsonb("purposes").$type<string[]>().notNull(),
     noticeVersion: text("notice_version"),
     language: text("language"),
@@ -35,7 +35,11 @@ export const consentEvents = pgTable(
     prevHash: text("prev_hash"),
     hash: text("hash").notNull(),
   },
-  (t) => [primaryKey({ columns: [t.subjectId, t.seq] })],
+  (t) => [
+    primaryKey({ columns: [t.subjectId, t.seq] }),
+    // The same constraint DPDP_DDL creates, so drizzle-kit and the plain SQL agree.
+    check("dpdp_consent_events_action_check", sql`${t.action} IN ('grant', 'withdraw', 'object', 'lift-objection')`),
+  ],
 );
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
