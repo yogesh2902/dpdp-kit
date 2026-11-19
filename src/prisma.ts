@@ -4,6 +4,7 @@
 // Postgres only. The dpdp-kit tables come from PRISMA_MODELS, added to schema.prisma.
 import type { AccessLogStore } from "./access.js";
 import type { BreachStore } from "./breach.js";
+import type { NoticeStore } from "./notice.js";
 import type { DataAccess } from "./data-access.js";
 import { postgresData, postgresStore, type SqlQuery } from "./postgres.js";
 import type { Schema, SchemaColumn, SchemaReference, SchemaTable } from "./schema-check.js";
@@ -30,7 +31,7 @@ export const prismaQuery =
  * const dpdp = createDpdp({ config, store: prismaStore(prisma), data: prismaData(prisma, { schema }) });
  * ```
  */
-export function prismaStore(prisma: PrismaLike): DpdpStore & AccessLogStore & BreachStore {
+export function prismaStore(prisma: PrismaLike): DpdpStore & AccessLogStore & BreachStore & NoticeStore {
   return postgresStore(prismaQuery(prisma));
 }
 
@@ -287,6 +288,18 @@ model DpdpBreach {
 
   @@index([status, awareAt], map: "dpdp_breaches_status_idx")
   @@map("dpdp_breaches")
+}
+
+/// dpdp-kit: privacy notices as shown, kept as proof (Section 6(10)).
+model DpdpPrivacyNotice {
+  version      String
+  language     String
+  kind         String
+  content      Json
+  firstShownAt DateTime @map("first_shown_at") @db.Timestamptz(6)
+
+  @@id([version, language, kind])
+  @@map("dpdp_privacy_notices")
 }
 
 /// dpdp-kit: each person affected by a breach, and whether they've been told (Rule 7(1)).

@@ -21,6 +21,8 @@ await dpdp.consent.history(userId);                // every event, oldest first
 await dpdp.consent.verify(userId);                 // { ok: true, events: 1 }
 ```
 
+With [`notice`](../notices/) in the config, leave out `noticeVersion`: `grant()` fills it in from the notice built in the event's language, and saves that notice as proof.
+
 `has()` answers "do I hold consent, or not need it, for this purpose?". For a consent purpose it is `true` while the latest choice is a grant. For a Section 7(a) purpose it is `true` until the person objects (see [Objections](../objections/)). Other legitimate uses are always `true`.
 
 ## Withdraw

@@ -2,6 +2,7 @@ import type { AccessEntry, AccessLogStore } from "./access.js";
 import type { Breach, BreachNotice, BreachStore } from "./breach.js";
 import { SeqConflictError } from "./errors.js";
 import type { NoticeLanguage } from "./languages.js";
+import type { NoticeStore, SavedNotice } from "./notice.js";
 import { type ErasureTask, isRunnable, type RequestStore, type RightsRequest, type TaskStore } from "./records.js";
 
 /**
@@ -57,14 +58,18 @@ export function isDpdpStore(store: ConsentStore): store is DpdpStore {
 /** Keeps everything in memory. For tests and trying the library out; everything is lost on restart. */
 export function memoryStore(): DpdpStore &
   AccessLogStore &
-  BreachStore & {
+  BreachStore &
+  NoticeStore & {
     readonly all: Map<string, ConsentEvent[]>;
     readonly requests: Map<string, RightsRequest>;
     readonly tasks: Map<string, ErasureTask>;
     readonly accessLog: AccessEntry[];
     readonly breaches: Map<string, Breach>;
     readonly notices: Map<string, BreachNotice>;
+    readonly privacyNotices: Map<string, SavedNotice>;
   } {
+  const privacyNotices = new Map<string, SavedNotice>();
+  const privacyKey = (version: string, language: string, kind: string) => `${version}\u0000${language}\u0000${kind}`;
   const all = new Map<string, ConsentEvent[]>();
   const requests = new Map<string, RightsRequest>();
   const tasks = new Map<string, ErasureTask>();
@@ -81,6 +86,23 @@ export function memoryStore(): DpdpStore &
     accessLog,
     breaches,
     notices,
+    privacyNotices,
+
+    async savePrivacyNotice(notice, at) {
+      const key = privacyKey(notice.version, notice.language, notice.kind);
+      if (privacyNotices.has(key)) return false;
+      privacyNotices.set(key, { notice: structuredClone(notice), firstShownAt: at });
+      return true;
+    },
+    async getPrivacyNotice(version, language, kind) {
+      const n = privacyNotices.get(privacyKey(version, language, kind));
+      return n && structuredClone(n);
+    },
+    async listPrivacyNotices() {
+      return [...privacyNotices.values()]
+        .sort((a, b) => (a.firstShownAt < b.firstShownAt ? -1 : a.firstShownAt > b.firstShownAt ? 1 : 0))
+        .map((n) => structuredClone(n));
+    },
 
     async insertBreach(breach) {
       breaches.set(breach.id, structuredClone(breach));

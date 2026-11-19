@@ -1,5 +1,6 @@
 import { DpdpError } from "./errors.js";
 import type { Duration } from "./duration.js";
+import type { NoticeConfig } from "./notice.js";
 import type { RequestType } from "./records.js";
 
 /**
@@ -91,6 +92,12 @@ export type EraseWith =
 
 export interface PersonalField<P extends string = string> {
   category: Category;
+  /**
+   * How the field is named in the notice, e.g. `"Mobile number"`. Rule 3(b)(i) requires an
+   * itemised description of the data. Default: the field name made readable (`phoneNumber` →
+   * "Phone number").
+   */
+  label?: string;
   /** Every purpose this field is held for. When all of them end, the field must go. */
   purposes: readonly P[];
   /** This field can tell you the person is under 18 (e.g. date of birth). Used from v0.3. */
@@ -230,6 +237,11 @@ export interface DpdpConfig<P extends string = string> {
   rights?: RightsConfig;
   /** Security safeguards under Rule 6(1). See `SecurityConfig`. */
   security?: SecurityConfig;
+  /**
+   * Build the privacy notice from this config (Section 5, Rule 3). When set, `consent.grant()`
+   * records the version of the notice the person saw, and saves the notice as proof.
+   */
+  notice?: NoticeConfig<NoInfer<P>>;
 }
 
 /** Purpose names of a config, e.g. `"account" | "marketing_sms"`. */

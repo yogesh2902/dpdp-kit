@@ -63,7 +63,7 @@ Each purpose you hold personal data for.
 - **`basis`**: `"consent"` (Section 6) or `"legitimate-use"` (Section 7). For most apps a legitimate use means Section 7(a): data the person voluntarily gave you for a specified purpose, until they tell you they don't want it used. Keeping data because a law requires it is not a legitimate use; use `legalHold` for that.
 - **`legitimateUse`**: for a legitimate-use purpose, the clause of Section 7 it relies on, `"7(a)"` to `"7(i)"`. Purposes with `"7(a)"` accept [objections](../objections/).
 - **`retain`**: `"while-active"`, a duration such as `"1y"`, or `{ afterWithdrawal: "7d" }` for consent purposes. Durations use `h`, `d` or `y`. Section 8(7)(a) says to erase upon withdrawal, so keep `afterWithdrawal` to the delay your systems really need.
-- **`description`**: optional, in plain words.
+- **`description`**: in plain words, what the purpose is and what it gives the person. Required for consent purposes when you build [notices](../notices/).
 
 ## data
 
@@ -71,7 +71,7 @@ Your tables, keyed by a name you choose.
 
 - **`table`**: the database table name.
 - **`subject`**: the column that identifies the person (the Data Principal), such as `id` or `user_id`.
-- **`fields`**: each personal column, with a `category` (`contact`, `identity`, `behavioural`…) and the `purposes` it's held for.
+- **`fields`**: each personal column, with a `category` (`contact`, `identity`, `behavioural`…) and the `purposes` it's held for. Add `label` ("Mobile number") for how the [notice](../notices/) names it.
 - **`legalHold`**: another law makes you keep these rows, for example tax or KYC records. Section 8(7) requires erasure "unless retention is necessary for compliance with any law". Held rows wait `keep`, then are anonymised or deleted, as `then` says.
 
 A field can say what it becomes when it's erased, with `erase`: `"null"` (the default), `"redact"` (the text `"[erased]"`), or `{ value }`, a fixed value or a function of the person, for `NOT NULL` or `UNIQUE` columns. See [Erasure and retention](../erasure/).
@@ -118,3 +118,7 @@ How long you give yourself to answer each kind of rights request. The Rules set 
 ```ts
 rights: { responseWithin: { grievance: "30d", access: "30d" } },
 ```
+
+## notice
+
+Links for the privacy notice, and translations. With it, dpdp-kit builds the notice from your purposes and fields, and `consent.grant()` records the version each person saw. See [Notices](../notices/).

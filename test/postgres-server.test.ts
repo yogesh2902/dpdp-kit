@@ -5,7 +5,8 @@ import { pgTable, text } from "drizzle-orm/pg-core";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DPDP_DDL, drizzleData, drizzleStore } from "../src/drizzle.js";
-import { createDpdp, defineConfig } from "../src/index.js";
+import { buildNotice, createDpdp, defineConfig } from "../src/index.js";
+import { postgresStore } from "../src/postgres.js";
 
 const url = process.env.DPDP_PG_URL;
 const DAY = 24 * 60 * 60 * 1000;
@@ -48,7 +49,7 @@ describe.skipIf(!url)("on a real Postgres server (node-postgres)", () => {
   const dpdp = createDpdp({ config, store: drizzleStore(db), data: drizzleData(db, { schema: { people } }), now });
 
   beforeAll(async () => {
-    await pool.query("DROP TABLE IF EXISTS dpdp_consent_events, dpdp_requests, dpdp_erasure_tasks, dpdp_access_log, dpdp_breaches, dpdp_breach_notices, pg_people");
+    await pool.query("DROP TABLE IF EXISTS dpdp_consent_events, dpdp_requests, dpdp_erasure_tasks, dpdp_access_log, dpdp_breaches, dpdp_breach_notices, dpdp_privacy_notices, pg_people");
     await pool.query(DPDP_DDL);
     await pool.query(DPDP_DDL); // idempotent
     await pool.query(`CREATE TABLE pg_people (id text PRIMARY KEY, email text NOT NULL UNIQUE, nickname text NOT NULL, points integer NOT NULL, city text)`);
@@ -118,5 +119,23 @@ describe.skipIf(!url)("on a real Postgres server (node-postgres)", () => {
     const report = await dpdp.daily();
     expect(report.errors).toEqual([]);
     expect(report.skipped).toEqual([]);
+  });
+
+  it("keeps notice snapshots exactly, on a server set to Asia/Kolkata", async () => {
+    const ist = new pg.Pool({ connectionString: url, max: 2, options: "-c TimeZone=Asia/Kolkata" });
+    const withNotice = { ...config, purposes: { ...config.purposes, promo: { ...config.purposes.promo, description: "Offers by email" } }, notice: { links: { website: "https://acme.example", withdraw: "Settings", rights: "https://acme.example/rights" } } };
+    const notice = buildNotice(withNotice);
+    for (const store of [drizzleStore(drizzle(ist)), postgresStore(async (text, params) => (await ist.query(text, [...params])).rows)]) {
+      await ist.query("DELETE FROM dpdp_privacy_notices");
+      expect(await store.savePrivacyNotice(notice, "2026-12-01T10:00:00.123Z")).toBe(true);
+      expect(await store.savePrivacyNotice(notice, "2026-12-02T10:00:00.000Z")).toBe(false);
+      expect(await store.getPrivacyNotice(notice.version, "en", "consent")).toEqual({ notice, firstShownAt: "2026-12-01T10:00:00.123Z" });
+      expect(await store.listPrivacyNotices()).toHaveLength(1);
+    }
+    // And through createDpdp: the grant records the version saved.
+    const d = createDpdp({ config: withNotice, store: drizzleStore(drizzle(ist)) });
+    const event = await d.consent.grant("n1", ["promo"]);
+    expect(event.noticeVersion).toBe(notice.version);
+    await ist.end();
   });
 });

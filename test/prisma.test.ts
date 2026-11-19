@@ -104,6 +104,7 @@ describe("prismaSchema", () => {
       "dpdp_erasure_tasks",
       "dpdp_access_log",
       "dpdp_breaches",
+      "dpdp_privacy_notices",
       "dpdp_breach_notices",
     ]);
     // Same columns as DPDP_DDL, in the same order.

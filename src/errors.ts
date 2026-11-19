@@ -24,7 +24,12 @@ export type DpdpErrorCode =
   | "invalid-erase"
   | "breach-not-found"
   | "breach-closed"
-  | "not-objectable";
+  | "not-objectable"
+  | "notice-not-configured"
+  | "notice-language-unavailable"
+  | "notice-translation-incomplete"
+  | "notice-description-missing"
+  | "notice-version-conflict";
 
 /** Thrown for mistakes in how the library is called. Messages are for developers, not end users. */
 export class DpdpError extends Error {

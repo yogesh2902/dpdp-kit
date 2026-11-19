@@ -90,15 +90,26 @@ CREATE TABLE IF NOT EXISTS dpdp_breach_notices (
 );
 CREATE INDEX IF NOT EXISTS dpdp_breach_notices_status_idx ON dpdp_breach_notices (breach_id, status, added_at);`;
 
+/** Privacy notices as shown, kept as proof (Section 6(10)), as plain SQL. */
+export const PRIVACY_NOTICES_DDL = `CREATE TABLE IF NOT EXISTS dpdp_privacy_notices (
+  version text NOT NULL,
+  language text NOT NULL,
+  kind text NOT NULL,
+  content jsonb NOT NULL,
+  first_shown_at timestamptz NOT NULL,
+  PRIMARY KEY (version, language, kind)
+);`;
+
 /** Every dpdp-kit table as plain SQL. */
-export const DPDP_DDL = `${CONSENT_EVENTS_DDL}\n${RECORDS_DDL}\n${ACCESS_LOG_DDL}\n${BREACH_DDL}`;
+export const DPDP_DDL = `${CONSENT_EVENTS_DDL}\n${RECORDS_DDL}\n${ACCESS_LOG_DDL}\n${BREACH_DDL}\n${PRIVACY_NOTICES_DDL}`;
 
 /**
  * Upgrades tables created by an earlier version to 0.5: consent events may now record objections
- * (`object`, `lift-objection`). Safe to run more than once, and on tables created by drizzle-kit
+ * (`object`, `lift-objection`), and `dpdp_privacy_notices` keeps notice snapshots. Safe to run more than once, and on tables created by drizzle-kit
  * or Prisma, which have no such constraint. The constraint is added NOT VALID and then validated,
  * so a large table isn't locked while existing rows are checked.
  */
 export const MIGRATE_0_5_DDL = `ALTER TABLE dpdp_consent_events DROP CONSTRAINT IF EXISTS dpdp_consent_events_action_check;
 ALTER TABLE dpdp_consent_events ADD CONSTRAINT dpdp_consent_events_action_check CHECK (action IN ('grant', 'withdraw', 'object', 'lift-objection')) NOT VALID;
-ALTER TABLE dpdp_consent_events VALIDATE CONSTRAINT dpdp_consent_events_action_check;`;
+ALTER TABLE dpdp_consent_events VALIDATE CONSTRAINT dpdp_consent_events_action_check;
+${PRIVACY_NOTICES_DDL}`;

@@ -7,11 +7,12 @@ import type { ErasedValue } from "./config.js";
 import type { DataAccess } from "./data-access.js";
 import { SeqConflictError } from "./errors.js";
 import type { NoticeLanguage } from "./languages.js";
+import type { NoticeStore, PrivacyNotice } from "./notice.js";
 import type { ErasureTask, RightsRequest } from "./records.js";
 import type { Schema } from "./schema-check.js";
 import type { ConsentEvent, DpdpStore } from "./store.js";
 
-export { ACCESS_LOG_DDL, BREACH_DDL, CONSENT_EVENTS_DDL, DPDP_DDL, MIGRATE_0_5_DDL, RECORDS_DDL } from "./ddl.js";
+export { ACCESS_LOG_DDL, BREACH_DDL, CONSENT_EVENTS_DDL, DPDP_DDL, MIGRATE_0_5_DDL, PRIVACY_NOTICES_DDL, RECORDS_DDL } from "./ddl.js";
 
 /**
  * Runs one parameterised SQL statement (`$1`, `$2`… placeholders) and resolves with its rows.
@@ -230,8 +231,33 @@ const accessParams = (f: AccessFilter) => [f.subjectId ?? null, f.actor ?? null,
  * const store = postgresStore(async (text, params) => (await pool.query(text, [...params])).rows);
  * ```
  */
-export function postgresStore(query: SqlQuery): DpdpStore & AccessLogStore & BreachStore {
+export function postgresStore(query: SqlQuery): DpdpStore & AccessLogStore & BreachStore & NoticeStore {
+  const NOTICE_ROW = `content, ${utc("first_shown_at")} AS first_shown_at`;
+  const savedNotice = (r: Record<string, unknown>) => ({
+    notice: (typeof r.content === "string" ? JSON.parse(r.content) : r.content) as PrivacyNotice,
+    firstShownAt: iso(r.first_shown_at)!,
+  });
   return {
+    async savePrivacyNotice(n, at) {
+      const rows = await query(
+        `INSERT INTO dpdp_privacy_notices (version, language, kind, content, first_shown_at)
+         VALUES ($1::text, $2::text, $3::text, $4::jsonb, $5::timestamptz) ON CONFLICT (version, language, kind) DO NOTHING RETURNING 1 AS one`,
+        [n.version, n.language, n.kind, JSON.stringify(n), at],
+      );
+      return rows.length > 0;
+    },
+    async getPrivacyNotice(version, language, kind) {
+      const [row] = await query(
+        `SELECT ${NOTICE_ROW} FROM dpdp_privacy_notices WHERE version = $1::text AND language = $2::text AND kind = $3::text`,
+        [version, language, kind],
+      );
+      return row ? savedNotice(row) : undefined;
+    },
+    async listPrivacyNotices() {
+      const rows = await query(`SELECT ${NOTICE_ROW} FROM dpdp_privacy_notices ORDER BY first_shown_at, version, language, kind`, []);
+      return rows.map(savedNotice);
+    },
+
     async lastEvent(subjectId) {
       const [row] = await query(`SELECT ${EVENT_SELECT} FROM dpdp_consent_events WHERE subject_id = $1::text ORDER BY seq DESC LIMIT 1`, [subjectId]);
       return row ? eventFromRow(row) : undefined;

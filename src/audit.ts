@@ -1,5 +1,7 @@
 import { type DpdpConfig, LEGITIMATE_USES, type Retention } from "./config.js";
 import { durationMs, isDuration } from "./duration.js";
+import { isNoticeLanguage } from "./languages.js";
+import { ENGLISH_WORDING, type NoticeWording, REQUIRED_PLACEHOLDERS } from "./notice.js";
 import { guessPersonal } from "./personal.js";
 import { REQUEST_TYPES } from "./records.js";
 
@@ -48,7 +50,13 @@ export interface Issue {
     | "transfer-restricted"
     | "transfer-outside-india"
     | "processor-countries-missing"
-    | "foreign-state-transfer";
+    | "foreign-state-transfer"
+    // Section 5 and Rule 3: notices, when config.notice is set
+    | "notice-link-missing"
+    | "notice-description-missing"
+    | "notice-label-missing"
+    | "notice-translation-incomplete"
+    | "invalid-notice-language";
   /** Where in the config (`data.users.fields.phone`), or in the schema (`schema.users.phone`). */
   path: string;
   message: string;
@@ -305,6 +313,7 @@ export function audit(config: DpdpConfig<string>): Issue[] {
   checkSecurity(config, issues);
   checkErase(config, issues);
   checkTransfers(config, issues);
+  checkNotice(config, issues);
 
   return issues;
 }
@@ -484,6 +493,74 @@ function checkTransfers(config: DpdpConfig<string>, issues: Issue[]) {
         path,
         message: `${name} handles data for ${local.join(", ")}, which transfers.keepInIndia says must stay in India, in ${abroad.join(", ")}.`,
       });
+    }
+  }
+}
+
+/** Section 5 and Rule 3: only when the config builds notices (`notice`). */
+function checkNotice(config: DpdpConfig<string>, issues: Issue[]) {
+  const notice = config.notice;
+  if (!notice) return;
+  const links = (notice.links ?? {}) as unknown as Partial<Record<string, unknown>>;
+  for (const [key, what] of [
+    ["website", "the link to your website or app (Rule 3(c))"],
+    ["withdraw", "where to withdraw consent, as easily as it was given (Rule 3(c)(i))"],
+    ["rights", "where to exercise rights under the Act (Rule 3(c)(ii))"],
+  ] as const) {
+    if (typeof links[key] !== "string" || (links[key] as string).trim() === "") {
+      issues.push({ level: "error", code: "notice-link-missing", path: `notice.links.${key}`, message: `The notice must give ${what}: a URL, or a short description such as "Settings → Privacy in the app".` });
+    }
+  }
+
+  const consentPurposes = Object.entries(config.purposes).filter(([, d]) => d.basis === "consent").map(([p]) => p);
+  const noticeFields = Object.entries(config.data).flatMap(([key, table]) =>
+    Object.entries(table.fields ?? {})
+      .filter(([, f]) => f.purposes?.some((p) => consentPurposes.includes(p)))
+      .map(([field, f]) => ({ key: `${key}.${field}`, label: f.label })),
+  );
+  for (const p of consentPurposes) {
+    if (!config.purposes[p]?.description?.trim()) {
+      issues.push({
+        level: "error",
+        code: "notice-description-missing",
+        path: `purposes.${p}.description`,
+        message: `The notice must state each purpose and what it provides (Rule 3(b)(ii)), e.g. "Offers and order updates by SMS".`,
+      });
+    }
+  }
+  for (const f of noticeFields.filter((f) => !f.label)) {
+    issues.push({
+      level: "warning",
+      code: "notice-label-missing",
+      path: `data.${f.key.replace(".", ".fields.")}.label`,
+      message: `The notice lists each item of data (Rule 3(b)(i)). Without a label it shows the field name made readable; set label to what people would call it, e.g. "Mobile number".`,
+    });
+  }
+
+  for (const [language, t] of Object.entries(notice.translations ?? {})) {
+    const path = `notice.translations.${language}`;
+    if (!isNoticeLanguage(language) || language === "en") {
+      issues.push({
+        level: "error",
+        code: "invalid-notice-language",
+        path,
+        message: language === "en" ? "English is built in: remove this translation." : `${JSON.stringify(language)} is not English or a language of the Eighth Schedule. Use codes such as "hi", "ta", "bn".`,
+      });
+      continue;
+    }
+    const incomplete = (where: string, message: string) => issues.push({ level: "error", code: "notice-translation-incomplete", path: `${path}.${where}`, message });
+    if (!t) continue;
+    for (const p of consentPurposes) {
+      if (!t.purposes?.[p]?.trim()) incomplete(`purposes.${p}`, `Describe purpose ${p} in this language.`);
+    }
+    for (const f of noticeFields) {
+      if (!t.fields?.[f.key]?.trim()) incomplete(`fields.${f.key}`, `Give the label for ${f.key} in this language.`);
+    }
+    for (const key of Object.keys(ENGLISH_WORDING) as Array<keyof NoticeWording>) {
+      const text = t.wording?.[key];
+      const needs = REQUIRED_PLACEHOLDERS[key];
+      if (typeof text !== "string" || text.trim() === "") incomplete(`wording.${key}`, `Translate this sentence: ${JSON.stringify(ENGLISH_WORDING[key])}.`);
+      else if (needs && !text.includes(needs)) incomplete(`wording.${key}`, `Keep ${needs} in this sentence, so the notice still shows it.`);
     }
   }
 }

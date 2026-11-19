@@ -6,6 +6,7 @@ import type { Breach, BreachNotice, BreachStore, NoticeCounts } from "./breach.j
 import type { ErasedValue } from "./config.js";
 import type { DataAccess } from "./data-access.js";
 import { SeqConflictError } from "./errors.js";
+import type { NoticeStore, PrivacyNotice } from "./notice.js";
 import type { ErasureTask, RightsRequest } from "./records.js";
 import type { Schema, SchemaColumn, SchemaTable } from "./schema-check.js";
 import type { ConsentEvent, DpdpStore } from "./store.js";
@@ -41,6 +42,7 @@ const COLLECTIONS = {
   access: "dpdp_access_log",
   breaches: "dpdp_breaches",
   notices: "dpdp_breach_notices",
+  privacyNotices: "dpdp_privacy_notices",
 } as const;
 
 const INDEXES: Record<keyof typeof COLLECTIONS, Doc[]> = {
@@ -60,6 +62,7 @@ const INDEXES: Record<keyof typeof COLLECTIONS, Doc[]> = {
     { key: { actor: 1, at: 1 }, name: "dpdp_actor_at" },
   ],
   breaches: [{ key: { status: 1, awareAt: -1 }, name: "dpdp_status_aware" }],
+  privacyNotices: [{ key: { firstShownAt: 1, _id: 1 }, name: "dpdp_first_shown" }],
   notices: [
     { key: { breachId: 1, subjectId: 1 }, name: "dpdp_breach_subject", unique: true },
     { key: { breachId: 1, status: 1, addedAt: 1, subjectId: 1 }, name: "dpdp_breach_status" },
@@ -143,7 +146,7 @@ const BATCH = 1000;
  * const store = mongoStore(() => mongoose.connection.db); // Mongoose, before or after connecting
  * ```
  */
-export function mongoStore(source: MongoDbSource): DpdpStore & AccessLogStore & BreachStore {
+export function mongoStore(source: MongoDbSource): DpdpStore & AccessLogStore & BreachStore & NoticeStore {
   let ready: Promise<void> | undefined;
   const col = async (name: keyof typeof COLLECTIONS) => {
     ready ??= createMongoIndexes(source).catch((err: unknown) => {
@@ -154,7 +157,25 @@ export function mongoStore(source: MongoDbSource): DpdpStore & AccessLogStore & 
     return resolveDb(source).collection(COLLECTIONS[name]);
   };
 
+  const noticeId = (version: string, language: string, kind: string) => `${version}\u0000${language}\u0000${kind}`;
+  const savedNotice = (d: Doc) => ({ notice: d.notice as PrivacyNotice, firstShownAt: toIso(d.firstShownAt)! });
   return {
+    async savePrivacyNotice(n, at) {
+      try {
+        await (await col("privacyNotices")).insertOne({ _id: noticeId(n.version, n.language, n.kind), notice: n, firstShownAt: new Date(at) });
+        return true;
+      } catch (err) {
+        if (isDuplicateKey(err)) return false;
+        throw err;
+      }
+    },
+    async getPrivacyNotice(version, language, kind) {
+      const doc = await (await col("privacyNotices")).findOne({ _id: noticeId(version, language, kind) });
+      return doc ? savedNotice(doc) : undefined;
+    },
+    async listPrivacyNotices() {
+      return (await (await col("privacyNotices")).find({}, { sort: { firstShownAt: 1, _id: 1 } }).toArray()).map(savedNotice);
+    },
     async lastEvent(subjectId) {
       const [doc] = await (await col("events")).find({ subjectId }, { sort: { seq: -1 }, limit: 1 }).toArray();
       return doc ? fromDoc<ConsentEvent>(doc, EVENT_DATES, undefined, ["prevHash"]) : undefined;

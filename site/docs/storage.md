@@ -9,7 +9,7 @@ Add the tables to your schema so drizzle-kit creates them:
 
 ```ts
 // schema.ts
-export { accessLog, breachNotices, breaches, consentEvents, erasureTasks, rightsRequests } from "dpdp-kit/drizzle";
+export { accessLog, breachNotices, breaches, consentEvents, erasureTasks, privacyNotices, rightsRequests } from "dpdp-kit/drizzle";
 ```
 
 If you don't use drizzle-kit, run `DPDP_DDL` (exported from `dpdp-kit/drizzle`). This works with any Drizzle Postgres driver: node-postgres, postgres.js, Neon and PGlite.
@@ -22,8 +22,9 @@ If you don't use drizzle-kit, run `DPDP_DDL` (exported from `dpdp-kit/drizzle`).
 | `dpdp_access_log` | who accessed whose data, and why (Rule 6) |
 | `dpdp_breaches` | personal data breaches and their deadlines (Rule 7) |
 | `dpdp_breach_notices` | who each breach affected, and whether they were told |
+| `dpdp_privacy_notices` | each privacy notice as shown, kept as proof (Section 6(10)) |
 
-> **Upgrading from 0.4.x?** Run `MIGRATE_0_5_DDL` once, or generate a Drizzle migration, so the consent table accepts [objections](../objections/). Prisma tables and MongoDB need nothing.
+> **Upgrading from 0.4.x?** Run `MIGRATE_0_5_DDL` once, or add `privacyNotices` to your schema and generate a Drizzle migration. The consent table then accepts [objections](../objections/), and [notices](../notices/) have somewhere to be saved. With Prisma, add the new `DpdpPrivacyNotice` model from `PRISMA_MODELS` and run `prisma migrate dev`. MongoDB needs nothing.
 
 > **Upgrading from 0.1.x?** Add `rightsRequests` and `erasureTasks` to your schema and generate a migration, or run `RECORDS_DDL`. `withdraw()` now schedules erasure tasks, so it needs the `dpdp_erasure_tasks` table.
 >

@@ -35,6 +35,16 @@ import { DpdpError, SeqConflictError } from "./errors.js";
 import { canonicalJson, sha256 } from "./hash.js";
 import { isNoticeLanguage, type NoticeLanguage } from "./languages.js";
 import {
+  buildNotice,
+  isNoticeStore,
+  type NoticeKind,
+  type NoticeStore,
+  noticeLanguages,
+  type PrivacyNotice,
+  type SavedNotice,
+  sameNotice,
+} from "./notice.js";
+import {
   type ErasureTask,
   REQUEST_TYPES,
   type RequestFilter,
@@ -278,6 +288,26 @@ export interface Dpdp<P extends string> {
     prune(): Promise<{ deleted: number; before: string }>;
   };
   /**
+   * Privacy notices built from `config.notice` (Section 5, Rule 3), and the snapshots kept as proof
+   * of what people were shown (Section 6(10)).
+   */
+  readonly notice: {
+    /** The notice in a language (default English) and of a kind (default `"consent"`). Doesn't save anything. */
+    build(options?: { language?: NoticeLanguage; kind?: NoticeKind }): PrivacyNotice;
+    /**
+     * The same as `build()`, and saves the notice as proof the first time it's shown. Call it where
+     * you display the notice. `consent.grant()` does this for you.
+     */
+    show(options?: { language?: NoticeLanguage; kind?: NoticeKind }): Promise<PrivacyNotice>;
+    /** A saved notice, e.g. the one a consent event's `noticeVersion` points to. */
+    get(version: string, options?: { language?: NoticeLanguage; kind?: NoticeKind }): Promise<SavedNotice | undefined>;
+    /** Every saved notice, oldest first. */
+    list(): Promise<SavedNotice[]>;
+    /** Languages the notice is available in: English, then each translation. */
+    languages(): NoticeLanguage[];
+  };
+
+  /**
    * Personal data breaches (Section 8(6), Rule 7): record one, find and tell the people affected,
    * and track the Board's deadlines. Needs a store that keeps breaches: `memoryStore()`,
    * `drizzleStore(db)`, or your own `BreachStore`.
@@ -512,6 +542,50 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
     }
   }
 
+  function noticeStore(): NoticeStore {
+    if (!isNoticeStore(store)) {
+      throw new DpdpError(
+        "store-unsupported",
+        "Saved notices need a store that keeps them: any built-in store, or your own NoticeStore",
+      );
+    }
+    return store;
+  }
+
+  // The config doesn't change, so each notice is built, and saved, once per process.
+  const builtNotices = new Map<string, PrivacyNotice>();
+  const savedNotices = new Map<string, Promise<void>>();
+  function noticeFor(language: NoticeLanguage = "en", kind: NoticeKind = "consent"): PrivacyNotice {
+    const key = `${language}\u0000${kind}`;
+    let notice = builtNotices.get(key);
+    if (!notice) {
+      notice = buildNotice(config, { language, kind });
+      builtNotices.set(key, notice);
+    }
+    return structuredClone(notice);
+  }
+  async function recordNotice(notice: PrivacyNotice): Promise<void> {
+    if (!isNoticeStore(store)) return; // a custom store without notices: the version is still recorded
+    const s = store;
+    const key = `${notice.version}\u0000${notice.language}\u0000${notice.kind}`;
+    let saving = savedNotices.get(key);
+    if (!saving) {
+      saving = (async () => {
+        if (await s.savePrivacyNotice(notice, nowIso())) return;
+        const existing = await s.getPrivacyNotice(notice.version, notice.language, notice.kind);
+        if (existing && !sameNotice(existing.notice, notice)) {
+          throw new DpdpError(
+            "notice-version-conflict",
+            `A different ${notice.language} notice was already saved as version ${JSON.stringify(notice.version)}. Change notice.version when you change the notice, or leave it out to version by content.`,
+          );
+        }
+      })();
+      savedNotices.set(key, saving);
+      saving.catch(() => savedNotices.delete(key));
+    }
+    await saving;
+  }
+
   function breachStore(): BreachStore {
     if (!isBreachStore(store)) {
       throw new DpdpError(
@@ -662,7 +736,16 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
 
     consent: {
       async grant(subjectId, list, meta) {
-        const event = await append(subjectId, "grant", list, meta);
+        let withNotice = meta;
+        if (config.notice && meta?.noticeVersion === undefined) {
+          // Record which notice the person saw, and keep it as proof (Section 6(10)).
+          checkSubject(subjectId);
+          checkConsentPurposes(list, "grant");
+          const notice = noticeFor(meta?.language ?? "en", "consent");
+          await recordNotice(notice);
+          withNotice = { ...meta, noticeVersion: notice.version, language: notice.language };
+        }
+        const event = await append(subjectId, "grant", list, withNotice);
         emit("consent.granted", { event });
         return event;
       },
@@ -883,6 +966,26 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
         const keepMs = Math.max(durationMs(keep), durationMs(DEFAULT_ACCESS_LOG_RETENTION));
         const before = new Date(now().getTime() - keepMs).toISOString();
         return { deleted: await accessStore().pruneAccess(before), before };
+      },
+    },
+
+    notice: {
+      build(options = {}) {
+        return noticeFor(options.language, options.kind);
+      },
+      async show(options = {}) {
+        const notice = noticeFor(options.language, options.kind);
+        await recordNotice(notice);
+        return notice;
+      },
+      async get(version, options = {}) {
+        return noticeStore().getPrivacyNotice(version, options.language ?? "en", options.kind ?? "consent");
+      },
+      async list() {
+        return noticeStore().listPrivacyNotices();
+      },
+      languages() {
+        return noticeLanguages(config);
       },
     },
 

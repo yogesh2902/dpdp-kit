@@ -51,6 +51,21 @@ export {
   type TableDef,
 } from "./config.js";
 export {
+  buildNotice,
+  ENGLISH_WORDING,
+  isNoticeStore,
+  NOTICE_KINDS,
+  type NoticeConfig,
+  type NoticeItem,
+  type NoticeKind,
+  type NoticeLinks,
+  type NoticeStore,
+  type NoticeTranslation,
+  type NoticeWording,
+  type PrivacyNotice,
+  type SavedNotice,
+} from "./notice.js";
+export {
   type AccessInput,
   type AccessOptions,
   type ConsentMeta,

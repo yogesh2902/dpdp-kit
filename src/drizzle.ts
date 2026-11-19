@@ -8,10 +8,11 @@ import type { DataAccess } from "./data-access.js";
 import type { ErasureTask, RequestStatus, RequestType, RightsRequest, TaskKind, TaskStatus } from "./records.js";
 import { SeqConflictError } from "./errors.js";
 import type { NoticeLanguage } from "./languages.js";
+import type { NoticeKind, NoticeStore, PrivacyNotice } from "./notice.js";
 import type { Schema, SchemaReference, SchemaTable } from "./schema-check.js";
 import type { ConsentEvent, DpdpStore } from "./store.js";
 
-export { ACCESS_LOG_DDL, BREACH_DDL, CONSENT_EVENTS_DDL, DPDP_DDL, MIGRATE_0_5_DDL, RECORDS_DDL } from "./ddl.js";
+export { ACCESS_LOG_DDL, BREACH_DDL, CONSENT_EVENTS_DDL, DPDP_DDL, MIGRATE_0_5_DDL, PRIVACY_NOTICES_DDL, RECORDS_DDL } from "./ddl.js";
 
 /**
  * The consent events table. Export it from your Drizzle schema so drizzle-kit creates it:
@@ -122,6 +123,19 @@ export const breaches = pgTable(
     data: jsonb("data").$type<Breach>().notNull(),
   },
   (t) => [index("dpdp_breaches_status_idx").on(t.status, t.awareAt)],
+);
+
+/** Privacy notices as shown, kept as proof (Section 6(10)). Export it from your Drizzle schema with `consentEvents`. */
+export const privacyNotices = pgTable(
+  "dpdp_privacy_notices",
+  {
+    version: text("version").notNull(),
+    language: text("language").$type<NoticeLanguage>().notNull(),
+    kind: text("kind").$type<NoticeKind>().notNull(),
+    content: jsonb("content").$type<PrivacyNotice>().notNull(),
+    firstShownAt: ts("first_shown_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.version, t.language, t.kind] })],
 );
 
 /** The people affected by each breach, and whether they've been told (Rule 7(1)). */
@@ -309,10 +323,36 @@ function runnable(when: { now: string; staleBefore: string; maxAttempts: number 
 /**
  * Store on Postgres through Drizzle: consent events, rights requests and erasure tasks. Works with
  * node-postgres, postgres.js, Neon, PGlite and other Drizzle Postgres drivers. Needs the tables
- * `consentEvents`, `rightsRequests`, `erasureTasks`, `accessLog`, `breaches` and `breachNotices` (or `DPDP_DDL`).
+ * `consentEvents`, `rightsRequests`, `erasureTasks`, `accessLog`, `breaches`, `breachNotices` and
+ * `privacyNotices` (or `DPDP_DDL`).
  */
-export function drizzleStore(db: AnyPgDatabase): DpdpStore & AccessLogStore & BreachStore {
+export function drizzleStore(db: AnyPgDatabase): DpdpStore & AccessLogStore & BreachStore & NoticeStore {
+  const savedNotice = (r: { content: PrivacyNotice; firstShownAt: Date }) => ({ notice: r.content, firstShownAt: new Date(r.firstShownAt).toISOString() });
   return {
+    async savePrivacyNotice(notice, at) {
+      const rows = await db
+        .insert(privacyNotices)
+        .values({ version: notice.version, language: notice.language, kind: notice.kind, content: notice, firstShownAt: new Date(at) })
+        .onConflictDoNothing()
+        .returning({ one: sql<number>`1` });
+      return rows.length > 0;
+    },
+    async getPrivacyNotice(version, language, kind) {
+      const [row] = await db
+        .select({ content: privacyNotices.content, firstShownAt: privacyNotices.firstShownAt })
+        .from(privacyNotices)
+        .where(and(eq(privacyNotices.version, version), eq(privacyNotices.language, language), eq(privacyNotices.kind, kind)))
+        .limit(1);
+      return row ? savedNotice(row) : undefined;
+    },
+    async listPrivacyNotices() {
+      const rows = await db
+        .select({ content: privacyNotices.content, firstShownAt: privacyNotices.firstShownAt })
+        .from(privacyNotices)
+        .orderBy(asc(privacyNotices.firstShownAt), asc(privacyNotices.version), asc(privacyNotices.language), asc(privacyNotices.kind));
+      return rows.map(savedNotice);
+    },
+
     async insertBreach(breach) {
       await db.insert(breaches).values(breachRow(breach));
     },

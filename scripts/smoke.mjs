@@ -122,7 +122,7 @@ console.log("✔ breach records");
   const kit = createDpdp({ config, store: prismaStore(prisma) });
   await kit.consent.grant("u1", ["promo"]);
   if ((await kit.consent.verify("u1")).ok !== true) fail("prisma store chain");
-  if (prismaSchema(PRISMA_MODELS).tables.length !== 6) fail("PRISMA_MODELS parse");
+  if (prismaSchema(PRISMA_MODELS).tables.length !== 7) fail("PRISMA_MODELS parse");
   await db.close();
 }
 console.log("✔ dpdp-kit/prisma + dpdp-kit/postgres");
