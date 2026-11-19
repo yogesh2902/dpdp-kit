@@ -39,6 +39,7 @@ export {
   type LegitimateUse,
   type PersonalField,
   type ProcessorDef,
+  type TransfersConfig,
   type PurposeDef,
   type Protection,
   type PurposeOf,

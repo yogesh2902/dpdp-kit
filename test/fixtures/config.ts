@@ -36,8 +36,8 @@ export const config = defineConfig({
     },
   },
   processors: {
-    msg91: { purposes: ["order_updates", "marketing_sms"], contract: "DPA signed 2026-03-01, clause 7" },
-    posthog: { purposes: ["analytics"], contract: "PostHog DPA, section 4" },
+    msg91: { purposes: ["order_updates", "marketing_sms"], contract: "DPA signed 2026-03-01, clause 7", countries: ["IN"] },
+    posthog: { purposes: ["analytics"], contract: "PostHog DPA, section 4", countries: ["US"] },
   },
   minimumRetention: "1y",
   security: {

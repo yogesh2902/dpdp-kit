@@ -26,7 +26,7 @@ Request types: `access`, `correction`, `erasure`, `grievance` and `nomination`.
 const summary = await dpdp.rights.summary(userId);
 // { data: [{ table: "users", fields: [...], rows: [{ phone: "98…", name: "Asha" }] }],
 //   consents: ["order_updates"], legitimateUses: ["account"],
-//   sharedWith: [{ name: "msg91", purposes: ["order_updates"] }] }
+//   sharedWith: [{ name: "msg91", purposes: ["order_updates"], countries: ["IN"] }] }
 ```
 
 ## Erasure (Section 12(3))

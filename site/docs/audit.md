@@ -17,6 +17,8 @@ npx dpdp-kit audit --strict   # also fail on warnings
              Add where people can raise a grievance. Section 8(10) requires a grievance mechanism, and Section 5(1)(ii) requires the notice to say how to use it.
 ```
 
+Warnings from checks added in the current minor version are shown, but don't fail `--strict` until the next one, so upgrading doesn't break your build. In 0.5 those are `processor-countries-missing` and `foreign-state-transfer`.
+
 The config is found automatically (`dpdp.config.ts` and similar), or pass `--config path`. The same checks run when the app starts: `createDpdp` throws if the config has errors.
 
 ## Catch schema drift

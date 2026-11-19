@@ -70,7 +70,7 @@ describe("rights requests", () => {
     ]);
     expect(s.data[0]!.fields[0]).toEqual({ field: "phone", category: "contact", purposes: ["account", "order_updates", "marketing_sms"] });
     // msg91 gets data for order_updates; posthog only for analytics, which isn't granted
-    expect(s.sharedWith).toEqual([{ name: "msg91", purposes: ["order_updates"] }]);
+    expect(s.sharedWith).toEqual([{ name: "msg91", purposes: ["order_updates"], countries: ["IN"] }]);
   });
 
   it("erases on request, keeping what is still needed, and resolves the request", async () => {

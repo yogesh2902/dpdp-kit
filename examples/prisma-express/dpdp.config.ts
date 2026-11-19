@@ -36,7 +36,7 @@ export default defineConfig({
     },
   },
   processors: {
-    msg91: { purposes: ["marketing_sms"], contract: "DPA signed 2026-03-01, clause 7" },
+    msg91: { purposes: ["marketing_sms"], contract: "DPA signed 2026-03-01, clause 7", countries: ["IN"] },
   },
   notPersonal: ["users.created_at", "orders.total", "orders.created_at"],
   minimumRetention: "1y",

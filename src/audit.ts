@@ -42,10 +42,21 @@ export interface Issue {
     // legal holds against the database's foreign keys
     | "held-rows-cascade"
     | "held-link-lost"
-    | "held-rows-block-delete";
+    | "held-rows-block-delete"
+    // Section 16 and Rule 15: transfers outside India
+    | "invalid-country"
+    | "transfer-restricted"
+    | "transfer-outside-india"
+    | "processor-countries-missing"
+    | "foreign-state-transfer";
   /** Where in the config (`data.users.fields.phone`), or in the schema (`schema.users.phone`). */
   path: string;
   message: string;
+  /**
+   * The version that introduced this check, for warnings added after 0.4. `--strict` doesn't fail
+   * on a warning in the minor version that introduced it, so upgrading doesn't break CI.
+   */
+  since?: string;
 }
 
 const ONE_YEAR_MS = durationMs("1y");
@@ -293,6 +304,7 @@ export function audit(config: DpdpConfig<string>): Issue[] {
 
   checkSecurity(config, issues);
   checkErase(config, issues);
+  checkTransfers(config, issues);
 
   return issues;
 }
@@ -406,4 +418,72 @@ function checkSecurity(config: DpdpConfig<string>, issues: Issue[]) {
 
 export function hasErrors(issues: readonly Issue[]): boolean {
   return issues.some((i) => i.level === "error");
+}
+
+const COUNTRY = /^[A-Z]{2}$/;
+
+/** Section 16 and Rule 15: where each processor handles the data, against the restrictions you list. */
+function checkTransfers(config: DpdpConfig<string>, issues: Issue[]) {
+  const badCountry = (value: unknown, path: string) => {
+    if (typeof value === "string" && COUNTRY.test(value)) return false;
+    issues.push({
+      level: "error",
+      code: "invalid-country",
+      path,
+      message: `${JSON.stringify(value)} is not a country code. Use ISO 3166-1 alpha-2 in capitals, e.g. "IN", "US", "SG".`,
+    });
+    return true;
+  };
+  const restricted = new Set<string>();
+  (config.transfers?.restricted ?? []).forEach((c, i) => {
+    if (!badCountry(c, `transfers.restricted.${i}`)) restricted.add(c);
+  });
+  const keepInIndia = new Set<string>(config.transfers?.keepInIndia ?? []);
+  for (const p of keepInIndia) {
+    if (!config.purposes[p]) {
+      issues.push({ level: "error", code: "unknown-purpose", path: "transfers.keepInIndia", message: `Unknown purpose ${JSON.stringify(p)}.` });
+    }
+  }
+
+  for (const [name, def] of Object.entries(config.processors ?? {})) {
+    const path = `processors.${name}.countries`;
+    if (def.foreignState) {
+      issues.push({
+        level: "warning",
+        code: "foreign-state-transfer",
+        path: `processors.${name}.foreignState`,
+        message: `Rule 15 lets the Central Government set requirements, by general or special order, for making personal data available to a foreign State or an entity it controls. Check for any order that applies before sharing data with ${name}.`,
+        since: "0.5",
+      });
+    }
+    if (def.countries === undefined || def.countries.length === 0) {
+      issues.push({
+        level: "warning",
+        code: "processor-countries-missing",
+        path,
+        message: `Say where ${name} handles the data, e.g. countries: ["IN"] or ["IN", "US"]. Section 16 lets the Central Government restrict transfers to countries it notifies, so you need to know.`,
+        since: "0.5",
+      });
+      continue;
+    }
+    const countries = def.countries.filter((c, i) => !badCountry(c, `${path}.${i}`));
+    for (const c of countries.filter((c) => restricted.has(c))) {
+      issues.push({
+        level: "error",
+        code: "transfer-restricted",
+        path,
+        message: `${name} handles data in ${c}, which transfers.restricted lists as a country transfers are restricted to under Section 16(1). Stop the transfer or move the processing.`,
+      });
+    }
+    const local = def.purposes.filter((p) => keepInIndia.has(p));
+    const abroad = countries.filter((c) => c !== "IN");
+    if (local.length > 0 && abroad.length > 0) {
+      issues.push({
+        level: "error",
+        code: "transfer-outside-india",
+        path,
+        message: `${name} handles data for ${local.join(", ")}, which transfers.keepInIndia says must stay in India, in ${abroad.join(", ")}.`,
+      });
+    }
+  }
 }

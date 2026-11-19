@@ -79,8 +79,8 @@ export default defineConfig({
   },
 
   processors: {
-    msg91:   { purposes: ["order_updates", "marketing_sms"] },
-    posthog: { purposes: ["analytics"] },
+    msg91:   { purposes: ["order_updates", "marketing_sms"], countries: ["IN"] },
+    posthog: { purposes: ["analytics"], countries: ["US"] },
   },
 
   minimumRetention: "1y", // Rule 8(3): keep data and logs of each processing at least one year
@@ -283,7 +283,7 @@ await dpdp.rights.reject(otherId, "Duplicate of an earlier grievance");
 const summary = await dpdp.rights.summary(userId);
 // { data: [{ table: "users", fields: [...], rows: [{ phone: "98…", name: "Asha" }] }],
 //   consents: ["order_updates"], legitimateUses: ["account"],
-//   sharedWith: [{ name: "msg91", purposes: ["order_updates"] }] }
+//   sharedWith: [{ name: "msg91", purposes: ["order_updates"], countries: ["IN"] }] }
 ```
 
 **Erasure (Section 12(3)):** every purpose ends except those you still need for the specified purpose. Legal holds and `minimumRetention` still apply:

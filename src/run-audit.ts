@@ -145,8 +145,26 @@ export async function runAudit(argv: readonly string[], cwd: string, log: (line:
     log(formatGithubAnnotations(issues, { config: file, schema: schemaFile }, process.env.GITHUB_WORKSPACE ?? cwd));
   }
   log(formatIssues(issues));
-  const failing = issues.filter((i) => i.level === "error" || (strict && i.level === "warning"));
+  const minor = currentMinor();
+  const isNew = (i: Issue) => i.level === "warning" && i.since !== undefined && compareMinor(i.since, minor) >= 0;
+  const grace = issues.filter(isNew);
+  if (strict && grace.length > 0) {
+    log(`${grace.length} warning(s) are from checks new in this version: they don't fail --strict until the next minor version.`);
+  }
+  const failing = issues.filter((i) => i.level === "error" || (strict && i.level === "warning" && !isNew(i)));
   return failing.length > 0 ? 1 : 0;
+}
+
+/** This package's minor version, e.g. `"0.5"`. Warnings with that `since` don't fail `--strict` yet. */
+export function currentMinor(): string {
+  const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
+  return version.split(".").slice(0, 2).join(".");
+}
+
+function compareMinor(a: string, b: string): number {
+  const [a0 = 0, a1 = 0] = a.split(".").map(Number);
+  const [b0 = 0, b1 = 0] = b.split(".").map(Number);
+  return a0 - b0 || a1 - b1;
 }
 
 /**

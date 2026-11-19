@@ -38,8 +38,8 @@ export default defineConfig({
   },
 
   processors: {
-    msg91:   { purposes: ["order_updates", "marketing_sms"] },
-    posthog: { purposes: ["analytics"] },
+    msg91:   { purposes: ["order_updates", "marketing_sms"], countries: ["IN"] },
+    posthog: { purposes: ["analytics"], countries: ["US"] },
   },
 
   minimumRetention: "1y", // Rule 8(3)
@@ -83,6 +83,8 @@ Each field can also say how it's protected where it's stored, with `protect`: `"
 Third parties that process data for you (Data Processors), with the purposes they serve. When a purpose ends, dpdp-kit tells you which processors to notify, and the retention runner calls their hooks. See [Erasure and retention](../erasure/).
 
 Add `contract`: where your contract with the processor requires reasonable security safeguards, for example `"DPA signed 2026-03-01, clause 7"`. Rule 6(1)(f) requires such a provision, and the audit warns when it's missing.
+
+Add `countries`: where the processor handles the data, such as `["IN"]` or `["IN", "US"]`. The audit checks it against `transfers`. See [Transfers outside India](../transfers/).
 
 ## security
 

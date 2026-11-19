@@ -40,6 +40,7 @@ describe("audit", () => {
     expect(codes(bad).sort()).toEqual(
       [
         "error:field-without-purpose:data.users.fields.phone.purposes",
+        "warning:processor-countries-missing:processors.sms.countries",
         "error:invalid-duration:data.orders.legalHold.keep",
         "error:invalid-duration:purposes.spare.retain.afterWithdrawal",
         "error:invalid-retention:purposes.promo.retain",
@@ -105,7 +106,7 @@ describe("audit: Rule 6 security safeguards", () => {
   it("warns about processors without a security provision in the contract", () => {
     const c = {
       ...fields({ phone: { category: "contact", purposes: ["kyc"] } }),
-      processors: { sms: { purposes: ["kyc"] }, kyc: { purposes: ["kyc"], contract: "MSA clause 9" } },
+      processors: { sms: { purposes: ["kyc"], countries: ["IN"] }, kyc: { purposes: ["kyc"], contract: "MSA clause 9", countries: ["IN"] } },
     } as unknown as DpdpConfig<string>;
     expect(codes(c)).toEqual(["warning:processor-contract-missing:processors.sms.contract"]);
   });

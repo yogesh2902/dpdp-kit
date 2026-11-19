@@ -20,7 +20,7 @@ Each duty is marked:
 | Take consent that is free, specific, informed and unambiguous | Section 6(1)–(3) | Shared | Records each grant with its channel and evidence. `requireConsent` blocks processing for anyone who hasn't agreed. | Asks for consent with a clear affirmative action, per purpose, in the person's language. |
 | Prove that notice and consent were given | Section 6(10) | Built in | Hash-chained consent records; `verify()` finds edited, reordered or removed events. | Keeps the latest hash somewhere the database admin can't change, so deleting the newest events is caught too. |
 | Make withdrawal as easy as giving consent, then stop | Section 6(4)–(6) | Shared | `withdraw()` stops guarded processing at once, tells processors through their hooks and schedules erasure. | Puts a withdraw option in the app that is as easy to use as the one that gave consent. |
-| Stop a Section 7(a) use when the person says no | Section 7(a) | Yours | From 0.5: `consent.object()` records it, and `has()`, the guards, summaries and access reviews respect it. See [Objections](../objections/). | Records and respects them in the app. |
+| Stop a Section 7(a) use when the person says no | Section 7(a) | Shared | From 0.5: `consent.object()` records it, and `has()`, the guards, summaries and access reviews respect it. See [Objections](../objections/). | Records and respects them in the app. |
 
 ## Keeping and erasing data
 
@@ -37,6 +37,7 @@ Each duty is marked:
 |---|---|---|---|---|
 | Use a processor only under a valid contract | Section 8(2), Rule 6(1)(f) | Shared | Lists each processor with its purposes and where its contract has security provisions; the audit warns when that is missing. | Signs the contracts. |
 | Make processors stop, and erase, when purposes end | Sections 6(6), 8(7)(b) | Shared | `processor-stop` and `processor-erase` tasks call your hooks on time, or become manual tasks to track. | Connects each vendor's API to its hook, or handles the manual task. |
+| Transfer data outside India only where the government allows it | Section 16, Rule 15 | Shared | From 0.5: records the countries of each processor; the audit fails on a country you list as restricted, or on data another law keeps in India going abroad. See [Transfers](../transfers/). | Finds out where each vendor really handles the data, and keeps the list of restrictions current. |
 
 ## Security and breaches
 
@@ -63,7 +64,6 @@ Each duty is marked:
 |---|---|---|---|---|
 | Verifiable consent of a parent or guardian; no tracking, behavioural monitoring or targeted advertising directed at children | Section 9, Rules 10, 11 | Yours | Builds age checks and guardian consent. | Later |
 | Extra duties of a Significant Data Fiduciary: a DPO based in India, an independent data auditor, periodic Data Protection Impact Assessments | Section 10, Rule 13 | Yours | Only if the government notifies the company as one. dpdp-kit's records and access logs can serve as evidence for the audit. | Not planned |
-| Transfers outside India, where the government restricts them | Section 16, Rule 15 | Yours | Checks where each processor stores data. | 0.5: transfer records, checked by the audit |
 | Consent Managers | Sections 6(7)–6(9), Rule 4 | Yours | Integrates with a registered Consent Manager if it uses one. | Later |
 
 ## Using this map

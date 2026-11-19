@@ -43,7 +43,7 @@ export interface AccessSummary {
    * Section 11(2) exempts sharing with authorities for preventing or investigating offences;
    * leave those out of `config.processors`.
    */
-  sharedWith: Array<{ name: string; description?: string; purposes: string[] }>;
+  sharedWith: Array<{ name: string; description?: string; purposes: string[]; countries?: string[] }>;
 }
 
 export async function buildAccessSummary(input: {
@@ -82,6 +82,7 @@ export async function buildAccessSummary(input: {
       name,
       ...(p.description !== undefined ? { description: p.description } : {}),
       purposes: p.purposes.filter((purpose) => applies.has(purpose)),
+      ...(p.countries?.length ? { countries: [...p.countries] } : {}),
     }))
     .filter((p) => p.purposes.length > 0);
 

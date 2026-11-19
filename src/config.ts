@@ -135,6 +135,34 @@ export interface ProcessorDef<P extends string = string> {
    * when it's missing.
    */
   contract?: string;
+  /**
+   * Where the processor handles the data, as ISO 3166-1 alpha-2 codes: `["IN"]`, `["IN", "SG"]`.
+   * Include every country of its servers and support staff that can reach the data. Section 16
+   * lets the Central Government restrict transfers to countries it notifies; list those in
+   * `transfers.restricted`. The audit warns when this is missing.
+   */
+  countries?: readonly string[];
+  /**
+   * The processor is a foreign State, or an entity under its control or one of its agencies.
+   * Rule 15 subjects such transfers to requirements the Central Government specifies by order.
+   */
+  foreignState?: boolean;
+}
+
+/** Transfers of personal data outside India (Section 16, Rule 15). */
+export interface TransfersConfig<P extends string = string> {
+  /**
+   * Countries the Central Government has restricted transfers to by notification (Section 16(1)),
+   * as ISO 3166-1 alpha-2 codes. None are notified as of November 2026; keep this list up to date
+   * yourself. The audit fails when a processor is in one of them.
+   */
+  restricted?: readonly string[];
+  /**
+   * Purposes whose data another law requires to stay in India, e.g. payment data under the RBI's
+   * storage directive. Section 16(2) keeps such laws in force. The audit fails when a processor
+   * for one of these purposes is anywhere else.
+   */
+  keepInIndia?: readonly P[];
 }
 
 /**
@@ -184,6 +212,8 @@ export interface DpdpConfig<P extends string = string> {
   purposes: { readonly [K in P]: PurposeDef };
   data: Record<string, TableDef<NoInfer<P>>>;
   processors?: Record<string, ProcessorDef<NoInfer<P>>>;
+  /** Transfers outside India. See `TransfersConfig`. */
+  transfers?: TransfersConfig<NoInfer<P>>;
   /**
    * How long personal data, traffic data and logs of each processing are kept, at minimum, from the
    * date of that processing, even after erasure is otherwise due (e.g. the account is deleted).
