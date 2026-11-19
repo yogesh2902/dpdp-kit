@@ -1,5 +1,5 @@
 name: DPDP Kit Audit
-description: Fail the build when personal data isn't mapped to a purpose under India's DPDP Act. Checks Drizzle, Prisma and Mongoose schemas, and annotates the pull request.
+description: Fail CI when personal data has no purpose under India's DPDP Act. Reads Drizzle, Prisma and Mongoose schemas.
 author: dpdp-kit
 branding:
   icon: shield

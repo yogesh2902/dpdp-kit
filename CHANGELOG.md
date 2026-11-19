@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1
+
+The GitHub Action's description is now short enough for the GitHub Marketplace (under 125 characters), so this release can be listed there. No changes to the library.
+
 ## 0.4.0
 
 **Prisma, MongoDB and Mongoose, and breach records (Section 8(6), Rule 7).** dpdp-kit now runs on the database you already have, and it records a personal data breach against the Board's 72-hour deadline.
