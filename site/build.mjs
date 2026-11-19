@@ -115,7 +115,7 @@ ${body}
 </main>
 <footer>
   <div class="wrap">
-    <span>${ICONS.shield.replace('width="22" height="22"', 'width="16" height="16"')} dpdp-kit ${esc(pkg.version)} · MIT · Not legal advice</span>
+    <span>${ICONS.shield.replace('width="22" height="22"', 'width="16" height="16"')} dpdp-kit ${esc(pkg.version)} · MIT or Apache 2.0 · Not legal advice</span>
     <nav aria-label="Footer">
       <a href="${base}docs/">Docs</a>
       <a href="${base}docs/law/">The law, mapped</a>

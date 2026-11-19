@@ -563,4 +563,11 @@ Report a wrong or outdated reference as an issue. It's treated as a bug.
 
 ## Licence
 
-MIT
+Licensed under either of
+
+- the MIT licence ([LICENSE-MIT](LICENSE-MIT)), or
+- the Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE)),
+
+at your option. Versions up to 0.5.0 were published under MIT only.
+
+Unless you explicitly state otherwise, any contribution you intentionally submit for inclusion in dpdp-kit, as defined in the Apache-2.0 licence, is dual-licensed as above, without any additional terms or conditions.

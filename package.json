@@ -18,7 +18,7 @@
     "mongoose",
     "postgres"
   ],
-  "license": "MIT",
+  "license": "MIT OR Apache-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/yogesh2902/dpdp-kit.git"
@@ -35,7 +35,9 @@
   "packageManager": "pnpm@12.15.0",
   "files": [
     "dist",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "LICENSE-MIT",
+    "LICENSE-APACHE"
   ],
   "bin": {
     "dpdp-kit": "dist/cli.js"

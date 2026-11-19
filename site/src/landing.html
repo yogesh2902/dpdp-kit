@@ -1,6 +1,6 @@
 <section class="hero">
   <div class="wrap">
-    <span class="label reveal">Open source · MIT · Node.js</span>
+    <span class="label reveal">Open source · MIT or Apache 2.0 · Node.js</span>
     <h1 class="reveal">India's DPDP Act, <em>built into</em> your Node.js backend.</h1>
     <p class="lede reveal">Declare why you hold each piece of personal data in one typed file. dpdp-kit keeps consent records you can prove, carries out erasure on time, tracks rights requests, and fails CI the moment your schema drifts.</p>
     <div class="cta reveal">
@@ -21,7 +21,7 @@
     <div class="stat reveal"><b>250+</b><span>tests, on real Postgres, Prisma and MongoDB</span></div>
     <div class="stat reveal"><b>22<small>+1</small></b><span>notice languages: the Eighth Schedule and English</span></div>
     <div class="stat reveal"><b>0</b><span>network calls; data stays on your servers</span></div>
-    <div class="stat reveal"><b>MIT</b><span>free and open source, no paid tier</span></div>
+    <div class="stat reveal"><b>Free</b><span>open source under MIT or Apache 2.0, no paid tier</span></div>
   </div>
 </section>
 
@@ -219,7 +219,7 @@ jobs:
           <tr><td>Consent records that show tampering</td><td class="no">No</td><td class="mid">Varies</td><td class="yes">Yes, hash-chained</td></tr>
           <tr><td>Erasure carried out on time, with legal holds</td><td class="no">By hand</td><td class="mid">Varies</td><td class="yes">Yes, retention runner</td></tr>
           <tr><td>Mistakes caught in your editor</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes, typed config</td></tr>
-          <tr><td>Cost</td><td class="mid">Free, but manual</td><td class="mid">Subscription</td><td class="yes">Free, MIT</td></tr>
+          <tr><td>Cost</td><td class="mid">Free, but manual</td><td class="mid">Subscription</td><td class="yes">Free, MIT or Apache 2.0</td></tr>
         </tbody>
       </table>
     </div>
@@ -229,7 +229,7 @@ jobs:
       <div class="card reveal"><div class="ico">◎</div><h4>Node-native, no SaaS</h4><p>A library inside your process. No server to run, no account, no API key, and your own Postgres or MongoDB.</p></div>
       <div class="card reveal"><div class="ico">§</div><h4>Checked against the law</h4><p>Every Section and Rule reference was checked against the official Gazette texts. A wrong reference is treated as a bug.</p></div>
       <div class="card reveal"><div class="ico">✓</div><h4>Tested like infrastructure</h4><p>250+ tests, on real Postgres in IST, Prisma and MongoDB, with runners racing for the same tasks. Example apps go through a year of customers on every change.</p></div>
-      <div class="card reveal"><div class="ico">↗</div><h4>Open, no lock-in</h4><p>MIT licensed. Your records live in your own tables, and every store and data-access layer is an interface you can replace.</p></div>
+      <div class="card reveal"><div class="ico">↗</div><h4>Open, no lock-in</h4><p>MIT or Apache 2.0, your choice. Your records live in your own tables, and every store and data-access layer is an interface you can replace.</p></div>
     </div>
   </div>
 </section>
@@ -322,7 +322,7 @@ jobs:
     </div>
     <div class="faq">
       <details class="reveal"><summary>Does dpdp-kit make my app compliant?</summary><p>No tool can do that on its own. dpdp-kit puts the obligations into practice in your code: declared purposes, consent records, erasure and rights requests. Your company still writes its notices, signs its vendor contracts, runs access control and backups, and has its own lawyer review its purposes and retention periods. <a href="{{base}}docs/responsibility/">Who does what</a> lists every duty in the Act and Rules, and which side does it.</p></details>
-      <details class="reveal"><summary>Is it free?</summary><p>Yes. It's MIT licensed, with no paid tier and no account. You can use it in commercial products.</p></details>
+      <details class="reveal"><summary>Is it free?</summary><p>Yes. It's licensed under MIT or Apache 2.0, whichever you prefer, with no paid tier and no account. You can use it in commercial products. Apache 2.0 adds an explicit patent grant.</p></details>
       <details class="reveal"><summary>Do I need to run a server or sign up for anything?</summary><p>No. It's a library that runs inside your Node.js process and writes to your own database. There's no API key, and it makes no network calls.</p></details>
       <details class="reveal"><summary>Which databases and frameworks does it support?</summary><p>Storage and data access work with Postgres through Drizzle, Prisma or any Postgres client (node-postgres, postgres.js, Kysely, Knex), and with MongoDB and Mongoose. The schema drift check reads Drizzle schemas (Postgres, MySQL, SQLite), Prisma schemas and Mongoose models. Guards are included for Express, Hono, Fastify and NestJS. Every store is an interface, so you can add another database. MySQL and SQLite data access come in 0.6.</p></details>
       <details class="reveal"><summary>Which Node.js versions?</summary><p>Node.js 20.19 or later. The package is ESM-only, and <code>require("dpdp-kit")</code> also works on those versions.</p></details>
