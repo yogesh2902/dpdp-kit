@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.5.1
 
-- **Dual licence.** dpdp-kit is now available under MIT or Apache-2.0, at your option (`LICENSE-MIT`, `LICENSE-APACHE`). Apache-2.0 adds an explicit patent grant. Versions up to 0.5.0 remain MIT.
+**Dual licence.** dpdp-kit is now available under MIT or Apache-2.0, at your option (`LICENSE-MIT`, `LICENSE-APACHE`). Apache-2.0 adds an explicit patent grant. Versions up to 0.5.0 remain MIT. No changes to the library.
 
 ## 0.5.0
 
