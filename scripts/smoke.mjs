@@ -13,6 +13,11 @@ const { createDpdp, defineConfig, memoryStore } = await import("dpdp-kit");
 const { requireConsent } = await import("dpdp-kit/express");
 await import("dpdp-kit/hono");
 {
+  const { formatEvidence, staticEvidence } = await import("dpdp-kit");
+  const md = formatEvidence(staticEvidence(defineConfig({ fiduciary: { name: "Smoke" }, purposes: { a: { basis: "legitimate-use", retain: "while-active" } }, data: {} })));
+  if (!md.startsWith("# DPDP Act evidence: Smoke")) fail("formatEvidence");
+}
+{
   const { createHandlers } = await import("dpdp-kit/next");
   const { GET } = createHandlers(createDpdp({ config: defineConfig({ fiduciary: { name: "S" }, purposes: { a: { basis: "legitimate-use", retain: "while-active" } }, data: {}, rights: { how: "email" } }), store: memoryStore() }), { base: "/p", subject: () => undefined });
   const res = await GET(new Request("http://x/p/rights"));

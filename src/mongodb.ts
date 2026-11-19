@@ -7,9 +7,10 @@ import type { ErasedValue } from "./config.js";
 import type { DataAccess } from "./data-access.js";
 import { DpdpError, SeqConflictError } from "./errors.js";
 import type { NoticeStore, PrivacyNotice } from "./notice.js";
+import type { ConsentStats, StatsStore, TaskCounts } from "./stats.js";
 import type { ErasureTask, RightsRequest } from "./records.js";
 import type { Schema, SchemaColumn, SchemaTable } from "./schema-check.js";
-import type { ConsentEvent, DpdpStore } from "./store.js";
+import type { ConsentAction, ConsentEvent, DpdpStore } from "./store.js";
 
 type Doc = Record<string, any>;
 
@@ -146,7 +147,7 @@ const BATCH = 1000;
  * const store = mongoStore(() => mongoose.connection.db); // Mongoose, before or after connecting
  * ```
  */
-export function mongoStore(source: MongoDbSource): DpdpStore & AccessLogStore & BreachStore & NoticeStore {
+export function mongoStore(source: MongoDbSource): DpdpStore & AccessLogStore & BreachStore & NoticeStore & StatsStore {
   let ready: Promise<void> | undefined;
   const col = async (name: keyof typeof COLLECTIONS) => {
     ready ??= createMongoIndexes(source).catch((err: unknown) => {
@@ -160,6 +161,67 @@ export function mongoStore(source: MongoDbSource): DpdpStore & AccessLogStore & 
   const noticeId = (version: string, language: string, kind: string) => `${version}\u0000${language}\u0000${kind}`;
   const savedNotice = (d: Doc) => ({ notice: d.notice as PrivacyNotice, firstShownAt: toIso(d.firstShownAt)! });
   return {
+    async consentStats(from, to) {
+      const inPeriod = { at: { $gte: new Date(from), $lt: new Date(to) } };
+      const events = await col("events");
+      const [[facet], now] = await Promise.all([
+        events
+          .aggregate([
+            { $match: inPeriod },
+            {
+              $facet: {
+                totals: [{ $group: { _id: null, events: { $sum: 1 } } }],
+                people: [{ $group: { _id: "$subjectId" } }, { $count: "n" }],
+                actions: [{ $group: { _id: "$action", n: { $sum: 1 } } }],
+                period: [{ $unwind: "$purposes" }, { $group: { _id: { action: "$action", purpose: "$purposes" }, n: { $sum: 1 } } }],
+              },
+            },
+          ])
+          .toArray(),
+        events
+          .aggregate([
+            { $unwind: "$purposes" },
+            { $addFields: { kind: { $cond: [{ $in: ["$action", ["grant", "withdraw"]] }, "consent", "objection"] } } },
+            { $sort: { subjectId: 1, seq: -1 } },
+            { $group: { _id: { s: "$subjectId", p: "$purposes", k: "$kind" }, action: { $first: "$action" } } },
+            { $match: { action: { $in: ["grant", "object"] } } },
+            { $group: { _id: { purpose: "$_id.p", kind: "$_id.k" }, n: { $sum: 1 } } },
+          ])
+          .toArray(),
+      ]);
+      const stats: ConsentStats = {
+        from,
+        to,
+        events: facet?.totals[0]?.events ?? 0,
+        people: facet?.people[0]?.n ?? 0,
+        byAction: Object.fromEntries((facet?.actions ?? []).map((r: Doc) => [r._id, r.n])),
+        byPurpose: {},
+        grantedNow: {},
+        objectedNow: {},
+      };
+      for (const r of facet?.period ?? []) (stats.byPurpose[r._id.purpose] ??= {})[r._id.action as ConsentAction] = r.n;
+      for (const r of now) (r._id.kind === "consent" ? stats.grantedNow : stats.objectedNow)[r._id.purpose] = r.n;
+      return stats;
+    },
+    async taskCounts(now) {
+      const rows = await (await col("tasks"))
+        .aggregate([
+          {
+            $group: {
+              _id: "$status",
+              n: { $sum: 1 },
+              late: { $sum: { $cond: [{ $and: [{ $in: ["$status", ["pending", "failed"]] }, { $lt: ["$dueAt", new Date(now)] }] }, 1, 0] } },
+            },
+          },
+        ])
+        .toArray();
+      const counts: TaskCounts = { byStatus: {}, late: 0 };
+      for (const r of rows) {
+        counts.byStatus[r._id as keyof TaskCounts["byStatus"]] = r.n;
+        counts.late += r.late;
+      }
+      return counts;
+    },
     async savePrivacyNotice(n, at) {
       try {
         await (await col("privacyNotices")).insertOne({ _id: noticeId(n.version, n.language, n.kind), notice: n, firstShownAt: new Date(at) });

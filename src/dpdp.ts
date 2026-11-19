@@ -31,6 +31,8 @@ import type { DpdpConfig } from "./config.js";
 import type { DataAccess } from "./data-access.js";
 import { type Duration, durationMs } from "./duration.js";
 import { type ErasurePlan, planErasure } from "./erasure.js";
+import { type EvidenceReport, gapsOf, requestStats, staticEvidence } from "./evidence.js";
+import { isStatsStore } from "./stats.js";
 import { DpdpError, SeqConflictError } from "./errors.js";
 import { canonicalJson, sha256 } from "./hash.js";
 import { isNoticeLanguage, type NoticeLanguage } from "./languages.js";
@@ -293,6 +295,22 @@ export interface Dpdp<P extends string> {
      */
     prune(): Promise<{ deleted: number; before: string }>;
   };
+  /**
+   * One report of what the config declares and what the records show, for an auditor, a lawyer or
+   * the Board: the data map, the audit, Rule 6 safeguards, notices shown, consent counts, rights
+   * requests, erasure, the access review and breaches. Covers the last 30 days unless `from` and
+   * `to` are given; the access review reads every log entry in the period, so keep long periods for
+   * smaller logs. `formatEvidence()` turns it into Markdown.
+   */
+  evidence(input?: {
+    from?: string;
+    to?: string;
+    /** Options for the access review part, as for `access.review()`. */
+    review?: { window?: Duration; maxSubjects?: number; ignoreActors?: readonly string[] };
+    /** How many access findings to list in full. Default 20. */
+    examples?: number;
+  }): Promise<EvidenceReport>;
+
   /**
    * Privacy notices built from `config.notice` (Section 5, Rule 3), and the snapshots kept as proof
    * of what people were shown (Section 6(10)).
@@ -1030,6 +1048,56 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
         const before = new Date(now().getTime() - keepMs).toISOString();
         return { deleted: await accessStore().pruneAccess(before), before };
       },
+    },
+
+    async evidence(input = {}) {
+      const at = nowIso();
+      checkIso(input.from, "from");
+      checkIso(input.to, "to");
+      const to = input.to ?? at;
+      const from = input.from ?? new Date(Date.parse(to) - durationMs("30d")).toISOString();
+      const report = staticEvidence(config, at);
+      report.period = { from, to };
+      const without = (what: string) => ({ unavailable: `the store doesn't keep ${what}` });
+
+      report.notices = isNoticeStore(store)
+        ? (await store.listPrivacyNotices()).map((n) => ({
+            version: n.notice.version,
+            language: n.notice.language,
+            kind: n.notice.kind,
+            firstShownAt: n.firstShownAt,
+            purposes: n.notice.items.length,
+          }))
+        : without("notices");
+      report.consent = isStatsStore(store) ? await store.consentStats(from, to) : { unavailable: "the store can't count consent events (add consentStats)" };
+      if (isDpdpStore(store)) {
+        report.requests = requestStats(await store.listRequests({}), from, to, at);
+        if (isStatsStore(store)) report.erasure = await store.taskCounts(at);
+        else {
+          const counts = { byStatus: {} as Record<string, number>, late: 0 };
+          for (const t of await store.listTasks({})) {
+            counts.byStatus[t.status] = (counts.byStatus[t.status] ?? 0) + 1;
+            if ((t.status === "pending" || t.status === "failed") && t.dueAt < at) counts.late++;
+          }
+          report.erasure = counts;
+        }
+      } else {
+        report.requests = without("rights requests");
+        report.erasure = without("erasure tasks");
+      }
+      if (isAccessLogStore(store)) {
+        const review = await api.access.review({ from, to, ...input.review });
+        const findings: Record<string, number> = {};
+        for (const f of review.findings) findings[f.kind] = (findings[f.kind] ?? 0) + 1;
+        report.access = { scanned: review.scanned, findings, examples: review.findings.slice(0, input.examples ?? 20) };
+      } else report.access = without("an access log");
+      if (isBreachStore(store)) {
+        const relevant = (await store.listBreaches({})).filter((b) => b.status === "open" || (b.awareAt >= from && b.awareAt < to));
+        report.breaches = await Promise.all(relevant.map((b) => api.breach.status(b.id)));
+      } else report.breaches = without("breaches");
+
+      report.gaps = gapsOf(report);
+      return report;
     },
 
     notice: {

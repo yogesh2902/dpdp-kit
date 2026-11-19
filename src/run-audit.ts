@@ -1,8 +1,9 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { audit, type Issue } from "./audit.js";
 import type { DpdpConfig } from "./config.js";
+import { formatEvidence, staticEvidence } from "./evidence.js";
 import { formatSafeguards, safeguardsReport } from "./safeguards.js";
 import { checkSchema, type Schema } from "./schema-check.js";
 
@@ -178,4 +179,27 @@ export async function runSafeguards(argv: readonly string[], cwd: string, log: (
   log(formatSafeguards(report));
   const gaps = report.some((s) => s.status === "missing" || s.status === "partly");
   return argv.includes("--strict") && gaps ? 1 : 0;
+}
+
+/**
+ * Run `dpdp-kit evidence`: the parts of the evidence report that come from the config (data map,
+ * processors, audit, Rule 6 safeguards, Rule 14 information), as Markdown or JSON. The records
+ * (consent counts, requests, erasure, access review, breaches) need the app: `dpdp.evidence()`.
+ */
+export async function runEvidence(argv: readonly string[], cwd: string, log: (line: string) => void): Promise<number> {
+  const format = flagValue(argv, "--format") ?? "markdown";
+  if (format !== "markdown" && format !== "json") {
+    log(`Unknown --format ${JSON.stringify(format)}. Use "markdown" or "json".`);
+    return 1;
+  }
+  const file = configFile(argv, cwd, log);
+  if (!file) return 1;
+  const report = staticEvidence(await loadConfig(file));
+  const text = format === "json" ? `${JSON.stringify(report, null, 2)}\n` : formatEvidence(report);
+  const out = flagValue(argv, "--out");
+  if (out) {
+    writeFileSync(resolve(cwd, out), text);
+    log(`Wrote ${out}. It covers the config only; call dpdp.evidence() in your app for the records too.`);
+  } else log(text.trimEnd());
+  return report.audit.some((i) => i.level === "error") ? 1 : 0;
 }

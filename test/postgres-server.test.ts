@@ -148,4 +148,21 @@ describe.skipIf(!url)("on a real Postgres server (node-postgres)", () => {
     const { rows } = await pool.query("SELECT email, points FROM pg_people WHERE id = 'p20'");
     expect(rows).toEqual([{ email: "p20.new@example.com", points: 7 }]);
   });
+
+  it("counts consent and tasks in the database the same as in memory", async () => {
+    const ist = new pg.Pool({ connectionString: url, max: 2, options: "-c TimeZone=Asia/Kolkata" });
+    const store = postgresStore(async (text, params) => (await ist.query(text, [...params])).rows);
+    const from = "2025-01-01T00:00:00.000Z";
+    const to = "2030-01-01T00:00:00.000Z";
+    const stats = await store.consentStats(from, to);
+    const { rows } = await ist.query("SELECT subject_id, seq, action, purposes, to_char(at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS at FROM dpdp_consent_events ORDER BY subject_id, seq");
+    const bySubject = new Map<string, { action: string; purposes: string[]; at: string }[]>();
+    for (const r of rows) bySubject.set(r.subject_id, [...(bySubject.get(r.subject_id) ?? []), r]);
+    const { statsFromEvents } = await import("../src/stats.js");
+    expect(stats).toEqual(statsFromEvents(bySubject.values() as never, from, to));
+    expect(stats.events).toBeGreaterThan(0);
+    const tasks = await store.taskCounts(new Date().toISOString());
+    expect(Object.values(tasks.byStatus).reduce((a, b) => a + (b ?? 0), 0)).toBeGreaterThan(0);
+    await ist.end();
+  });
 });

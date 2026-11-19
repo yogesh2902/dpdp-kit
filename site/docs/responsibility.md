@@ -63,7 +63,7 @@ Each duty is marked:
 | Duty | Law | Who | Your company does | Planned |
 |---|---|---|---|---|
 | Verifiable consent of a parent or guardian; no tracking, behavioural monitoring or targeted advertising directed at children | Section 9, Rules 10, 11 | Yours | Builds age checks and guardian consent. | Later |
-| Extra duties of a Significant Data Fiduciary: a DPO based in India, an independent data auditor, periodic Data Protection Impact Assessments | Section 10, Rule 13 | Yours | Only if the government notifies the company as one. dpdp-kit's records and access logs can serve as evidence for the audit. | Not planned |
+| Extra duties of a Significant Data Fiduciary: a DPO based in India, an independent data auditor, periodic Data Protection Impact Assessments | Section 10, Rule 13 | Yours | Only if the government notifies the company as one. dpdp-kit's records, access logs and the [evidence report](../evidence/) can serve as evidence for the audit. | Not planned |
 | Consent Managers | Sections 6(7)–6(9), Rule 4 | Yours | Integrates with a registered Consent Manager if it uses one. | Later |
 
 ## Using this map

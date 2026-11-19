@@ -65,6 +65,16 @@ export {
   type PrivacyNotice,
   type SavedNotice,
 } from "./notice.js";
+export {
+  describeRetention,
+  type EvidenceReport,
+  formatEvidence,
+  isUnavailable,
+  type RequestStats,
+  staticEvidence,
+  type Unavailable,
+} from "./evidence.js";
+export { type ConsentStats, isStatsStore, type StatsStore, type TaskCounts } from "./stats.js";
 export { type ApiOptions, handle, type HttpOptions, type HttpRequest, type HttpResponse } from "./http.js";
 export {
   type AccessInput,

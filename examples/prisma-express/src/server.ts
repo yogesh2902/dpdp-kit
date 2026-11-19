@@ -1,5 +1,5 @@
 // Chai & Co's API. The x-user-id and x-staff-id headers stand in for your own authentication.
-import { DpdpError } from "dpdp-kit";
+import { DpdpError, formatEvidence } from "dpdp-kit";
 import { dpdpRouter, logAccess, requireConsent } from "dpdp-kit/express";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { prisma } from "./db.js";
@@ -84,6 +84,12 @@ app.post("/admin/breaches/:id/notified", async (req, res) => {
 
 app.get("/admin/consents/:id/verify", async (req, res) => {
   res.json(await dpdp.consent.verify(req.params.id));
+});
+
+// The evidence report, as Markdown: what the config declares and what the records show.
+app.get("/admin/evidence", async (req, res) => {
+  const report = await dpdp.evidence(req.query.from ? { from: String(req.query.from) } : {});
+  res.type("text/markdown").send(formatEvidence(report));
 });
 
 // Once a day in production: startDaily(dpdp) from dpdp-kit/schedule, or your own cron.

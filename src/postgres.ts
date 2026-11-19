@@ -8,6 +8,7 @@ import { columnValue, type DataAccess } from "./data-access.js";
 import { SeqConflictError } from "./errors.js";
 import type { NoticeLanguage } from "./languages.js";
 import type { NoticeStore, PrivacyNotice } from "./notice.js";
+import { ACTIONS_SQL, NOW_SQL, PERIOD_SQL, type StatsStore, statsFromRows, TASKS_SQL, taskCountsFromRows, TOTALS_SQL } from "./stats.js";
 import type { ErasureTask, RightsRequest } from "./records.js";
 import type { Schema } from "./schema-check.js";
 import type { ConsentEvent, DpdpStore } from "./store.js";
@@ -231,13 +232,25 @@ const accessParams = (f: AccessFilter) => [f.subjectId ?? null, f.actor ?? null,
  * const store = postgresStore(async (text, params) => (await pool.query(text, [...params])).rows);
  * ```
  */
-export function postgresStore(query: SqlQuery): DpdpStore & AccessLogStore & BreachStore & NoticeStore {
+export function postgresStore(query: SqlQuery): DpdpStore & AccessLogStore & BreachStore & NoticeStore & StatsStore {
   const NOTICE_ROW = `content, ${utc("first_shown_at")} AS first_shown_at`;
   const savedNotice = (r: Record<string, unknown>) => ({
     notice: (typeof r.content === "string" ? JSON.parse(r.content) : r.content) as PrivacyNotice,
     firstShownAt: iso(r.first_shown_at)!,
   });
   return {
+    async consentStats(from, to) {
+      const [totals, actions, period, now] = await Promise.all([
+        query(TOTALS_SQL, [from, to]),
+        query(ACTIONS_SQL, [from, to]),
+        query(PERIOD_SQL, [from, to]),
+        query(NOW_SQL, []),
+      ]);
+      return statsFromRows(from, to, totals[0], actions, period, now);
+    },
+    async taskCounts(now) {
+      return taskCountsFromRows(await query(TASKS_SQL, [now]));
+    },
     async savePrivacyNotice(n, at) {
       const rows = await query(
         `INSERT INTO dpdp_privacy_notices (version, language, kind, content, first_shown_at)

@@ -5,6 +5,7 @@
 import type { AccessLogStore } from "./access.js";
 import type { BreachStore } from "./breach.js";
 import type { NoticeStore } from "./notice.js";
+import type { StatsStore } from "./stats.js";
 import type { DataAccess } from "./data-access.js";
 import { postgresData, postgresStore, type SqlQuery } from "./postgres.js";
 import type { Schema, SchemaColumn, SchemaReference, SchemaTable } from "./schema-check.js";
@@ -31,7 +32,7 @@ export const prismaQuery =
  * const dpdp = createDpdp({ config, store: prismaStore(prisma), data: prismaData(prisma, { schema }) });
  * ```
  */
-export function prismaStore(prisma: PrismaLike): DpdpStore & AccessLogStore & BreachStore & NoticeStore {
+export function prismaStore(prisma: PrismaLike): DpdpStore & AccessLogStore & BreachStore & NoticeStore & StatsStore {
   return postgresStore(prismaQuery(prisma));
 }
 

@@ -23,6 +23,7 @@ const ok = async (method, path, options) => {
   return res.body;
 };
 const step = (n, text) => console.log(`\n${n}. ${text}`);
+const startedAt = new Date().toISOString();
 const check = (text) => console.log(`   ✔ ${text}`);
 
 // 1. Two people read the notice and sign up. Asha agrees to promotional SMS; Ravi doesn't.
@@ -168,5 +169,15 @@ check("Asha's interests erased, phone kept; Ravi's profile deleted, invoice held
 step(10, "Consent records survive erasure and still verify (Section 6(10))");
 for (const id of [asha, ravi]) assert.equal((await ok("GET", `/admin/consents/${id}/verify`)).ok, true);
 check("both hash chains verify");
+
+// 11. The evidence report for the whole year, for an auditor or the Board.
+step(11, "The evidence report for the year");
+const evidence = await (await fetch(`${base}/admin/evidence?from=${encodeURIComponent(startedAt)}`)).text();
+assert.ok(evidence.startsWith("# DPDP Act evidence: Chai & Co"));
+for (const part of ["## Notices shown", "## Consent (Section 6)", "## Rights requests", "## Erasure", "## Breaches", "## What needs attention"]) {
+  assert.ok(evidence.includes(part), `the report has "${part}"`);
+}
+assert.match(evidence, /consent event\(s\) from 2 person\(s\)/);
+check(`${evidence.split("\n").length} lines of Markdown, from the notice to the breach`);
 
 console.log("\nThe whole journey passed.");

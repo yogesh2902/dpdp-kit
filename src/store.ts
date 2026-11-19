@@ -3,6 +3,7 @@ import type { Breach, BreachNotice, BreachStore } from "./breach.js";
 import { SeqConflictError } from "./errors.js";
 import type { NoticeLanguage } from "./languages.js";
 import type { NoticeStore, SavedNotice } from "./notice.js";
+import { type StatsStore, statsFromEvents } from "./stats.js";
 import { type ErasureTask, isRunnable, type RequestStore, type RightsRequest, type TaskStore } from "./records.js";
 
 /**
@@ -59,7 +60,8 @@ export function isDpdpStore(store: ConsentStore): store is DpdpStore {
 export function memoryStore(): DpdpStore &
   AccessLogStore &
   BreachStore &
-  NoticeStore & {
+  NoticeStore &
+  StatsStore & {
     readonly all: Map<string, ConsentEvent[]>;
     readonly requests: Map<string, RightsRequest>;
     readonly tasks: Map<string, ErasureTask>;
@@ -87,6 +89,18 @@ export function memoryStore(): DpdpStore &
     breaches,
     notices,
     privacyNotices,
+
+    async consentStats(from, to) {
+      return statsFromEvents(all.values(), from, to);
+    },
+    async taskCounts(now) {
+      const counts = { byStatus: {} as Record<string, number>, late: 0 };
+      for (const t of tasks.values()) {
+        counts.byStatus[t.status] = (counts.byStatus[t.status] ?? 0) + 1;
+        if ((t.status === "pending" || t.status === "failed") && t.dueAt < now) counts.late++;
+      }
+      return counts;
+    },
 
     async savePrivacyNotice(notice, at) {
       const key = privacyKey(notice.version, notice.language, notice.kind);

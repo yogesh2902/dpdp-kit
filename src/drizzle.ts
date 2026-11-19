@@ -9,6 +9,7 @@ import type { ErasureTask, RequestStatus, RequestType, RightsRequest, TaskKind, 
 import { SeqConflictError } from "./errors.js";
 import type { NoticeLanguage } from "./languages.js";
 import type { NoticeKind, NoticeStore, PrivacyNotice } from "./notice.js";
+import { ACTIONS_SQL, NOW_SQL, PERIOD_SQL, type StatsStore, statsFromRows, TASKS_SQL, taskCountsFromRows, TOTALS_SQL } from "./stats.js";
 import type { Schema, SchemaReference, SchemaTable } from "./schema-check.js";
 import type { ConsentEvent, DpdpStore } from "./store.js";
 
@@ -326,9 +327,21 @@ function runnable(when: { now: string; staleBefore: string; maxAttempts: number 
  * `consentEvents`, `rightsRequests`, `erasureTasks`, `accessLog`, `breaches`, `breachNotices` and
  * `privacyNotices` (or `DPDP_DDL`).
  */
-export function drizzleStore(db: AnyPgDatabase): DpdpStore & AccessLogStore & BreachStore & NoticeStore {
+export function drizzleStore(db: AnyPgDatabase): DpdpStore & AccessLogStore & BreachStore & NoticeStore & StatsStore {
   const savedNotice = (r: { content: PrivacyNotice; firstShownAt: Date }) => ({ notice: r.content, firstShownAt: new Date(r.firstShownAt).toISOString() });
   return {
+    async consentStats(from, to) {
+      const [totals, actions, period, now] = await Promise.all([
+        raw(db, TOTALS_SQL, [from, to]),
+        raw(db, ACTIONS_SQL, [from, to]),
+        raw(db, PERIOD_SQL, [from, to]),
+        raw(db, NOW_SQL, []),
+      ]);
+      return statsFromRows(from, to, totals[0], actions, period, now);
+    },
+    async taskCounts(now) {
+      return taskCountsFromRows(await raw(db, TASKS_SQL, [now]));
+    },
     async savePrivacyNotice(notice, at) {
       const rows = await db
         .insert(privacyNotices)
@@ -672,4 +685,12 @@ export function drizzleData(db: AnyPgDatabase, options: { schema?: Record<string
       return rowsOf(result).length;
     },
   };
+}
+
+/** Run plain SQL written with `$1`, `$2`… placeholders, through Drizzle, with values as parameters. */
+async function raw(db: AnyPgDatabase, text: string, params: readonly unknown[]): Promise<Record<string, unknown>[]> {
+  const parts = text.split(/\$(\d+)/);
+  const chunks: SQL[] = [];
+  for (let i = 0; i < parts.length; i++) chunks.push(i % 2 === 0 ? sql.raw(parts[i]!) : sql`${params[Number(parts[i]) - 1]}`);
+  return rowsOf(await db.execute(sql.join(chunks, sql``)));
 }
