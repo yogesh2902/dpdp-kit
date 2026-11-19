@@ -4,7 +4,7 @@ import { check, getTableConfig as pgTableConfig, index, integer, jsonb, type PgD
 import { SQLiteTable, getTableConfig as sqliteTableConfig } from "drizzle-orm/sqlite-core";
 import type { AccessEntry, AccessFilter, AccessLogStore } from "./access.js";
 import type { Breach, BreachNotice, BreachStore } from "./breach.js";
-import type { DataAccess } from "./data-access.js";
+import { columnValue, type DataAccess } from "./data-access.js";
 import type { ErasureTask, RequestStatus, RequestType, RightsRequest, TaskKind, TaskStatus } from "./records.js";
 import { SeqConflictError } from "./errors.js";
 import type { NoticeLanguage } from "./languages.js";
@@ -649,6 +649,19 @@ export function drizzleData(db: AnyPgDatabase, options: { schema?: Record<string
       );
       const result = await db.execute(
         sql`UPDATE ${sql.identifier(table)} SET ${set} WHERE ${where(table, subjectColumn, subjectId)} RETURNING 1`,
+      );
+      return rowsOf(result).length;
+    },
+    async updateFields(table, subjectColumn, subjectId, values, only = {}) {
+      const entries = Object.entries(values);
+      if (entries.length === 0) return 0;
+      const set = sql.join(
+        entries.map(([c, v]) => (v === null || v === undefined ? sql`${col(table, c)} = NULL` : sql`${col(table, c)} = ${columnValue(v)}`)),
+        sql`, `,
+      );
+      const narrow = Object.entries(only).map(([c, v]) => sql` AND ${col(table, c)} = ${v}`);
+      const result = await db.execute(
+        sql`UPDATE ${sql.identifier(table)} SET ${set} WHERE ${where(table, subjectColumn, subjectId)}${sql.join(narrow, sql``)} RETURNING 1`,
       );
       return rowsOf(result).length;
     },

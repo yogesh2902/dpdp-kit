@@ -14,6 +14,30 @@ export interface RequestHistoryEntry {
   at: string;
   status: RequestStatus;
   note?: string;
+  /** Who did it: a staff user's id, a team, or a service. */
+  by?: string;
+  /** What happened, for entries that aren't only a status change. */
+  event?: "verified" | "corrected" | "revoked";
+  /** How the person's identity was checked, for `verified`, e.g. `"OTP to registered mobile"`. */
+  method?: string;
+  /** Data map keys that were changed, for `corrected`. Never the values. */
+  fields?: string[];
+}
+
+/** Whether someone recorded checking the identity of the person behind a request. */
+export const isVerified = (request: RightsRequest) => request.history.some((e) => e.event === "verified");
+
+/** Someone who may exercise the person's rights if they die or can no longer do so (Section 14). */
+export interface Nominee {
+  /** The id of the nomination request that recorded them. */
+  id: string;
+  subjectId: string;
+  name: string;
+  /** How to reach them, e.g. an email address or phone number. */
+  contact: string;
+  /** e.g. `"spouse"`, `"daughter"`. */
+  relation?: string;
+  nominatedAt: string;
 }
 
 /** A rights request or grievance, from the moment it's raised until it's answered. */

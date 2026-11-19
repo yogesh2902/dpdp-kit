@@ -108,6 +108,8 @@ export {
   REQUEST_TYPES,
   type RequestFilter,
   type RequestHistoryEntry,
+  isVerified,
+  type Nominee,
   type RequestStatus,
   type RequestStore,
   type RequestType,
@@ -123,5 +125,5 @@ export {
   type RunReport,
   tasksFromPlan,
 } from "./retention.js";
-export { type AccessSummary, DEFAULT_RESPONSE_WITHIN } from "./rights.js";
+export { type AccessSummary, type Acknowledgement, DEFAULT_RESPONSE_WITHIN, type RightsInfo } from "./rights.js";
 export { formatSafeguards, type Safeguard, type SafeguardStatus, safeguardsReport } from "./safeguards.js";

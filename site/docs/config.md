@@ -116,7 +116,12 @@ notPersonal: ["products.name", "branches.*"],
 How long you give yourself to answer each kind of rights request. The Rules set ninety days for grievances only (Rule 14(3)), and the audit fails above that:
 
 ```ts
-rights: { responseWithin: { grievance: "30d", access: "30d" } },
+rights: {
+  responseWithin: { grievance: "30d", access: "30d" },
+  how: "In the app: Settings → Privacy, or email privacy@acme.in", // Rule 14(1)(a)
+  identifiers: ["registered mobile number"],                       // Rule 14(1)(b)
+  verify: "required", // hold summaries, erasure and corrections until identity is checked
+},
 ```
 
 ## notice

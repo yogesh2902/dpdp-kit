@@ -33,6 +33,8 @@ export interface Issue {
     | "stale-not-personal"
     | "grievance-response-too-long"
     | "invalid-request-type"
+    | "rights-how-missing"
+    | "invalid-rights-verify"
     // Rule 6: security safeguards
     | "unprotected-high-risk-field"
     | "processor-contract-missing"
@@ -282,6 +284,19 @@ export function audit(config: DpdpConfig<string>): Issue[] {
         });
       }
     }
+  }
+  const verify = config.rights?.verify;
+  if (verify !== undefined && verify !== "required" && verify !== "optional") {
+    issues.push({ level: "error", code: "invalid-rights-verify", path: "rights.verify", message: 'Use "required" or "optional".' });
+  }
+  if (!config.rights?.how?.trim()) {
+    issues.push({
+      level: "warning",
+      code: "rights-how-missing",
+      path: "rights.how",
+      message: 'Rule 14(1)(a) requires publishing how people make a request. Say it in a sentence, e.g. how: "In the app: Settings → Privacy, or email privacy@example.in".',
+      since: "0.5",
+    });
   }
 
   const minimum = config.minimumRetention;

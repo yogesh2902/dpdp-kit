@@ -293,7 +293,7 @@ const summary = await dpdp.rights.summary(userId);
 await dpdp.rights.erase(userId, { keepFor: ["account"], requestId: request.id }); // schedules, resolves the request
 ```
 
-Corrections and nominations are recorded with the request (`details`); your app applies them, then calls `resolve()`. Set your own answer times in the config. The Rules set ninety days for grievances only, and the audit fails above that:
+From 0.5, `rights.correct(requestId, { "users.phone": "…" })` writes a correction and records which fields changed, `rights.nominate()` keeps nominees (Section 14), `rights.verifyIdentity()` records the identity check (and `rights: { verify: "required" }` makes it a precondition), and `rights.acknowledgement()` gives the reference and due date to send. Put how people make a request in `rights.how` (Rule 14(1)). Set your own answer times in the config. The Rules set ninety days for grievances only, and the audit fails above that:
 
 ```ts
 rights: { responseWithin: { grievance: "30d", access: "30d" } },

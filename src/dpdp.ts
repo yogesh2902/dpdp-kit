@@ -46,14 +46,17 @@ import {
 } from "./notice.js";
 import {
   type ErasureTask,
+  isVerified,
+  type Nominee,
   REQUEST_TYPES,
   type RequestFilter,
+  type RequestHistoryEntry,
   type RequestType,
   type RightsRequest,
   type TaskFilter,
 } from "./records.js";
 import { type ProcessorHooks, type RunReport, runDueTasks, tasksFromPlan } from "./retention.js";
-import { type AccessSummary, buildAccessSummary, dueAt } from "./rights.js";
+import { type AccessSummary, type Acknowledgement, acknowledgement, buildAccessSummary, dueAt, type RightsInfo, rightsInfo } from "./rights.js";
 import {
   type ConsentAction,
   type ConsentEvent,
@@ -115,6 +118,9 @@ export interface DpdpEvents {
   "retention.ran": { report: RunReport };
   "rights.opened": { request: RightsRequest };
   "rights.closed": { request: RightsRequest };
+  "rights.verified": { request: RightsRequest };
+  "rights.corrected": { request: RightsRequest; fields: string[] };
+  "rights.nominated": { nominee: Nominee };
   "access.logged": { entries: AccessEntry[] };
   "daily.ran": { report: DailyReport };
   "breach.opened": { breach: Breach };
@@ -353,10 +359,23 @@ export interface Dpdp<P extends string> {
     get(id: string): Promise<RightsRequest | undefined>;
     /** Requests, oldest first. `overdue: true` gives open requests past their due date. */
     list(filter?: RequestFilter & { overdue?: boolean }): Promise<RightsRequest[]>;
-    resolve(id: string, note?: string): Promise<RightsRequest>;
-    reject(id: string, reason: string): Promise<RightsRequest>;
-    /** What you hold about the person and who you shared it with (Section 11(1)). Needs `data`. */
-    summary(subjectId: string): Promise<AccessSummary>;
+    /** `by`: who answered, recorded in the history. */
+    resolve(id: string, note?: string, options?: { by?: string }): Promise<RightsRequest>;
+    reject(id: string, reason: string, options?: { by?: string }): Promise<RightsRequest>;
+    /** What to tell the person now: the reference, when you'll answer, and who to ask meanwhile. */
+    acknowledgement(id: string): Promise<Acknowledgement>;
+    /**
+     * Record that you checked the identity of the person behind a request, e.g.
+     * `{ method: "OTP to registered mobile", by: "support:anita" }`. With `rights.verify: "required"`,
+     * summaries, erasure and corrections for a request wait for this.
+     */
+    verifyIdentity(id: string, input: { method: string; by: string }): Promise<RightsRequest>;
+    /**
+     * What you hold about the person and who you shared it with (Section 11(1)). Needs `data`. Pass
+     * the request it answers as `requestId`: it must be the person's, open, and verified if you
+     * require that.
+     */
+    summary(subjectId: string, options?: { requestId?: string }): Promise<AccessSummary>;
     /**
      * Erase on request (Section 12(3)): every purpose ends except those in `keepFor`, which you still
      * need for the specified purpose. Legal holds and `minimumRetention` still apply. Pass the
@@ -364,8 +383,34 @@ export interface Dpdp<P extends string> {
      */
     erase(
       subjectId: string,
-      input?: { keepFor?: readonly P[]; requestId?: string },
+      input?: { keepFor?: readonly P[]; requestId?: string; by?: string },
     ): Promise<{ plan: ErasurePlan; tasks: ErasureTask[] }>;
+    /**
+     * Correct, complete or update the person's data (Section 12(2)) for an open `correction`
+     * request, and resolve it. Keys are data map fields, `"users.phone"`. `where` picks some of the
+     * person's rows in one table, e.g. `{ id: 42 }`. The history records which fields changed,
+     * never the values. Needs `data` with `updateFields`.
+     */
+    correct(
+      requestId: string,
+      changes: Readonly<Record<string, unknown>>,
+      options?: { where?: Readonly<Record<string, unknown>>; by?: string; resolve?: boolean },
+    ): Promise<{ request: RightsRequest; changed: Record<string, number> }>;
+    /**
+     * Record someone who may exercise the person's rights if they die or can no longer act
+     * (Section 14, Rule 14(4)). Opens and resolves a `nomination` request, or uses the one you pass.
+     */
+    nominate(
+      subjectId: string,
+      nominee: { name: string; contact: string; relation?: string },
+      options?: { requestId?: string; by?: string },
+    ): Promise<Nominee>;
+    /** The person's current nominees, oldest first. */
+    nominees(subjectId: string): Promise<Nominee[]>;
+    /** Remove a nominee at the person's request. */
+    revokeNominee(subjectId: string, nomineeId: string, options?: { by?: string }): Promise<void>;
+    /** What Rule 14(1) and 14(3) ask you to publish: how to make a request, identifiers, answer times. */
+    how(): RightsInfo;
   };
 }
 
@@ -650,7 +695,25 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
     return request;
   }
 
-  async function close(id: string, status: "resolved" | "rejected", note?: string): Promise<RightsRequest> {
+  /** A request you're about to act on: the person's, still open, and verified if you require that. */
+  async function usableRequest(id: string, expect: { subjectId?: string; type?: RequestType } = {}): Promise<RightsRequest> {
+    const request = await requireRequest(id);
+    if (expect.subjectId !== undefined && request.subjectId !== expect.subjectId) {
+      throw new DpdpError("request-not-found", `Request ${id} belongs to a different person`);
+    }
+    if (expect.type !== undefined && request.type !== expect.type) {
+      throw new DpdpError("wrong-request-type", `Request ${id} is a ${request.type} request, not ${expect.type}`);
+    }
+    if (request.status !== "open") throw new DpdpError("request-closed", `Request ${id} is already ${request.status}`);
+    if (config.rights?.verify === "required" && !isVerified(request)) {
+      throw new DpdpError("request-not-verified", `Check the identity of the person behind request ${id} first, and record it with rights.verifyIdentity()`);
+    }
+    return request;
+  }
+
+  const byEntry = (by: string | undefined) => (by !== undefined ? { by } : {});
+
+  async function close(id: string, status: "resolved" | "rejected", note?: string, by?: string, extra: RequestHistoryEntry[] = []): Promise<RightsRequest> {
     const request = await requireRequest(id);
     if (request.status !== "open") {
       throw new DpdpError("request-closed", `Request ${id} is already ${request.status}`);
@@ -660,7 +723,7 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
       ...request,
       status,
       closedAt: at,
-      history: [...request.history, { at, status, ...(note !== undefined ? { note } : {}) }],
+      history: [...request.history, ...extra, { at, status, ...(note !== undefined ? { note } : {}), ...byEntry(by) }],
     };
     await fullStore("Rights requests").updateRequest(closed);
     emit("rights.closed", { request: closed });
@@ -1157,12 +1220,127 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
         return list.filter((r) => r.dueAt < at);
       },
 
-      resolve: (id, note) => close(id, "resolved", note),
+      resolve: (id, note, opts = {}) => close(id, "resolved", note, opts.by),
 
-      reject: (id, reason) => close(id, "rejected", reason),
+      reject: (id, reason, opts = {}) => close(id, "rejected", reason, opts.by),
 
-      async summary(subjectId) {
+      async acknowledgement(id) {
+        return acknowledgement(config, await requireRequest(id));
+      },
+
+      async verifyIdentity(id, input) {
+        if (!input || typeof input.method !== "string" || !input.method.trim() || typeof input.by !== "string" || !input.by.trim()) {
+          throw new DpdpError("invalid-input", "Say how the identity was checked and by whom: { method, by }");
+        }
+        const request = await requireRequest(id);
+        if (request.status !== "open") throw new DpdpError("request-closed", `Request ${id} is already ${request.status}`);
+        const verified: RightsRequest = {
+          ...request,
+          history: [...request.history, { at: nowIso(), status: "open", event: "verified", method: input.method, by: input.by }],
+        };
+        await fullStore("Rights requests").updateRequest(verified);
+        emit("rights.verified", { request: verified });
+        return verified;
+      },
+
+      async correct(requestId, changes, opts = {}) {
+        const request = await usableRequest(requestId, { type: "correction" });
+        const data = dataAccess();
+        if (typeof data.updateFields !== "function") {
+          throw new DpdpError("data-access-unsupported", "This data access can't write corrections: give it updateFields (the built-in ones have it)");
+        }
+        const keys = Object.keys(changes ?? {});
+        if (keys.length === 0) throw new DpdpError("invalid-input", `Pass the fields to correct, e.g. { "users.phone": "98…" }`);
+        const byTable = new Map<string, Record<string, unknown>>();
+        for (const key of keys) {
+          const dot = key.indexOf(".");
+          const tableKey = dot < 0 ? key : key.slice(0, dot);
+          const field = key.slice(dot + 1);
+          const table = config.data[tableKey];
+          if (dot < 0 || !table || !Object.hasOwn(table.fields, field)) {
+            throw new DpdpError("unknown-field", `Not in the data map: ${JSON.stringify(key)}. Use keys like "users.phone".`);
+          }
+          if (table.legalHold) {
+            throw new DpdpError("not-correctable", `${tableKey} is kept under a legal hold (${table.legalHold.reason}): correct it through the process that law sets`);
+          }
+          const value = changes[key];
+          if (value === undefined || ["function", "symbol", "bigint"].includes(typeof value)) {
+            throw new DpdpError("invalid-input", `${key}: pass a string, number, boolean, null, or a JSON value`);
+          }
+          byTable.set(tableKey, { ...byTable.get(tableKey), [field]: value });
+        }
+        if (opts.where && byTable.size > 1) throw new DpdpError("invalid-input", "where applies to one table: correct one table at a time");
+        const changed: Record<string, number> = {};
+        for (const [tableKey, values] of byTable) {
+          const t = config.data[tableKey]!;
+          changed[tableKey] = await data.updateFields(t.table, t.subject, request.subjectId, values, opts.where);
+        }
+        const rows = Object.values(changed).reduce((a, b) => a + b, 0);
+        const entry: RequestHistoryEntry = { at: nowIso(), status: "open", event: "corrected", fields: keys, ...byEntry(opts.by) };
+        let updated: RightsRequest;
+        if (opts.resolve === false) {
+          updated = { ...request, history: [...request.history, entry] };
+          await fullStore("Rights requests").updateRequest(updated);
+        } else {
+          updated = await close(requestId, "resolved", `Corrected ${keys.join(", ")} (${rows} row${rows === 1 ? "" : "s"})`, opts.by, [entry]);
+        }
+        emit("rights.corrected", { request: updated, fields: keys });
+        return { request: updated, changed };
+      },
+
+      async nominate(subjectId, nominee, opts = {}) {
         checkSubject(subjectId);
+        for (const k of ["name", "contact"] as const) {
+          if (typeof nominee?.[k] !== "string" || !nominee[k].trim()) throw new DpdpError("invalid-input", `The nominee needs a ${k}`);
+        }
+        const details = { name: nominee.name, contact: nominee.contact, ...(nominee.relation !== undefined ? { relation: nominee.relation } : {}) };
+        let request: RightsRequest;
+        if (opts.requestId) {
+          const existing = await usableRequest(opts.requestId, { subjectId, type: "nomination" });
+          request = { ...existing, details: { ...existing.details, ...details } };
+          await fullStore("Rights requests").updateRequest(request);
+        } else {
+          request = await api.rights.open(subjectId, "nomination", details);
+        }
+        const closed = await close(request.id, "resolved", "Nominee recorded", opts.by);
+        const recorded: Nominee = { id: closed.id, subjectId, ...details, nominatedAt: closed.closedAt! };
+        emit("rights.nominated", { nominee: recorded });
+        return recorded;
+      },
+
+      async nominees(subjectId) {
+        checkSubject(subjectId);
+        const list = await fullStore("Rights requests").listRequests({ subjectId, status: "resolved" });
+        return list
+          .filter((r) => r.type === "nomination" && typeof r.details?.name === "string" && !r.history.some((e) => e.event === "revoked"))
+          .map((r) => ({
+            id: r.id,
+            subjectId: r.subjectId,
+            name: String(r.details!.name),
+            contact: String(r.details!.contact ?? ""),
+            ...(typeof r.details!.relation === "string" ? { relation: r.details!.relation } : {}),
+            nominatedAt: r.closedAt ?? r.openedAt,
+          }));
+      },
+
+      async revokeNominee(subjectId, nomineeId, opts = {}) {
+        checkSubject(subjectId);
+        const request = await fullStore("Rights requests").getRequest(nomineeId);
+        if (!request || request.subjectId !== subjectId || request.type !== "nomination" || request.status !== "resolved") {
+          throw new DpdpError("nominee-not-found", `No nominee ${JSON.stringify(nomineeId)} for this person`);
+        }
+        if (request.history.some((e) => e.event === "revoked")) return;
+        await fullStore("Rights requests").updateRequest({
+          ...request,
+          history: [...request.history, { at: nowIso(), status: "resolved", event: "revoked", ...byEntry(opts.by) }],
+        });
+      },
+
+      how: () => rightsInfo(config),
+
+      async summary(subjectId, opts = {}) {
+        checkSubject(subjectId);
+        if (opts.requestId !== undefined) await usableRequest(opts.requestId, { subjectId });
         const events = await store.events(subjectId);
         return buildAccessSummary({
           config,
@@ -1176,16 +1354,12 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
 
       async erase(subjectId, input = {}) {
         checkSubject(subjectId);
-        if (input.requestId) {
-          const request = await requireRequest(input.requestId);
-          if (request.subjectId !== subjectId) {
-            throw new DpdpError("request-not-found", `Request ${input.requestId} belongs to a different person`);
-          }
-        }
+        // Checked before anything is scheduled: the person's, still open, verified if required.
+        if (input.requestId) await usableRequest(input.requestId, { subjectId });
         const plan = accountPlan(subjectId, "erasure-request", input.keepFor ?? []);
         const tasks = await schedule(plan);
         if (input.requestId) {
-          await close(input.requestId, "resolved", `Erasure scheduled: ${tasks.length} task(s)`);
+          await close(input.requestId, "resolved", `Erasure scheduled: ${tasks.length} task(s)`, input.by);
         }
         return { plan, tasks };
       },

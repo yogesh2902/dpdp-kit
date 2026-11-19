@@ -26,7 +26,7 @@ Each duty is marked:
 
 | Duty | Law | Who | dpdp-kit does | Your company does |
 |---|---|---|---|---|
-| Keep data complete, accurate and consistent when it is used for decisions or shared | Section 8(3) | Shared | Records correction requests with due dates. | Applies the corrections, and checks data quality where decisions depend on it. |
+| Keep data complete, accurate and consistent when it is used for decisions or shared | Section 8(3) | Shared | Records correction requests with due dates; from 0.5, `rights.correct()` writes the correction and records which fields changed. | Decides what's accurate, and checks data quality where decisions depend on it. |
 | Erase when consent is withdrawn or the purpose ends, unless another law says keep it | Section 8(7) | Built in | Erasure plans and the retention runner for every table or collection in the data map, with legal holds (for example GST invoices for 8 years, then anonymised). `audit --schema` checks that each column can be erased and that no foreign key breaks a hold. | Decides retention periods and legal holds, and erases copies outside the database: files, backups, caches, search indexes, analytics. |
 | Keep personal data and logs of processing for at least a year | Rule 8(3) | Built in | `minimumRetention` delays erasure, and the audit enforces at least a year. | Nothing more, beyond setting the config. |
 | Erase after a period of inactivity, with 48 hours' warning | Rule 8(1)–(2), Third Schedule | Yours | Not yet. Planned for a later release. | Only for the classes in the Third Schedule: e-commerce and social media platforms with at least two crore registered users, and online gaming with at least fifty lakh. |
@@ -56,7 +56,7 @@ Each duty is marked:
 |---|---|---|---|---|
 | Publish a contact for questions about personal data | Section 8(9), Rule 9 | Shared | `fiduciary.dpo` in the config, checked by the audit and used in breach notices. | Publishes it on the website and in the app. |
 | Run a grievance mechanism and answer within 90 days | Sections 8(10), 13, Rule 14(3) | Shared | Grievances as requests with 90-day due dates; `daily()` lists the overdue ones. | Runs the channel and writes the answers. |
-| Access, correction and erasure on request, and nominations | Sections 11, 12, 14, Rule 14 | Shared | Rights requests with due dates; `summary()` lists what is held; `erase()` schedules the erasure. | Checks the person's identity, applies corrections and records nominations, and publishes how to make a request. |
+| Access, correction and erasure on request, and nominations | Sections 11, 12, 14, Rule 14 | Shared | Rights requests with due dates and acknowledgements; `summary()` lists what is held; `erase()` schedules the erasure; from 0.5, `correct()` writes corrections, `nominate()` keeps nominees, `verifyIdentity()` records the identity check and can be required, and `rights.how` holds what Rule 14(1) asks you to publish. | Checks the person's identity, decides each request, and publishes how to make one on the website or app. |
 
 ## Not covered yet
 

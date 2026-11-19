@@ -65,6 +65,7 @@ const config = defineConfig({
   },
   notice,
   minimumRetention: "1y",
+  rights: { how: "In the app: Settings → Privacy, or email privacy@example.in" },
   security: { accessControl: "SSO", backups: "Daily", measures: "Training" },
 });
 

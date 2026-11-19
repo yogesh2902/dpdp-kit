@@ -197,6 +197,23 @@ export interface RightsConfig {
    * responses at ninety days; the Rules set no period for the other types, so pick one you can keep.
    */
   responseWithin?: Duration | Partial<Record<RequestType, Duration>>;
+  /**
+   * How people make a request: the means Rule 14(1)(a) requires you to publish prominently, e.g.
+   * `"In the app: Settings → Privacy → Your data, or email privacy@chai.example"`. The audit warns
+   * when it's missing.
+   */
+  how?: string;
+  /**
+   * What you need to identify the person (Rule 14(1)(b)), e.g. `["registered mobile number"]`.
+   * Rule 14(5) gives examples: a customer id, an application number, an email address.
+   */
+  identifiers?: readonly string[];
+  /**
+   * `"required"`: summaries, erasure and corrections for a request refuse to run until someone
+   * records checking the person's identity with `rights.verifyIdentity()`. Default `"optional"`.
+   * Use it when requests arrive by email, phone or letter rather than from a signed-in account.
+   */
+  verify?: "required" | "optional";
 }
 
 export interface FiduciaryDef {

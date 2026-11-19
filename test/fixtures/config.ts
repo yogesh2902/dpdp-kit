@@ -40,6 +40,7 @@ export const config = defineConfig({
     posthog: { purposes: ["analytics"], contract: "PostHog DPA, section 4", countries: ["US"] },
   },
   minimumRetention: "1y",
+  rights: { how: "In the app: Settings → Privacy, or email privacy@example.in" },
   security: {
     accessControl: "SSO with least-privilege roles; production access through a bastion",
     backups: "Encrypted daily backups, restore tested monthly",

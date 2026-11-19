@@ -40,6 +40,7 @@ export default defineConfig({
   },
   notPersonal: ["users.created_at", "orders.total", "orders.created_at"],
   minimumRetention: "1y",
+  rights: { how: "In the app: Profile → Privacy, or email privacy@chai.example", identifiers: ["registered mobile number"] },
   security: {
     accessControl: "Google Workspace SSO, least-privilege roles, production through a bastion",
     backups: "Encrypted daily backups, restore tested monthly",

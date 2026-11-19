@@ -21,7 +21,22 @@ export interface DataAccess {
   ): Promise<number>;
   /** Delete the person's rows. Returns rows deleted. */
   deleteRows(table: string, subjectColumn: string, subjectId: string): Promise<number>;
+  /**
+   * Write new values to the person's rows, for corrections (Section 12(2)). `where` narrows it to
+   * some rows, e.g. `{ id: 42 }` for one address of several. Returns rows changed. Optional:
+   * without it, `rights.correct()` isn't available. The built-in data access all have it.
+   */
+  updateFields?(
+    table: string,
+    subjectColumn: string,
+    subjectId: string,
+    values: Readonly<Record<string, unknown>>,
+    where?: Readonly<Record<string, unknown>>,
+  ): Promise<number>;
 }
+
+/** A value written to a database column: objects and arrays as JSON text. */
+export const columnValue = (v: unknown) => (v !== null && typeof v === "object" && !(v instanceof Date) ? JSON.stringify(v) : v);
 
 type Row = Record<string, unknown>;
 
@@ -39,6 +54,13 @@ export function memoryData(tables: Record<string, Row[]>): DataAccess & { readon
     async eraseFields(table, subjectColumn, subjectId, columns, values = {}) {
       const rows = rowsOf(table).filter(mine(subjectColumn, subjectId));
       for (const row of rows) for (const c of columns) row[c] = Object.hasOwn(values, c) ? values[c] : null;
+      return rows.length;
+    },
+    async updateFields(table, subjectColumn, subjectId, values, where = {}) {
+      const rows = rowsOf(table).filter(
+        (row) => mine(subjectColumn, subjectId)(row) && Object.entries(where).every(([k, v]) => String(row[k]) === String(v)),
+      );
+      for (const row of rows) Object.assign(row, structuredClone(values));
       return rows.length;
     },
     async deleteRows(table, subjectColumn, subjectId) {

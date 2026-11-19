@@ -5,7 +5,7 @@ import type { AccessEntry, AccessLogStore } from "./access.js";
 import type { Breach, BreachNotice, BreachStore, NoticeCounts } from "./breach.js";
 import type { ErasedValue } from "./config.js";
 import type { DataAccess } from "./data-access.js";
-import { SeqConflictError } from "./errors.js";
+import { DpdpError, SeqConflictError } from "./errors.js";
 import type { NoticeStore, PrivacyNotice } from "./notice.js";
 import type { ErasureTask, RightsRequest } from "./records.js";
 import type { Schema, SchemaColumn, SchemaTable } from "./schema-check.js";
@@ -413,6 +413,27 @@ export function mongoData(source: MongoDbSource, options: MongoDataOptions = {})
         else $unset[path] = "";
       }
       const result = await collection(table).updateMany(filter(table, subjectColumn, subjectId), clean({ $set: Object.keys($set).length ? $set : undefined, $unset: Object.keys($unset).length ? $unset : undefined }));
+      return result.matchedCount;
+    },
+    async updateFields(table, subjectColumn, subjectId, changes, only = {}) {
+      const $set: Doc = {};
+      for (const [c, v] of Object.entries(changes)) {
+        const path = field(table, c);
+        if (writePath(table, path) !== path) {
+          throw new DpdpError("not-correctable", `${table}.${c} is inside an array: correct it in your own code, where you know which element is meant`);
+        }
+        $set[path] = v ?? null; // a correction to "no value" is stored as null, unlike erasure's $unset
+      }
+      if (Object.keys($set).length === 0) return 0;
+      const narrow: Doc = {};
+      for (const [c, v] of Object.entries(only)) {
+        const stored = field(table, c);
+        narrow[stored] = typeof v === "string" ? { $in: values(v, table, stored) } : v;
+      }
+      const result = await collection(table).updateMany(
+        { ...filter(table, subjectColumn, subjectId), ...narrow },
+        { $set },
+      );
       return result.matchedCount;
     },
     async deleteRows(table, subjectColumn, subjectId) {

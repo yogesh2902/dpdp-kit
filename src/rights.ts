@@ -1,7 +1,7 @@
 import type { Category, DpdpConfig } from "./config.js";
 import type { DataAccess } from "./data-access.js";
 import { type Duration, durationMs } from "./duration.js";
-import type { RequestType } from "./records.js";
+import { REQUEST_TYPES, type RequestType, type RightsRequest } from "./records.js";
 
 /** Default answer time: Rule 14(3) caps grievance responses at ninety days. */
 export const DEFAULT_RESPONSE_WITHIN: Duration = "90d";
@@ -94,5 +94,66 @@ export async function buildAccessSummary(input: {
     legitimateUses,
     ...(objections.length > 0 ? { objections: [...objections] } : {}),
     sharedWith,
+  };
+}
+
+/** What you tell the person when a request arrives. */
+export interface Acknowledgement {
+  /** The request id: the person quotes it when following up. */
+  reference: string;
+  type: RequestType;
+  receivedAt: string;
+  /** When you'll answer by (`config.rights.responseWithin`). */
+  dueAt: string;
+  /** Who to ask in the meantime: `fiduciary.dpo`. */
+  contact?: string;
+  /** The acknowledgement in plain English, ready to send. */
+  text: string;
+}
+
+const REQUEST_LABELS: Record<RequestType, string> = {
+  access: "request to see your personal data",
+  correction: "request to correct your personal data",
+  erasure: "request to erase your personal data",
+  grievance: "grievance",
+  nomination: "nomination",
+};
+
+/** A date as people read it in India, e.g. "19 November 2026". */
+export const indianDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" });
+
+export function acknowledgement(config: DpdpConfig<string>, request: RightsRequest): Acknowledgement {
+  const contact = config.fiduciary.dpo;
+  const text = [
+    `We received your ${REQUEST_LABELS[request.type]} on ${indianDate(request.openedAt)}. Your reference is ${request.id}.`,
+    `We'll respond by ${indianDate(request.dueAt)}.`,
+    ...(contact ? [`Questions in the meantime: ${contact}.`] : []),
+  ].join(" ");
+  return { reference: request.id, type: request.type, receivedAt: request.openedAt, dueAt: request.dueAt, ...(contact ? { contact } : {}), text };
+}
+
+/** What Rule 14(1) and 14(3) ask you to publish about making requests. */
+export interface RightsInfo {
+  /** The means of making a request (Rule 14(1)(a)). */
+  how?: string;
+  /** What identifies the person (Rule 14(1)(b)). */
+  identifiers: string[];
+  /** How long you take to answer each type (Rule 14(3) for grievances). */
+  responseWithin: Record<RequestType, Duration>;
+  contact?: string;
+  grievanceUrl?: string;
+  verify: "required" | "optional";
+}
+
+export function rightsInfo(config: DpdpConfig<string>): RightsInfo {
+  const r = config.rights ?? {};
+  return {
+    ...(r.how !== undefined ? { how: r.how } : {}),
+    identifiers: [...(r.identifiers ?? [])],
+    responseWithin: Object.fromEntries(REQUEST_TYPES.map((t) => [t, responseWithin(config, t)])) as Record<RequestType, Duration>,
+    ...(config.fiduciary.dpo ? { contact: config.fiduciary.dpo } : {}),
+    ...(config.fiduciary.grievanceUrl ? { grievanceUrl: config.fiduciary.grievanceUrl } : {}),
+    verify: r.verify ?? "optional",
   };
 }

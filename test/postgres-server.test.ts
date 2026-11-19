@@ -138,4 +138,14 @@ describe.skipIf(!url)("on a real Postgres server (node-postgres)", () => {
     expect(event.noticeVersion).toBe(notice.version);
     await ist.end();
   });
+
+  it("corrects a person's row for a verified request", async () => {
+    const d = createDpdp({ config: { ...config, rights: { verify: "required" } }, store: drizzleStore(db), data: drizzleData(db, { schema: { people } }) });
+    const request = await d.rights.open("p20", "correction");
+    await d.rights.verifyIdentity(request.id, { method: "OTP", by: "support" });
+    const { changed } = await d.rights.correct(request.id, { "people.email": "p20.new@example.com", "people.points": 7 });
+    expect(changed).toEqual({ people: 1 });
+    const { rows } = await pool.query("SELECT email, points FROM pg_people WHERE id = 'p20'");
+    expect(rows).toEqual([{ email: "p20.new@example.com", points: 7 }]);
+  });
 });

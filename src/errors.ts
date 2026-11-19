@@ -29,7 +29,12 @@ export type DpdpErrorCode =
   | "notice-language-unavailable"
   | "notice-translation-incomplete"
   | "notice-description-missing"
-  | "notice-version-conflict";
+  | "notice-version-conflict"
+  | "not-correctable"
+  | "request-not-verified"
+  | "wrong-request-type"
+  | "nominee-not-found"
+  | "data-access-unsupported";
 
 /** Thrown for mistakes in how the library is called. Messages are for developers, not end users. */
 export class DpdpError extends Error {

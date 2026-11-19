@@ -87,11 +87,11 @@ describe("rights requests", () => {
   });
 
   it("audit enforces the 90-day grievance limit and known request types", () => {
-    const tooLong = { ...config, rights: { responseWithin: "120d" as const } };
+    const tooLong = { ...config, rights: { ...config.rights, responseWithin: "120d" as const } };
     expect(audit(tooLong).map((i) => i.code)).toEqual(["grievance-response-too-long"]);
-    const accessSlow = { ...config, rights: { responseWithin: { access: "120d" as const } } };
+    const accessSlow = { ...config, rights: { ...config.rights, responseWithin: { access: "120d" as const } } };
     expect(audit(accessSlow)).toEqual([]); // the Rules set no period for access requests
-    const badType = { ...config, rights: { responseWithin: { complaints: "30d" } } } as unknown as typeof config;
+    const badType = { ...config, rights: { ...config.rights, responseWithin: { complaints: "30d" } } } as unknown as typeof config;
     expect(audit(badType).map((i) => i.code)).toEqual(["invalid-request-type"]);
   });
 });

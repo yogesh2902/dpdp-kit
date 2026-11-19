@@ -56,6 +56,7 @@ describe("audit", () => {
         "warning:security-measure-missing:security.accessControl",
         "warning:security-measure-missing:security.backups",
         "warning:security-measure-missing:security.measures",
+        "warning:rights-how-missing:rights.how",
       ].sort(),
     );
   });
@@ -69,6 +70,7 @@ describe("audit", () => {
     expect(codes(bad)).toEqual([
       "warning:contact-missing:fiduciary.dpo",
       "error:invalid-retention:purposes.account.retain",
+      "warning:rights-how-missing:rights.how",
       "warning:minimum-retention-missing:minimumRetention",
       "warning:security-measure-missing:security.accessControl",
       "warning:security-measure-missing:security.backups",
@@ -83,6 +85,7 @@ describe("audit: Rule 6 security safeguards", () => {
     purposes: { kyc: { basis: "legitimate-use", retain: "while-active" } },
     minimumRetention: "1y",
     security: { accessControl: "SSO", backups: "Daily", measures: "Training" },
+    rights: { how: "Settings → Privacy" },
   } as const;
   const fields = (f: Record<string, unknown>) =>
     ({ ...base, data: { users: { table: "users", subject: "id", fields: f } } }) as unknown as DpdpConfig<string>;
@@ -128,6 +131,7 @@ describe("audit: erase settings", () => {
         data: { users: { table: "users", subject: "id", fields: { email: { category: "contact", purposes: ["a"], erase } } } },
         minimumRetention: "1y",
         security: { accessControl: "x", backups: "x", measures: "x" },
+        rights: { how: "Settings → Privacy" },
       }) as unknown as DpdpConfig<string>;
     for (const ok of ["null", "redact", { value: "" }, { value: 0 }, { value: null }, { value: () => "x" }]) expect(codes(withErase(ok))).toEqual([]);
     for (const bad of ["blank", { with: "x" }, { value: { nested: 1 } }]) {

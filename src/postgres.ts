@@ -4,7 +4,7 @@
 import type { AccessEntry, AccessFilter, AccessLogStore } from "./access.js";
 import type { Breach, BreachNotice, BreachStore, NoticeCounts } from "./breach.js";
 import type { ErasedValue } from "./config.js";
-import type { DataAccess } from "./data-access.js";
+import { columnValue, type DataAccess } from "./data-access.js";
 import { SeqConflictError } from "./errors.js";
 import type { NoticeLanguage } from "./languages.js";
 import type { NoticeStore, PrivacyNotice } from "./notice.js";
@@ -480,6 +480,25 @@ export function postgresData(query: SqlQuery, options: { schema?: Schema } = {})
         })
         .join(", ");
       const rows = await query(`UPDATE ${from(table)} SET ${set} WHERE ${where(table, subjectColumn)} RETURNING 1 AS one`, params);
+      return rows.length;
+    },
+    async updateFields(table, subjectColumn, subjectId, values, only = {}) {
+      const entries = Object.entries(values);
+      if (entries.length === 0) return 0;
+      const params: unknown[] = [subjectId];
+      const isArrayColumn = (c: string) => /\[\]$|^_/.test(column(table, c)?.sqlType ?? "");
+      const set = entries
+        .map(([c, v]) => {
+          if (v === null || v === undefined) return `${col(table, c)} = NULL`;
+          params.push(Array.isArray(v) && isArrayColumn(c) ? v : columnValue(v));
+          return `${col(table, c)} = ${param(params.length, table, c)}`;
+        })
+        .join(", ");
+      const narrow = Object.entries(only).map(([c, v]) => {
+        params.push(v);
+        return ` AND ${col(table, c)} = ${param(params.length, table, c)}`;
+      });
+      const rows = await query(`UPDATE ${from(table)} SET ${set} WHERE ${where(table, subjectColumn)}${narrow.join("")} RETURNING 1 AS one`, params);
       return rows.length;
     },
     async deleteRows(table, subjectColumn, subjectId) {

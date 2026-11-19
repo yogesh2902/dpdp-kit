@@ -23,6 +23,9 @@ off(); // stop listening
 | `retention.ran` | `retention.run()` finished | `{ report }` |
 | `rights.opened` | `rights.open()` saved | `{ request }` |
 | `rights.closed` | a request was resolved or rejected | `{ request }` |
+| `rights.verified` | `rights.verifyIdentity()` saved | `{ request }` |
+| `rights.corrected` | `rights.correct()` wrote the changes | `{ request, fields }` |
+| `rights.nominated` | `rights.nominate()` saved | `{ nominee }` |
 | `access.logged` | `access.log()` saved, including a refused out-of-purpose read | `{ entries }` |
 
 Listeners are typed: the payload matches the event name.

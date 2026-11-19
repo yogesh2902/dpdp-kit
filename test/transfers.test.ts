@@ -28,6 +28,7 @@ const base = defineConfig({
     posthog: { purposes: ["analytics"], contract: "DPA s.4", countries: ["US", "DE"] },
   },
   minimumRetention: "1y",
+  rights: { how: "In the app: Settings → Privacy, or email privacy@example.in" },
   security: { accessControl: "SSO", backups: "Daily", measures: "Training" },
 });
 
