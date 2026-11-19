@@ -1,9 +1,13 @@
 name: Release
 
-# Creates the GitHub Release (and its vX.Y.Z tag) for the version in package.json, once that
-# version is published on npm. Publishing to npm stays manual (it needs the owner's 2FA), so this
-# runs when the version changes on main, every few hours to pick up a version published later,
-# and on demand. It does nothing if the release exists or the version isn't on npm yet.
+# Publishes the version in package.json to npm, with provenance, through npm's trusted publishing
+# (no token: npmjs.com trusts this workflow), then creates the GitHub Release and moves the v0 tag.
+#
+# - Publishing happens only on a push to main or on demand, and always from the commit that set
+#   the version, never from whatever main holds later.
+# - The schedule only creates a GitHub Release that is missing for a version already on npm (for
+#   example one published by hand); it never publishes.
+# - Nothing happens when the version is already on npm and released.
 on:
   push:
     branches: [main]
@@ -13,42 +17,113 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: GitHub Release for the published version
+  version:
+    name: Find the version to release
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.find.outputs.version }}
+      sha: ${{ steps.find.outputs.sha }}
+      on-npm: ${{ steps.find.outputs.on-npm }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: find
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          # The commit that last changed the "version" line: what gets published and tagged.
+          sha=$(git log -1 --format=%H -G'"version":' -- package.json)
+          on_npm=false
+          if [ "$(npm view "dpdp-kit@$version" version 2>/dev/null || true)" = "$version" ]; then on_npm=true; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "on-npm=$on_npm" >> "$GITHUB_OUTPUT"
+          echo "dpdp-kit $version, set in ${sha:0:7}, on npm: $on_npm" >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    name: Publish to npm
+    needs: version
+    if: needs.version.outputs.on-npm == 'false' && github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # trusted publishing and provenance
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      # Trusted publishing needs npm 11.5.1 or later; don't rely on the version bundled with Node.
+      - run: npm install -g npm@^11.5.1
+      - run: pnpm install --frozen-lockfile
+      # prepublishOnly runs typecheck, tests and the build before anything is uploaded.
+      - name: Publish
+        run: npm publish --provenance --access public
+      - name: Explain a missing trusted publisher
+        if: failure()
+        run: |
+          {
+            echo "### npm publish failed"
+            echo "If the log shows ENEEDAUTH or 404 on PUT, npm doesn't trust this workflow yet:"
+            echo "npmjs.com > dpdp-kit > Settings > Trusted Publisher > GitHub Actions,"
+            echo "organization or user yogesh2902, repository dpdp-kit, workflow release.yml."
+            echo "Until then, publish by hand (npm publish) and this workflow will still create the release."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: GitHub Release for the published version
+    needs: [version, publish]
+    # Runs after a publish, or on its own when the version was already on npm.
+    if: always() && (needs.publish.result == 'success' || needs.version.outputs.on-npm == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+          SHA: ${{ needs.version.outputs.sha }}
         run: |
           set -euo pipefail
-          version=$(node -p "require('./package.json').version")
-          tag="v$version"
+          tag="v$VERSION"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "$tag is already released."
             exit 0
           fi
-          if [ "$(npm view "dpdp-kit@$version" version 2>/dev/null || true)" != "$version" ]; then
-            echo "::notice::dpdp-kit@$version isn't on npm yet. The release will be created once it's published."
-            exit 0
-          fi
-          node scripts/release-notes.mjs "$version" > notes.md
-          gh release create "$tag" --title "dpdp-kit $version" --notes-file notes.md --target "$GITHUB_SHA" --latest
+          # A new version can take a few minutes to appear on the registry.
+          for i in $(seq 1 30); do
+            [ "$(npm view "dpdp-kit@$VERSION" version 2>/dev/null || true)" = "$VERSION" ] && break
+            if [ "$i" = 30 ]; then
+              echo "::notice::dpdp-kit@$VERSION isn't on npm yet. The scheduled run will create the release later."
+              exit 0
+            fi
+            sleep 20
+          done
+          node scripts/release-notes.mjs "$VERSION" > notes.md
+          gh release create "$tag" --title "dpdp-kit $VERSION" --notes-file notes.md --target "$SHA" --latest
           echo "Released $tag: $(gh release view "$tag" --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"
           # Workflows use the action as yogesh2902/dpdp-kit@v0 (the latest 0.x), so move that tag too.
-          major="v${version%%.*}"
+          major="v${VERSION%%.*}"
           git fetch --tags --quiet
           git tag -f "$major" "$tag^{}"
           git push -f origin "refs/tags/$major"
-          echo "Moved $major to $tag." >> "$GITHUB_STEP_SUMMARY"
+          echo "Moved $major to $tag. Tick \"Publish this Action to the GitHub Marketplace\" on the release by hand." >> "$GITHUB_STEP_SUMMARY"
