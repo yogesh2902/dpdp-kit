@@ -33,7 +33,7 @@ Without `from` and `to`, it covers the last 30 days. `report` is plain data too,
 | Breaches | Each open breach, or one that began in the period | Section 8(6), Rule 7 |
 | Configuration audit | `audit()` | |
 
-The built-in stores count consent events and tasks in the database, so a large record isn't loaded into memory. The access review does read every log entry in the period, so use shorter periods if your access log is large. A store that doesn't keep something says so in that section ("Not available") rather than leaving it out.
+The built-in stores count consent events and erasure tasks in the database, so a large consent record isn't loaded into memory. Rights requests are counted in memory, and the access review reads every log entry in the period, so use shorter periods if either is large. A store that doesn't keep something says so in that section ("Not available") rather than leaving it out.
 
 ## From the command line
 

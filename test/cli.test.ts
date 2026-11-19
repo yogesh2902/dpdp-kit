@@ -35,8 +35,9 @@ describe("dpdp-kit audit", () => {
     expect(out).toContain("data.users.fields.phone.purposes");
     expect(out).toContain('Unknown purpose "acount"');
     // the misspelling also leaves "account" unused, there is no grievance URL or contact person,
-    // the three Rule 6 safeguards that live outside code aren't described, and nor is how to make a request
-    expect(out).toMatch(/1 error\(s\), 7 warning\(s\)/);
+    // the three Rule 6 safeguards that live outside code aren't described, nor is how to make a request,
+    // nor which clause of Section 7 "account" relies on
+    expect(out).toMatch(/1 error\(s\), 8 warning\(s\)/);
     expect(out).toContain("security.backups");
   });
 

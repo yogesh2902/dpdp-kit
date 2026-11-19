@@ -493,7 +493,7 @@ export function mongoData(source: MongoDbSource, options: MongoDataOptions = {})
         narrow[stored] = typeof v === "string" ? { $in: values(v, table, stored) } : v;
       }
       const result = await collection(table).updateMany(
-        { ...filter(table, subjectColumn, subjectId), ...narrow },
+        { ...narrow, ...filter(table, subjectColumn, subjectId) }, // the person's filter last: nothing in where replaces it
         { $set },
       );
       return result.matchedCount;

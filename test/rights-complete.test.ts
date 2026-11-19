@@ -78,6 +78,10 @@ describe("checking who's asking", () => {
     await expect(dpdp.rights.erase("u1", { requestId: done.id })).rejects.toMatchObject({ code: "request-closed" });
     expect(await dpdp.retention.tasks({ subjectId: "u1" })).toEqual([]); // 0.4 scheduled the tasks, then failed to close
     expect((await dpdp.rights.get(done.id))?.history.at(-1)).toMatchObject({ status: "resolved", by: "support:anita" });
+    // Only an erasure request can be answered by erasing.
+    const grievance = await dpdp.rights.open("u1", "grievance");
+    await expect(dpdp.rights.erase("u1", { requestId: grievance.id })).rejects.toMatchObject({ code: "wrong-request-type" });
+    expect(await dpdp.retention.tasks({ subjectId: "u1" })).toEqual([]);
   });
 
   it("needs a method and who checked", async () => {
@@ -124,6 +128,17 @@ describe("correcting data (Section 12(2))", () => {
     const noWrites = createDpdp({ config, store: memoryStore(), data: readOnly as DataAccess });
     const r2 = await noWrites.rights.open("u1", "correction");
     await expect(noWrites.rights.correct(r2.id, { "users.phone": "x" })).rejects.toMatchObject({ code: "data-access-unsupported" });
+  });
+
+  it("keeps where to the person's own rows, and leaves the request open when nothing matched", async () => {
+    const { dpdp, data } = setup();
+    const request = await dpdp.rights.open("u1", "correction");
+    // where narrows; it can't name the subject column (and so reach someone else's rows) or pass a query.
+    await expect(dpdp.rights.correct(request.id, { "events.device": "x" }, { where: { user_id: "u2" } })).rejects.toMatchObject({ code: "invalid-input" });
+    await expect(dpdp.rights.correct(request.id, { "events.device": "x" }, { where: { id: { $ne: null } } as never })).rejects.toMatchObject({ code: "invalid-input" });
+    await expect(dpdp.rights.correct(request.id, { "events.device": "x" }, { where: { id: 99 } })).rejects.toMatchObject({ code: "no-matching-rows" });
+    expect(data.tables.analytics_events!.map((r) => r.device)).toEqual(["Pixel 7", "iPad"]);
+    expect((await dpdp.rights.get(request.id))?.status).toBe("open");
   });
 });
 

@@ -1054,8 +1054,9 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
       const at = nowIso();
       checkIso(input.from, "from");
       checkIso(input.to, "to");
-      const to = input.to ?? at;
-      const from = input.from ?? new Date(Date.parse(to) - durationMs("30d")).toISOString();
+      // Normalised, so every store compares the same instants (ISO strings only sort as times in UTC).
+      const to = new Date(input.to ?? at).toISOString();
+      const from = input.from !== undefined ? new Date(input.from).toISOString() : new Date(Date.parse(to) - durationMs("30d")).toISOString();
       const report = staticEvidence(config, at);
       report.period = { from, to };
       const without = (what: string) => ({ unavailable: `the store doesn't keep ${what}` });
@@ -1338,12 +1339,24 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
           byTable.set(tableKey, { ...byTable.get(tableKey), [field]: value });
         }
         if (opts.where && byTable.size > 1) throw new DpdpError("invalid-input", "where applies to one table: correct one table at a time");
+        for (const [column, value] of Object.entries(opts.where ?? {})) {
+          // where narrows the person's rows; it can never reach someone else's.
+          const t = config.data[[...byTable.keys()][0]!]!;
+          if (column === t.subject) throw new DpdpError("invalid-input", `where can't name the subject column ${JSON.stringify(column)}: the request already decides whose rows these are`);
+          if (!["string", "number", "boolean"].includes(typeof value)) {
+            throw new DpdpError("invalid-input", `where.${column}: pass a string, number or boolean to match`);
+          }
+        }
         const changed: Record<string, number> = {};
         for (const [tableKey, values] of byTable) {
           const t = config.data[tableKey]!;
           changed[tableKey] = await data.updateFields(t.table, t.subject, request.subjectId, values, opts.where);
         }
         const rows = Object.values(changed).reduce((a, b) => a + b, 0);
+        if (rows === 0) {
+          // Nothing was corrected, so the request stays open rather than being answered as done.
+          throw new DpdpError("no-matching-rows", `No rows of this person matched${opts.where ? " where" : ""}: nothing was corrected and request ${requestId} is still open`);
+        }
         const entry: RequestHistoryEntry = { at: nowIso(), status: "open", event: "corrected", fields: keys, ...byEntry(opts.by) };
         let updated: RightsRequest;
         if (opts.resolve === false) {
@@ -1423,7 +1436,7 @@ export function createDpdp<const P extends string>(options: DpdpOptions<P>): Dpd
       async erase(subjectId, input = {}) {
         checkSubject(subjectId);
         // Checked before anything is scheduled: the person's, still open, verified if required.
-        if (input.requestId) await usableRequest(input.requestId, { subjectId });
+        if (input.requestId) await usableRequest(input.requestId, { subjectId, type: "erasure" });
         const plan = accountPlan(subjectId, "erasure-request", input.keepFor ?? []);
         const tasks = await schedule(plan);
         if (input.requestId) {

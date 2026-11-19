@@ -11,7 +11,7 @@ export default defineConfig({
     dpo: "Meera Iyer, Data Protection Officer, privacy@chai.example, +91 80 4000 1234",
   },
   purposes: {
-    account: { basis: "legitimate-use", retain: "while-active", description: "Run your account and deliver your orders" },
+    account: { basis: "legitimate-use", legitimateUse: "7(a)", retain: "while-active", description: "Run your account and deliver your orders" },
     // Section 7(a): the number they gave for their orders; they can say they don't want these SMS.
     order_sms: { basis: "legitimate-use", legitimateUse: "7(a)", retain: "while-active", description: "SMS updates about your orders" },
     marketing_sms: { basis: "consent", retain: { afterWithdrawal: "0d" }, description: "Offers and new teas by SMS" },

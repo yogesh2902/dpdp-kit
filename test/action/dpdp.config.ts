@@ -4,7 +4,7 @@ import { defineConfig } from "dpdp-kit";
 export default defineConfig({
   fiduciary: { name: "Sample Shop", grievanceUrl: "https://shop.example/grievance" },
   purposes: {
-    account: { basis: "legitimate-use", retain: "while-active" },
+    account: { basis: "legitimate-use", legitimateUse: "7(a)", retain: "while-active" },
     promo: { basis: "consent", retain: { afterWithdrawal: "0d" } },
   },
   data: {

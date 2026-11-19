@@ -12,7 +12,7 @@ import { createHandlers } from "../src/next.js";
 const config = defineConfig({
   fiduciary: { name: "Chai & Co", grievanceUrl: "https://chai.example/grievance", dpo: "privacy@chai.example" },
   purposes: {
-    account: { basis: "legitimate-use", legitimateUse: "7(b)", retain: "while-active" },
+    account: { basis: "legitimate-use", legitimateUse: "7(i)", retain: "while-active" },
     receipts: { basis: "legitimate-use", legitimateUse: "7(a)", retain: "while-active", description: "SMS receipts" },
     offers: { basis: "consent", retain: { afterWithdrawal: "0d" }, description: "Offers by SMS" },
   },
@@ -62,7 +62,7 @@ async function journey(call: Call, data: ReturnType<typeof memoryData>) {
   const consents = await call("GET", "/consents", { user: "u1" });
   expect(consents.body).toMatchObject({ consents: ["offers"], objections: ["receipts"] });
   expect(consents.body.purposes).toEqual([
-    { purpose: "account", basis: "legitimate-use", legitimateUse: "7(b)", active: true },
+    { purpose: "account", basis: "legitimate-use", legitimateUse: "7(i)", active: true },
     { purpose: "receipts", basis: "legitimate-use", description: "SMS receipts", legitimateUse: "7(a)", active: false },
     { purpose: "offers", basis: "consent", description: "Offers by SMS", active: true },
   ]);
@@ -169,6 +169,34 @@ describe("the core handler's safety rules", () => {
     const res = await handle(dpdp, { method: "POST", path: "/consents", contentType: "application/json", body: { purposes: ["offers"], subjectId: "u2" }, subjectId: "u1" });
     expect(res.status).toBe(201);
     expect(await dpdp.consent.active("u2")).toEqual([]);
+  });
+
+  it("answers 404 for paths it doesn't serve before asking who's signed in, so adapters can pass them on", async () => {
+    const { dpdp } = makeDpdp();
+    expect(await handle(dpdp, { method: "GET", path: "/policy" })).toEqual({ status: 404, body: { error: "not-found" } });
+    expect(await handle(dpdp, { method: "POST", path: "/feedback", contentType: "text/plain", subjectId: "u1" }, { limitWrites: () => false })).toEqual({
+      status: 404,
+      body: { error: "not-found" },
+    });
+    expect(await handle(dpdp, { method: "GET", path: "/requests/%E0%A4" })).toEqual({ status: 404, body: { error: "not-found" } }); // not percent-encoding
+    expect(await handle(dpdp, { method: "GET", path: "/consents" })).toEqual({ status: 401, body: { error: "unauthenticated" } });
+  });
+
+  it("leaves the app's own routes under the same path to the app, body and all", async () => {
+    const { dpdp } = makeDpdp();
+    const app = express();
+    app.use("/privacy", dpdpRouter(dpdp, { subject: (req) => req.header("x-user") }));
+    app.get("/privacy/policy", (_req, res) => res.send("policy"));
+    app.post("/privacy/feedback", express.text(), (req, res) => res.send(`got ${req.body}`));
+    const server = app.listen(0);
+    await new Promise((r) => server.once("listening", r));
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/privacy`;
+    try {
+      expect(await (await fetch(`${base}/policy`)).text()).toBe("policy");
+      expect(await (await fetch(`${base}/feedback`, { method: "POST", headers: { "content-type": "text/plain" }, body: "hello" })).text()).toBe("got hello");
+    } finally {
+      server.close();
+    }
   });
 
   it("has no /admin routes unless you turn them on", async () => {

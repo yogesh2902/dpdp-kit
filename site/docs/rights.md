@@ -82,7 +82,8 @@ await dpdp.rights.correct(request.id, { "users.phone": "98xxxxxx02" }, { by: "su
 // writes the new value, records that users.phone changed (never the value), resolves the request
 ```
 
-- Keys are data map fields. `where` picks some of the person's rows in one table: `{ where: { id: 42 } }` for one address of several.
+- Keys are data map fields. `where` picks some of the person's rows in one table: `{ where: { id: 42 } }` for one address of several. Its values are plain strings, numbers or booleans, and it can't name the subject column, so it never reaches anyone else's rows.
+- If no row matched, nothing is changed and it throws `no-matching-rows`; the request stays open.
 - Fields in a table under a legal hold can't be corrected this way (`not-correctable`): tax and KYC records have their own procedures, and Section 12(1) defers to them.
 - In MongoDB, a field inside an array can't be corrected this way either: your code knows which element is meant.
 - `resolve: false` leaves the request open, for corrections in several steps.

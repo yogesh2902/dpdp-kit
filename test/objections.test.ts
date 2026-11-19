@@ -9,7 +9,7 @@ const DAY = 24 * 60 * 60 * 1000;
 const config = defineConfig({
   fiduciary: { name: "Chai & Co", grievanceUrl: "/g", dpo: "privacy@chai.example" },
   purposes: {
-    account: { basis: "legitimate-use", legitimateUse: "7(b)", retain: "while-active" },
+    account: { basis: "legitimate-use", legitimateUse: "7(i)", retain: "while-active" },
     receipts: { basis: "legitimate-use", legitimateUse: "7(a)", retain: "while-active", description: "SMS receipts for your orders" },
     offers: { basis: "consent", retain: { afterWithdrawal: "0d" } },
   },

@@ -1,5 +1,5 @@
 import type { Dpdp } from "./dpdp.js";
-import { type ApiOptions, bodyOrResponse, DEFAULT_BODY_LIMIT, handle } from "./http.js";
+import { type ApiOptions, bodyOrResponse, DEFAULT_BODY_LIMIT, handle, isApiRoute } from "./http.js";
 import { type AccessLogOptions, checkConsent, consentDeniedBody, type GuardOptions, recordAccess } from "./guard.js";
 
 /** The parts of Express's response this middleware uses. */
@@ -110,7 +110,10 @@ export function dpdpRouter<P extends string, Req extends ApiRequestLike = any, R
   options: ApiOptions<Req>,
 ) {
   const limit = options.bodyLimit ?? DEFAULT_BODY_LIMIT;
+  const admin = options.admin !== undefined;
   return (req: Req, res: Res, next: Next): void => {
+    // Paths the API doesn't answer go on untouched: body unread, no sign-in check.
+    if (!isApiRoute(req.method, req.path, { admin })) return next();
     (async () => {
       let body: unknown = req.body;
       if (body === undefined && req.method !== "GET" && req.method !== "HEAD") {
@@ -138,11 +141,10 @@ export function dpdpRouter<P extends string, Req extends ApiRequestLike = any, R
           ...(req.ip ? { ip: req.ip } : {}),
           ...(userAgent ? { userAgent } : {}),
         },
-        { ...options, admin: options.admin !== undefined },
+        { ...options, admin },
       );
     })().then(
       (r) => {
-        if (r.status === 404 && (r.body as { error?: string }).error === "not-found") return next();
         res.setHeader("cache-control", "no-store");
         res.status(r.status).json(r.body);
       },

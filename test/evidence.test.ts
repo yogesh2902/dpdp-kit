@@ -86,6 +86,15 @@ describe("evidence from the records", () => {
     expect(md).toContain("## Breaches (Section 8(6), Rule 7)");
   });
 
+  it("reads from and to as instants, whatever offset they're written with", async () => {
+    const dpdp = await aMonth(memoryStore());
+    const utc = await dpdp.evidence({ from: "2026-11-01T04:30:00Z", to: "2026-11-01T11:00:00Z" });
+    const ist = await dpdp.evidence({ from: "2026-11-01T10:00:00+05:30", to: "2026-11-01T16:30:00+05:30" });
+    expect(ist.period).toEqual(utc.period);
+    expect(ist.consent).toEqual(utc.consent);
+    expect(ist.requests).toEqual(utc.requests);
+  });
+
   it("counts overdue requests as of now", async () => {
     const dpdp = await aMonth(memoryStore());
     dpdp.at(200); // the access request was due on day 92

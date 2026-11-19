@@ -57,7 +57,7 @@ export default defineConfig({
   fiduciary: { name: "Acme Pvt Ltd", grievanceUrl: "https://acme.in/privacy/grievance" },
 
   purposes: {
-    account:       { basis: "legitimate-use", retain: "while-active" },
+    account:       { basis: "legitimate-use", legitimateUse: "7(a)", retain: "while-active" },
     order_updates: { basis: "consent", retain: "while-active" },
     marketing_sms: { basis: "consent", retain: { afterWithdrawal: "0d" } },
     analytics:     { basis: "consent", retain: { afterWithdrawal: "7d" } }, // time for the batch job to run
@@ -540,8 +540,8 @@ Section 6(10) puts the burden on you: if consent is questioned in a proceeding, 
 | **v0.2.0** | Rights requests (Sections 11–14, Rule 14), retention runner that carries out erasure (Section 8(7), Rule 8(3), legal holds), processor hooks, `drizzleData`, GitHub Action with pull request annotations |
 | **v0.3.0** | Security safeguards (Rule 6): access log with review and one-year retention, `dpdp-kit/protect` (encryption, virtual tokens, masking), `protect` / `contract` / `security` in the config, `dpdp-kit safeguards`; Fastify and NestJS guards; `logAccess` for every framework; events (`dpdp.on`); `erase` replacements for `NOT NULL` columns; `dpdp.daily()` and `startDaily` |
 | **v0.4.0** | **Breach records** (Section 8(6), Rule 7) with the 72-hour Board report; **Prisma**, **MongoDB and Mongoose** and plain-SQL Postgres stores and data access; drift checks on Prisma schemas and Mongoose models; example apps run in CI |
-| next (0.5) | Notices that meet Rule 3 from the config, recording objections to a Section 7(a) use, an HTTP API with Express, Hono and Next.js adapters, completing rights requests, cross-border transfer records (Section 16) |
-| after (0.6) | MySQL and SQLite data access, React and React Native consent screens, Next.js and Expo example apps |
+| **v0.5.0** | **Notices** that meet Rule 3, built from the config and saved as proof; **objections** to a Section 7(a) use; rights requests completed (corrections, identity checks, nominees, acknowledgements); **cross-border transfers** (Section 16); an **HTTP API** for Express, Hono and Next.js; the **evidence report**; npm releases with provenance |
+| next (0.6) | React and React Native consent screens on the HTTP API, MySQL and SQLite data access, Next.js and Expo example apps |
 | later | Children and guardian consent (Section 9, Rule 10), inactivity erasure (Rule 8(1)–(2), Third Schedule), erasure beyond SQL (files, caches, search indexes), Consent Manager interop (Sections 6(7)–6(9), Rule 4) |
 
 ## When the Rules apply

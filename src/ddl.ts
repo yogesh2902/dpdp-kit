@@ -106,8 +106,10 @@ export const DPDP_DDL = `${CONSENT_EVENTS_DDL}\n${RECORDS_DDL}\n${ACCESS_LOG_DDL
 /**
  * Upgrades tables created by an earlier version to 0.5: consent events may now record objections
  * (`object`, `lift-objection`), and `dpdp_privacy_notices` keeps notice snapshots. Safe to run more than once, and on tables created by drizzle-kit
- * or Prisma, which have no such constraint. The constraint is added NOT VALID and then validated,
- * so a large table isn't locked while existing rows are checked.
+ * or Prisma, which have no such constraint. The constraint is added NOT VALID and then validated.
+ * Sent as one query, all of it is one transaction, which locks `dpdp_consent_events` until the
+ * existing rows are checked: fine for most tables. For a very large one, send the statements one
+ * at a time (split on `;\n`), so writes only wait for the short `ADD CONSTRAINT`.
  */
 export const MIGRATE_0_5_DDL = `ALTER TABLE dpdp_consent_events DROP CONSTRAINT IF EXISTS dpdp_consent_events_action_check;
 ALTER TABLE dpdp_consent_events ADD CONSTRAINT dpdp_consent_events_action_check CHECK (action IN ('grant', 'withdraw', 'object', 'lift-objection')) NOT VALID;

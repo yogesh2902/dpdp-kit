@@ -46,7 +46,7 @@ const notice = {
 const config = defineConfig({
   fiduciary: { name: "Chai & Co", grievanceUrl: "https://chai.example/grievance", dpo: "Meera Iyer, privacy@chai.example" },
   purposes: {
-    account: { basis: "legitimate-use", legitimateUse: "7(b)", retain: "while-active" },
+    account: { basis: "legitimate-use", legitimateUse: "7(i)", retain: "while-active" },
     offers: { basis: "consent", retain: { afterWithdrawal: "0d" }, description: "Offers and discounts by SMS" },
     analytics: { basis: "consent", retain: { afterWithdrawal: "7d" }, description: "Understanding how the app is used, to improve it" },
   },

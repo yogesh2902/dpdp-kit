@@ -13,13 +13,13 @@ Only purposes that rely on Section 7(a) accept objections. Say which clause each
 
 ```ts
 purposes: {
-  account:  { basis: "legitimate-use", legitimateUse: "7(b)", retain: "while-active" },
   receipts: { basis: "legitimate-use", legitimateUse: "7(a)", retain: "while-active" },
+  payroll:  { basis: "legitimate-use", legitimateUse: "7(i)", retain: "while-active" }, // employment: no objection
   offers:   { basis: "consent", retain: { afterWithdrawal: "0d" } },
 },
 ```
 
-`legitimateUse` is one of `"7(a)"` to `"7(i)"`. A purpose without it behaves as before 0.5: it is always allowed. The audit reports an error for a clause that doesn't exist, or for `legitimateUse` on a consent purpose.
+`legitimateUse` is one of `"7(a)"` to `"7(i)"`. A purpose without it behaves as before 0.5: it is always allowed, and the audit warns that the clause is missing (`legitimate-use-clause-missing`, which doesn't fail `--strict` until 0.6). The audit reports an error for a clause that doesn't exist, or for `legitimateUse` on a consent purpose.
 
 ## Object and change your mind
 
@@ -56,4 +56,4 @@ Lifting an objection cancels the erasure tasks it scheduled that haven't run yet
 
 ## Upgrading the database
 
-Tables created with 0.4's `DPDP_DDL` or `CONSENT_EVENTS_DDL` only accept `grant` and `withdraw`. Run `MIGRATE_0_5_DDL` once (exported by `dpdp-kit/postgres` and `dpdp-kit/drizzle`). It is safe to run twice, and on tables created by drizzle-kit or Prisma. Drizzle users can generate a migration instead: the schema now declares the same check. MongoDB needs nothing. See [Storage](../storage/).
+Tables created with 0.4's `DPDP_DDL` or `CONSENT_EVENTS_DDL` only accept `grant` and `withdraw`. Run `MIGRATE_0_5_DDL` once (exported by `dpdp-kit/postgres` and `dpdp-kit/drizzle`). It is safe to run twice, and on tables created by drizzle-kit or Prisma. Sent as one query it runs as one transaction, so consent writes wait until the existing rows are checked; for a very large table, send its statements one at a time. Drizzle users can generate a migration instead: the schema now declares the same check. MongoDB needs nothing. See [Storage](../storage/).

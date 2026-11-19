@@ -635,8 +635,10 @@ function rowsOf(result: unknown): Record<string, unknown>[] {
  */
 export function drizzleData(db: AnyPgDatabase, options: { schema?: Record<string, unknown> } = {}): DataAccess {
   const columnsByTable = new Map<string, Map<string, string>>();
+  const arrayColumns = new Set<string>();
   for (const table of options.schema ? drizzleSchema(options.schema).tables : []) {
     columnsByTable.set(table.name, new Map(table.columns.map((c) => [c.key ?? c.name, c.name])));
+    for (const c of table.columns) if (/\[\]$/.test(c.sqlType ?? "")) arrayColumns.add(`${table.name}\u0000${c.key ?? c.name}`);
   }
   const col = (table: string, name: string) => sql.identifier(columnsByTable.get(table)?.get(name) ?? name);
   const where = (table: string, subjectColumn: string, subjectId: string) =>
@@ -669,7 +671,11 @@ export function drizzleData(db: AnyPgDatabase, options: { schema?: Record<string
       const entries = Object.entries(values);
       if (entries.length === 0) return 0;
       const set = sql.join(
-        entries.map(([c, v]) => (v === null || v === undefined ? sql`${col(table, c)} = NULL` : sql`${col(table, c)} = ${columnValue(v)}`)),
+        entries.map(([c, v]) => {
+          if (v === null || v === undefined) return sql`${col(table, c)} = NULL`;
+          // Array columns take the array itself; anything else that's an object is written as JSON.
+          return sql`${col(table, c)} = ${Array.isArray(v) && arrayColumns.has(`${table}\u0000${c}`) ? sql.param(v) : columnValue(v)}`;
+        }),
         sql`, `,
       );
       const narrow = Object.entries(only).map(([c, v]) => sql` AND ${col(table, c)} = ${v}`);

@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.5.0
+
+**Notices, objections, complete rights requests, transfers, an HTTP API and an evidence report.** A 0.4 app that changes nothing keeps working: everything new is opt-in, and new audit warnings don't fail `--strict` until 0.6.
+
+### Added
+
+- **Privacy notices** (Section 5, Rule 3), with `notice` in the config:
+  - `dpdp.notice.build()` / `show()` build the notice from the config: each consent purpose with its description, the itemised data (`label` on fields), the links Rule 3(c) requires and how to complain to the Board.
+  - English is built in; other languages come from `notice.translations`, which you supply. The audit checks each translation is complete.
+  - Each notice is versioned by its content, per language and kind (`"consent"` or `"existing-users"`), and saved the first time it's shown (`dpdp_privacy_notices`), as proof under Section 6(10). Reusing a version label for different text throws `notice-version-conflict`.
+  - `consent.grant()` records the version and language shown, when `config.notice` is set and you don't pass a `noticeVersion`.
+- **Objections** (Section 7(a)): `legitimateUse: "7(a)"` … `"7(i)"` on legitimate-use purposes.
+  - `consent.object()` and `consent.liftObjection()` add `object` and `lift-objection` events to the same hash chain.
+  - `has()` is false for an objected 7(a) purpose; guards answer `reason: "objected"`; `access.review()` reports `objected` reads; `rights.summary()` lists `objections`.
+  - An objection plans erasure like a withdrawal (fields, never rows). Lifting it cancels the tasks it scheduled that haven't run (new task status `cancelled`).
+- **Rights requests, completed** (Sections 11 to 14, Rule 14):
+  - `rights.correct(requestId, { "users.phone": "…" }, { where })` writes a correction through the new optional `DataAccess.updateFields` (all built-in data access have it) and records which fields changed, never the values.
+  - `rights.verifyIdentity()` records the identity check; `rights: { verify: "required" }` makes summaries, erasure and corrections for a request wait for it.
+  - `rights.acknowledgement()` gives the reference, due date and contact to send; `rights.how()` and `rights.how` / `rights.identifiers` in the config publish Rule 14(1) information.
+  - `rights.nominate()`, `nominees()` and `revokeNominee()` (Section 14). `resolve`, `reject`, `erase` and `correct` take `by`, recorded in the history.
+  - New events: `rights.verified`, `rights.corrected`, `rights.nominated`.
+- **Cross-border transfers** (Section 16, Rule 15): `countries` and `foreignState` on processors, and `transfers: { restricted, keepInIndia }`. The audit errors on a processor in a restricted country, or abroad for a purpose that must stay in India. `rights.summary().sharedWith` lists countries.
+- **HTTP API** for a privacy centre, a consent screen or a mobile app: `dpdpRouter` (`dpdp-kit/express`), `dpdpRoutes` (`dpdp-kit/hono`) and `createHandlers` (new `dpdp-kit/next`, Web `Request`/`Response` only), over `handle()`.
+  - Routes for the notice, consents, objections, the person's data, rights requests and nominees, plus optional `/admin` routes for your privacy team.
+  - The person comes only from your authentication; POST must be JSON; bodies are limited; `limitWrites` can refuse floods; errors answer `{ error: code }` only. Paths it doesn't serve go on to your own handlers.
+- **Evidence report**: `dpdp.evidence({ from, to })` and `formatEvidence()`: the data map, processors and countries, Rule 6 safeguards, Rule 14 information, notices shown, consent counts, rights requests, erasure, the access review and breaches, ending with what needs attention. The built-in stores count consent events and tasks in the database. `npx dpdp-kit evidence` writes the config-only parts.
+- **New audit checks**: errors for invalid clauses, countries, notice links, descriptions and translations (only when you use those settings); warnings `legitimate-use-clause-missing`, `rights-how-missing`, `processor-countries-missing`, `foreign-state-transfer` and `notice-label-missing`. Warnings new in 0.5 are reported but don't fail `--strict` until 0.6 (`Issue.since`).
+- **Releases from GitHub Actions** with npm provenance.
+
+### Upgrading from 0.4.x
+
+1. **Storage.**
+   - Plain SQL or Drizzle tables from `DPDP_DDL`: run `MIGRATE_0_5_DDL` once (from `dpdp-kit/postgres` or `dpdp-kit/drizzle`). It lets the consent table accept objections and creates `dpdp_privacy_notices`. It's safe to run twice. Drizzle users can instead add `privacyNotices` to their schema and generate a migration.
+   - Prisma: add the new `DpdpPrivacyNotice` model from `PRISMA_MODELS` and run `prisma migrate dev`.
+   - MongoDB: nothing to do.
+2. **Types that grew.** `ConsentAction` adds `"object" | "lift-objection"`, `ErasureReason` adds `"objection"`, `TaskStatus` adds `"cancelled"`, and there are new events and error codes. A `switch` that lists every case needs the new ones. `consent.history()` now includes objections when there are any.
+3. **Guards** may answer `{ error: "consent_required", reason: "objected" }` for a 7(a) purpose the person objected to.
+4. **`rights.erase({ requestId })`** now needs an open `erasure` request for that person, checked before anything is scheduled. `summary(subjectId, { requestId })` checks that the request is the person's and open. With `verify: "required"`, both also need the identity check.
+5. **Custom stores and data access.** `NoticeStore`, `StatsStore` and `DataAccess.updateFields` are optional: without them, saved notices, database counts in the evidence report and corrections aren't available, and everything else works.
+6. **Audit.** Run `npx dpdp-kit audit` and fill in what the new warnings ask for (`legitimateUse` on each legitimate use, `rights.how`, `countries` on processors) before 0.6, when they start failing `--strict`.
+
 ## 0.4.1
 
 The GitHub Action's description is now short enough for the GitHub Marketplace (under 125 characters), so this release can be listed there. No changes to the library.

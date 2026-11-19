@@ -8,7 +8,7 @@ export const config = defineConfig({
     dpo: "Meera Iyer, Data Protection Officer, privacy@acme.example, +91 80 4000 1234",
   },
   purposes: {
-    account: { basis: "legitimate-use", retain: "while-active" },
+    account: { basis: "legitimate-use", legitimateUse: "7(a)", retain: "while-active" },
     order_updates: { basis: "consent", retain: "while-active" },
     marketing_sms: { basis: "consent", retain: { afterWithdrawal: "0d" } },
     analytics: { basis: "consent", retain: { afterWithdrawal: "30d" } },

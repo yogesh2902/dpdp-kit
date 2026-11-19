@@ -21,7 +21,7 @@ export default defineConfig({
   fiduciary: { name: "Acme Pvt Ltd", grievanceUrl: "https://acme.in/privacy/grievance" },
 
   purposes: {
-    account:       { basis: "legitimate-use", retain: "while-active" },
+    account:       { basis: "legitimate-use", legitimateUse: "7(a)", retain: "while-active" },
     marketing_sms: { basis: "consent", retain: { afterWithdrawal: "0d" } },
   },
 

@@ -14,6 +14,7 @@ export interface Issue {
     | "invalid-basis"
     | "invalid-retention"
     | "invalid-legitimate-use"
+    | "legitimate-use-clause-missing"
     | "invalid-duration"
     | "unknown-purpose"
     | "field-without-purpose"
@@ -199,6 +200,15 @@ export function audit(config: DpdpConfig<string>): Issue[] {
           message: `legitimateUse must be one of ${LEGITIMATE_USES.join(", ")}: the clause of Section 7 this use relies on.`,
         });
       }
+    } else if (def.basis === "legitimate-use") {
+      issues.push({
+        level: "warning",
+        code: "legitimate-use-clause-missing",
+        path: `${path}.legitimateUse`,
+        message:
+          'Say which clause of Section 7 this use relies on, e.g. legitimateUse: "7(a)" for data the person gave voluntarily for this purpose (they can then object), or "7(i)" for employment. Processing without consent needs one of them.',
+        since: "0.5",
+      });
     }
   }
 

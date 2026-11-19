@@ -47,6 +47,7 @@ export interface HttpOptions {
 const STATUS: Partial<Record<DpdpErrorCode | string, number>> = {
   "request-not-found": 404,
   "nominee-not-found": 404,
+  "no-matching-rows": 404,
   "notice-not-configured": 404,
   "notice-language-unavailable": 404,
   "request-closed": 409,
@@ -111,9 +112,65 @@ export async function handle<P extends string>(dpdp: Dpdp<P>, req: HttpRequest, 
   }
 }
 
+/** Every route, as `METHOD path`, with `:id` for an id. */
+const PUBLIC_ROUTES = ["GET notice", "GET rights"];
+const PERSON_ROUTES = [
+  "GET consents",
+  "POST consents",
+  "POST consents/withdraw",
+  "POST objections",
+  "DELETE objections",
+  "GET data",
+  "GET requests",
+  "GET requests/:id",
+  "POST requests",
+  "GET nominees",
+  "POST nominees",
+  "DELETE nominees/:id",
+];
+const ADMIN_ROUTES = [
+  "GET admin/requests",
+  "GET admin/requests/:id",
+  "GET admin/requests/:id/data",
+  "POST admin/requests/:id/verify",
+  "POST admin/requests/:id/resolve",
+  "POST admin/requests/:id/reject",
+  "POST admin/requests/:id/correct",
+  "POST admin/requests/:id/erase",
+];
+
+/** The path's segments, decoded, or undefined when it isn't valid percent-encoding. */
+function segments(path: string): string[] | undefined {
+  try {
+    return path.split("/").filter(Boolean).map(decodeURIComponent);
+  } catch {
+    return undefined;
+  }
+}
+
+const matches = (route: string, method: string, parts: readonly string[]) => {
+  const [m, pattern = ""] = route.split(" ");
+  const want = pattern.split("/");
+  return m === method && want.length === parts.length && want.every((p, i) => p.startsWith(":") || p === parts[i]);
+};
+
+/**
+ * Whether the API answers this method and path (below where it's mounted). The adapters pass
+ * anything else on to your own handlers, before reading the body or checking who's signed in.
+ */
+export function isApiRoute(method: string, path: string, options: { admin?: boolean } = {}): boolean {
+  const parts = segments(path);
+  if (!parts) return false;
+  const m = method.toUpperCase();
+  const routes = options.admin ? [...PUBLIC_ROUTES, ...PERSON_ROUTES, ...ADMIN_ROUTES] : [...PUBLIC_ROUTES, ...PERSON_ROUTES];
+  return routes.some((r) => matches(r, m, parts));
+}
+
 async function route<P extends string>(dpdp: Dpdp<P>, req: HttpRequest, options: HttpOptions): Promise<HttpResponse> {
   const method = req.method.toUpperCase();
-  const parts = req.path.split("/").filter(Boolean).map(decodeURIComponent);
+  // Unknown paths answer 404 before anything else, so the adapters can pass them on.
+  if (!isApiRoute(method, req.path, options)) return fail(404, "not-found");
+  const parts = segments(req.path)!;
   const query = req.query ?? {};
   if (method === "POST" && !isJson(req.contentType)) return fail(415, "unsupported-media-type");
   const body = object(req.body);

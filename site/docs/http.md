@@ -20,7 +20,7 @@ app.use("/privacy", dpdpRouter(dpdp, {
 }));
 ```
 
-It works with or without `express.json()` in front of it, and passes unknown paths on to your next handler.
+It works with or without `express.json()` in front of it. Paths it doesn't serve go on to your next handler untouched: the body isn't read and no sign-in is checked, so your own routes under `/privacy` keep working.
 
 **Hono**
 

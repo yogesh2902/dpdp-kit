@@ -13,7 +13,7 @@ export default defineConfig({
   fiduciary: { name: "Acme Pvt Ltd", grievanceUrl: "https://acme.in/privacy/grievance" },
 
   purposes: {
-    account:       { basis: "legitimate-use", retain: "while-active" },
+    account:       { basis: "legitimate-use", legitimateUse: "7(a)", retain: "while-active" },
     order_updates: { basis: "consent", retain: "while-active" },
     marketing_sms: { basis: "consent", retain: { afterWithdrawal: "0d" } },
     analytics:     { basis: "consent", retain: { afterWithdrawal: "7d" } }, // time for the batch job to run
@@ -61,7 +61,7 @@ Who you are, as the Data Fiduciary.
 Each purpose you hold personal data for.
 
 - **`basis`**: `"consent"` (Section 6) or `"legitimate-use"` (Section 7). For most apps a legitimate use means Section 7(a): data the person voluntarily gave you for a specified purpose, until they tell you they don't want it used. Keeping data because a law requires it is not a legitimate use; use `legalHold` for that.
-- **`legitimateUse`**: for a legitimate-use purpose, the clause of Section 7 it relies on, `"7(a)"` to `"7(i)"`. Purposes with `"7(a)"` accept [objections](../objections/).
+- **`legitimateUse`**: for a legitimate-use purpose, the clause of Section 7 it relies on, `"7(a)"` to `"7(i)"`. Purposes with `"7(a)"` accept [objections](../objections/). The audit warns when a legitimate use doesn't say.
 - **`retain`**: `"while-active"`, a duration such as `"1y"`, or `{ afterWithdrawal: "7d" }` for consent purposes. Durations use `h`, `d` or `y`. Section 8(7)(a) says to erase upon withdrawal, so keep `afterWithdrawal` to the delay your systems really need.
 - **`description`**: in plain words, what the purpose is and what it gives the person. Required for consent purposes when you build [notices](../notices/).
 
