@@ -1,6 +1,6 @@
 // Chai & Co's API. The x-user-id and x-staff-id headers stand in for your own authentication.
 import { DpdpError } from "dpdp-kit";
-import { logAccess, requireConsent } from "dpdp-kit/express";
+import { dpdpRouter, logAccess, requireConsent } from "dpdp-kit/express";
 import express, { type NextFunction, type Request, type Response } from "express";
 import mongoose from "mongoose";
 import { Order, User } from "./models.js";
@@ -14,18 +14,15 @@ const staffId = (req: Request) => req.header("x-staff-id");
 // ---- Customers ----
 
 app.post("/signup", async (req, res) => {
-  const { name, phone, email, city, interests, consents = [], language = "en" } = req.body;
+  const { name, phone, email, city, interests, consents = [] } = req.body;
   const user = await User.create({ name, phone, email, city, interests });
-  if (consents.length > 0) {
-    // Section 6: record what they agreed to, against the notice they saw, in their language.
-    await dpdp.consent.grant(user.id, consents, {
-      noticeVersion: "2026-11",
-      language,
-      channel: "web",
-      evidence: { ip: req.ip ?? "", userAgent: req.header("user-agent") ?? "" },
-    });
-  }
-  res.status(201).json({ id: user.id });
+  // Section 6: record what they agreed to. With notice in the config, the event records the
+  // version of the notice they saw (GET /privacy/notice), and the notice is kept as proof.
+  const event =
+    consents.length > 0
+      ? await dpdp.consent.grant(user.id, consents, { channel: "web", evidence: { ip: req.ip ?? "", userAgent: req.header("user-agent") ?? "" } })
+      : undefined;
+  res.status(201).json({ id: user.id, noticeVersion: event?.noticeVersion });
 });
 
 app.post("/orders", async (req, res) => {
@@ -33,27 +30,13 @@ app.post("/orders", async (req, res) => {
   res.status(201).json({ id: order.id });
 });
 
-app.get("/me/consents", async (req, res) => {
-  res.json({ active: await dpdp.consent.active(userId(req)!) });
-});
-
-app.post("/me/consents/withdraw", async (req, res) => {
-  const { tasks } = await dpdp.consent.withdraw(userId(req)!, req.body.purposes);
-  res.json({ scheduled: tasks.length });
-});
+// The privacy centre: the notice, consents, objections, the person's data, rights requests and
+// nominees, and /privacy/admin for the privacy team. See dpdp-kit.js.org/docs/http/.
+app.use("/privacy", dpdpRouter(dpdp, { subject: userId, admin: staffId }));
 
 // Only people who agreed to marketing get promotions; everyone else gets a plain 403.
 app.post("/promo", requireConsent(dpdp, "marketing_sms", { subject: userId }), (_req, res) => {
   res.json({ sent: true });
-});
-
-// Section 11: what we hold about you, why, and who we share it with.
-app.get("/me/data", async (req, res) => {
-  res.json(await dpdp.rights.summary(userId(req)!));
-});
-
-app.post("/me/grievances", async (req, res) => {
-  res.status(201).json(await dpdp.rights.open(userId(req)!, "grievance", { text: req.body.text }));
 });
 
 app.post("/me/delete", async (req, res) => {

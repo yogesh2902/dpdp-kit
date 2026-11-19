@@ -140,7 +140,7 @@ jobs:
           npm run db:push
           npm run audit
           npx tsx src/server.ts > server.log 2>&1 &
-          for i in $(seq 1 60); do curl -s -o /dev/null "$BASE_URL/me/consents" -H "x-user-id: x" && break; sleep 1; done
+          for i in $(seq 1 60); do curl -s -o /dev/null "$BASE_URL/privacy/rights" && break; sleep 1; done
           npm run journey || { cat server.log; exit 1; }
       - name: Mongoose + Express + MongoDB
         working-directory: examples/mongoose-express
@@ -152,7 +152,7 @@ jobs:
           npm install --no-audit --no-fund "$RUNNER_TEMP"/dpdp-kit-*.tgz
           npm run audit
           npx tsx src/server.ts > server.log 2>&1 &
-          for i in $(seq 1 60); do curl -s -o /dev/null "$BASE_URL/me/consents" -H "x-user-id: x" && break; sleep 1; done
+          for i in $(seq 1 60); do curl -s -o /dev/null "$BASE_URL/privacy/rights" && break; sleep 1; done
           npm run journey || { cat server.log; exit 1; }
 
   action:

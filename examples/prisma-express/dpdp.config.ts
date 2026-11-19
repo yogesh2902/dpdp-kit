@@ -12,7 +12,9 @@ export default defineConfig({
   },
   purposes: {
     account: { basis: "legitimate-use", retain: "while-active", description: "Run your account and deliver your orders" },
-    marketing_sms: { basis: "consent", retain: { afterWithdrawal: "0d" }, description: "Offers by SMS" },
+    // Section 7(a): the number they gave for their orders; they can say they don't want these SMS.
+    order_sms: { basis: "legitimate-use", legitimateUse: "7(a)", retain: "while-active", description: "SMS updates about your orders" },
+    marketing_sms: { basis: "consent", retain: { afterWithdrawal: "0d" }, description: "Offers and new teas by SMS" },
   },
   data: {
     // Prisma model and field names; the database names (users, user_id) work too.
@@ -22,10 +24,10 @@ export default defineConfig({
       fields: {
         // NOT NULL columns say what erasing writes instead of NULL (`npm run audit` checks this).
         name: { category: "identity", purposes: ["account"], erase: "redact" },
-        phone: { category: "contact", purposes: ["account", "marketing_sms"], erase: "redact" },
+        phone: { category: "contact", purposes: ["account", "order_sms", "marketing_sms"], erase: "redact", label: "Mobile number" },
         email: { category: "contact", purposes: ["account"], erase: { value: ({ subjectId }) => `erased-${subjectId}@invalid` } },
         city: { category: "contact", purposes: ["account"] },
-        interests: { category: "behavioural", purposes: ["marketing_sms"] },
+        interests: { category: "behavioural", purposes: ["marketing_sms"], label: "The teas you like" },
       },
     },
     orders: {
@@ -40,6 +42,14 @@ export default defineConfig({
   },
   notPersonal: ["users.created_at", "orders.total", "orders.created_at"],
   minimumRetention: "1y",
+  // Rule 3: the notice is built from the purposes and fields above, with these links.
+  notice: {
+    links: {
+      website: "https://chai.example/privacy",
+      withdraw: "Profile → Privacy in the app, or https://chai.example/privacy/consents",
+      rights: "https://chai.example/privacy/requests",
+    },
+  },
   rights: { how: "In the app: Profile → Privacy, or email privacy@chai.example", identifiers: ["registered mobile number"] },
   security: {
     accessControl: "Google Workspace SSO, least-privilege roles, production through a bastion",

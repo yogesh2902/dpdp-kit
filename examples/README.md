@@ -9,10 +9,10 @@ Chai & Co is a small online tea shop. The same shop is built twice, so you can c
 
 Each one shows the whole of dpdp-kit in about 150 lines of app code:
 
-- **Sign-up** records consent against the notice version and language the person saw (Section 6).
+- **The notice** is built from the config (Rule 3), and sign-up records consent against its version (Sections 5, 6).
 - **`requireConsent`** blocks a promo SMS for anyone who didn't agree.
 - **`logAccess`** logs every support read of a customer record (Rule 6(1)(c)).
-- **`/me/data`** answers a request to see your data (Section 11).
+- **`dpdpRouter`** serves the privacy centre under `/privacy`: consents, an objection to order SMS (Section 7(a)), the person's data (Section 11), requests with acknowledgements, a correction after an identity check (Section 12), and a nominee (Section 14).
 - **Withdrawal and account deletion** are carried out a year later (Rule 8(3)). Invoices are kept for 8 years under GST.
 - **Grievances** come with their 90-day deadline (Rule 14(3)).
 - **Breach records:** a compromised support account, the people it read found from the access log, and the 72-hour Board report (Rule 7).

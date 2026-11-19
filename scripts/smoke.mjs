@@ -12,6 +12,12 @@ const fail = (msg) => {
 const { createDpdp, defineConfig, memoryStore } = await import("dpdp-kit");
 const { requireConsent } = await import("dpdp-kit/express");
 await import("dpdp-kit/hono");
+{
+  const { createHandlers } = await import("dpdp-kit/next");
+  const { GET } = createHandlers(createDpdp({ config: defineConfig({ fiduciary: { name: "S" }, purposes: { a: { basis: "legitimate-use", retain: "while-active" } }, data: {}, rights: { how: "email" } }), store: memoryStore() }), { base: "/p", subject: () => undefined });
+  const res = await GET(new Request("http://x/p/rights"));
+  if (res.status !== 200 || (await res.json()).how !== "email") fail("dpdp-kit/next GET /rights");
+}
 await import("dpdp-kit/fastify");
 await import("dpdp-kit/nestjs");
 await import("dpdp-kit/schedule");

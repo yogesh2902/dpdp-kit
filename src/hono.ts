@@ -1,4 +1,5 @@
 import type { Dpdp } from "./dpdp.js";
+import { type ApiOptions, handleWeb } from "./http.js";
 import { type AccessLogOptions, checkConsent, consentDeniedBody, type GuardOptions, recordAccess } from "./guard.js";
 
 /** The parts of Hono's context this middleware uses. */
@@ -50,4 +51,25 @@ export function logAccess<P extends string, C = any>(dpdp: Dpdp<P>, options: Acc
     await recordAccess(dpdp, options, c);
     await next();
   };
+}
+
+/** The parts of Hono's context the API uses. */
+interface ApiContextLike {
+  req: { raw: Request; text(): Promise<string> };
+}
+
+/**
+ * The dpdp-kit HTTP API as a Hono handler. Mount it under `base`:
+ *
+ * ```ts
+ * app.all("/privacy/*", dpdpRoutes(dpdp, { base: "/privacy", subject: (c) => c.get("userId") }));
+ * ```
+ *
+ * `ip` gives the client address the way your runtime knows it, e.g. from `hono/conninfo`.
+ */
+export function dpdpRoutes<P extends string, C extends ApiContextLike = any>(
+  dpdp: Dpdp<P>,
+  options: ApiOptions<C> & { base: string; ip?: (c: C) => string | undefined },
+) {
+  return (c: C): Promise<Response> => handleWeb(dpdp, c.req.raw, c, { ...options, readBody: () => c.req.text() });
 }

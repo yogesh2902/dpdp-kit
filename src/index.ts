@@ -65,6 +65,7 @@ export {
   type PrivacyNotice,
   type SavedNotice,
 } from "./notice.js";
+export { type ApiOptions, handle, type HttpOptions, type HttpRequest, type HttpResponse } from "./http.js";
 export {
   type AccessInput,
   type AccessOptions,

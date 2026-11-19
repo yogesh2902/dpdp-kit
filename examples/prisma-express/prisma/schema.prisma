@@ -128,6 +128,18 @@ model DpdpBreach {
   @@map("dpdp_breaches")
 }
 
+/// dpdp-kit: privacy notices as shown, kept as proof (Section 6(10)).
+model DpdpPrivacyNotice {
+  version      String
+  language     String
+  kind         String
+  content      Json
+  firstShownAt DateTime @map("first_shown_at") @db.Timestamptz(6)
+
+  @@id([version, language, kind])
+  @@map("dpdp_privacy_notices")
+}
+
 /// dpdp-kit: each person affected by a breach, and whether they've been told (Rule 7(1)).
 model DpdpBreachNotice {
   breachId  String    @map("breach_id")

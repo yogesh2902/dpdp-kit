@@ -11,6 +11,7 @@
 - **Declare why you hold each piece of personal data**, in one typed config file. A misspelt purpose is a type error.
 - **Keep consent records that show tampering.** Each person's grants and withdrawals form a hash chain, with the notice version and language they saw.
 - **Build the privacy notice from the config** (from 0.5). Itemised data, purposes and the links Rule 3 requires, in English and the translations you supply; each consent records the version shown, and the notice is saved as proof.
+- **Serve the privacy routes** (from 0.5). `dpdpRouter` for Express, `dpdpRoutes` for Hono and `dpdp-kit/next` for Next.js: consents, objections, the person's data, rights requests and nominees, for any frontend to call with `fetch`.
 - **Know what to erase.** When consent is withdrawn or an account is deleted, get a plan: which fields go, which stay (and why), which tables are under a legal hold, which third parties to tell.
 - **Handle a breach on time.** Record it, find and tell the people affected, and track the Board's 72-hour deadline (Section 8(6), Rule 7).
 - **Show who touched what.** An access log records who read whose data and why, flags reads outside a field's purpose, and keeps a year of entries, as Rule 6 requires. Encryption, tokens and masking for Aadhaar, PAN and other identifiers come in `dpdp-kit/protect`.

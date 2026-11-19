@@ -57,6 +57,10 @@
       "types": "./dist/hono.d.ts",
       "default": "./dist/hono.js"
     },
+    "./next": {
+      "types": "./dist/next.d.ts",
+      "default": "./dist/next.js"
+    },
     "./fastify": {
       "types": "./dist/fastify.d.ts",
       "default": "./dist/fastify.js"

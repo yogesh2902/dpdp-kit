@@ -14,7 +14,7 @@ const pkg = JSON.parse(readFileSync(join(here, "../package.json"), "utf8"));
 
 const NAV = [
   { group: "Getting started", pages: ["index", "quick-start"] },
-  { group: "Guides", pages: ["config", "audit", "notices", "consent", "objections", "erasure", "rights", "security", "breaches", "transfers", "guards", "events", "daily", "storage"] },
+  { group: "Guides", pages: ["config", "audit", "notices", "consent", "objections", "erasure", "rights", "security", "breaches", "transfers", "guards", "http", "events", "daily", "storage"] },
   { group: "Reference", pages: ["responsibility", "law", "roadmap"] },
 ];
 
