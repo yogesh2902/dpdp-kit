@@ -167,32 +167,44 @@ export function useConsents<P extends string = string>(): ConsentsState<P> {
   const latest = useRef(r.data);
   latest.current = r.data;
 
+  /** Show these purposes as on or off at once, on top of whatever is shown now. */
+  const show = useCallback(
+    (purposes: readonly P[], activeFor: (p: PurposeStatus<P>) => boolean) => {
+      const now = latest.current;
+      if (!now) return;
+      const turn = new Set(purposes);
+      const list = now.purposes.map((p) => (turn.has(p.purpose) ? { ...p, active: activeFor(p) } : p));
+      const next: ConsentsResponse<P> = {
+        purposes: list,
+        consents: list.filter((p) => p.basis === "consent" && p.active).map((p) => p.purpose),
+        objections: list.filter((p) => p.basis === "legitimate-use" && !p.active).map((p) => p.purpose),
+      };
+      latest.current = next; // so a second change made before the next render builds on this one
+      r.set(next);
+    },
+    [r.set],
+  );
+
   const change = useCallback(
     async (purposes: readonly P[], active: boolean, send: () => Promise<unknown>) => {
-      const before = latest.current;
+      const was = new Map(latest.current?.purposes.map((p) => [p.purpose, p.active]));
       setFailure(undefined);
-      if (before) {
-        const turn = new Set(purposes);
-        const purposesNow = before.purposes.map((p) => (turn.has(p.purpose) ? { ...p, active } : p));
-        r.set({
-          purposes: purposesNow,
-          consents: purposesNow.filter((p) => p.basis === "consent" && p.active).map((p) => p.purpose),
-          objections: purposesNow.filter((p) => p.basis === "legitimate-use" && !p.active).map((p) => p.purpose),
-        });
-      }
+      show(purposes, () => active);
       setSaving((s) => new Set([...s, ...purposes]));
       try {
         await send();
         ctx.changed("consents", "data");
       } catch (error) {
-        if (before) r.set(before);
+        // Undo only this change (another made meanwhile may have succeeded), then ask the server.
+        show(purposes, (p) => was.get(p.purpose) ?? p.active);
         setFailure(error);
+        ctx.changed("consents");
         throw error;
       } finally {
         setSaving((s) => new Set([...s].filter((p) => !purposes.includes(p))));
       }
     },
-    [ctx, r.set],
+    [ctx, show],
   );
 
   const grant = useCallback((ps: readonly P[], o?: { language?: NoticeLanguage }) => change(ps, true, () => client.grant(ps, o)), [change, client]);

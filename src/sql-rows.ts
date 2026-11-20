@@ -145,3 +145,42 @@ export const breachValues = (b: Breach): unknown[] => [b.id, b.status, b.awareAt
 export const NOTICE_COLUMNS: Columns = [
   ["breach_id", "text"], ["subject_id", "text"], ["status", "text"], ["added_at", "timestamptz"], ["sent_at", "timestamptz"], ["channel", "text"],
 ];
+
+// ---- Statements shared by the SQLite and MySQL stores (written with $1, $2…) ----
+
+/**
+ * The statements use `$1`, `$2`… so a value can appear twice; SQLite and MySQL drivers take `?`, so
+ * each becomes `?` with its value repeated in order.
+ */
+export function positional(sql: string, params: readonly unknown[]): [string, unknown[]] {
+  const out: unknown[] = [];
+  const text = sql.replace(/\$(\d+)/g, (_, n: string) => {
+    out.push(params[Number(n) - 1]);
+    return "?";
+  });
+  return [text, out];
+}
+
+/** `INSERT INTO table (columns) VALUES ($1, …), (…)` for `rows` rows. */
+export const insertSql = (table: string, cols: Columns, rows = 1) =>
+  `INSERT INTO ${table} (${cols.map(([c]) => c).join(", ")}) VALUES ${Array.from({ length: rows }, (_, r) => `(${cols.map((_c, i) => `$${r * cols.length + i + 1}`).join(", ")})`).join(", ")}`;
+
+/** `UPDATE table SET column = $2, … WHERE id = $1`, for tables whose first column is the id. */
+export const updateSql = (table: string, cols: Columns) =>
+  `UPDATE ${table} SET ${cols
+    .slice(1)
+    .map(([c], i) => `${c} = $${i + 2}`)
+    .join(", ")} WHERE ${cols[0]![0]} = $1`;
+
+/** Rows per statement, under SQLite's 32,766 and MySQL's 65,535 parameters. */
+export const batchSize = (cols: Columns) => Math.floor(30_000 / cols.length);
+
+/** Tasks a runner may pick up now (see `TaskStore.dueTasks`): $1 now, $2 staleBefore, $3 maxAttempts. */
+export const RUNNABLE = `due_at <= $1 AND (status = 'pending' OR (status = 'failed' AND attempts < $3) OR (status = 'running' AND claimed_at < $2))`;
+
+/** Access log filters: $1 subject, $2 actor, $3 purpose, $4 from, $5 to (each NULL for any). */
+export const ACCESS_WHERE = `($1 IS NULL OR subject_id = $1) AND ($2 IS NULL OR actor = $2) AND ($3 IS NULL OR purpose = $3) AND ($4 IS NULL OR at >= $4) AND ($5 IS NULL OR at < $5)`;
+
+/** BigInt values as numbers, or text when too big, so rows serialise to JSON. */
+export const plainRow = (row: Row) =>
+  Object.fromEntries(Object.entries(row).map(([k, v]) => [k, typeof v === "bigint" ? (Number.isSafeInteger(Number(v)) ? Number(v) : v.toString()) : v]));

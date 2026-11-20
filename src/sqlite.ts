@@ -11,6 +11,13 @@ import type { NoticeStore, PrivacyNotice } from "./notice.js";
 import type { Schema } from "./schema-check.js";
 import {
   ACCESS_COLUMNS,
+  ACCESS_WHERE,
+  batchSize,
+  insertSql,
+  plainRow,
+  positional,
+  RUNNABLE,
+  updateSql,
   accessFromRow,
   accessValues,
   BREACH_COLUMNS,
@@ -83,36 +90,13 @@ export function sqliteQuery(db: SqliteDatabase): SqliteQuery {
   throw new TypeError("sqliteStore: pass a node:sqlite DatabaseSync, a better-sqlite3 Database, a libsql Client, or a query function");
 }
 
-/**
- * The statements are written with `$1`, `$2`… so a value used twice is passed once; SQLite drivers
- * differ in how they take numbered parameters, so each becomes `?` with its value repeated.
- */
-function positional(sql: string, params: readonly unknown[]): [string, unknown[]] {
-  const out: unknown[] = [];
-  const text = sql.replace(/\$(\d+)/g, (_, n: string) => {
-    out.push(params[Number(n) - 1]);
-    return "?";
-  });
-  return [text, out];
-}
 
 /** Timestamps compared as text must all be ISO 8601 in UTC. */
 const ts = (v: string | undefined | null) => (v === undefined || v === null ? null : new Date(v).toISOString());
 
-const insertSql = (table: string, cols: Columns, rows = 1) =>
-  `INSERT INTO ${table} (${cols.map(([c]) => c).join(", ")}) VALUES ${Array.from({ length: rows }, (_, r) => `(${cols.map((_c, i) => `$${r * cols.length + i + 1}`).join(", ")})`).join(", ")}`;
-const updateSql = (table: string, cols: Columns) =>
-  `UPDATE ${table} SET ${cols
-    .slice(1)
-    .map(([c], i) => `${c} = $${i + 2}`)
-    .join(", ")} WHERE ${cols[0]![0]} = $1`;
 const select = (cols: Columns) => cols.map(([c]) => c).join(", ");
 
-/** Rows per statement, under SQLite's default limit of 32,766 parameters. */
-const batchSize = (cols: Columns) => Math.floor(30_000 / cols.length);
 
-const RUNNABLE = `due_at <= $1 AND (status = 'pending' OR (status = 'failed' AND attempts < $3) OR (status = 'running' AND claimed_at < $2))`;
-const ACCESS_WHERE = `($1 IS NULL OR subject_id = $1) AND ($2 IS NULL OR actor = $2) AND ($3 IS NULL OR purpose = $3) AND ($4 IS NULL OR at >= $4) AND ($5 IS NULL OR at < $5)`;
 const accessParams = (f: AccessFilter) => [f.subjectId ?? null, f.actor ?? null, f.purpose ?? null, ts(f.from), ts(f.to)];
 
 const KIND = `CASE WHEN action IN ('grant', 'withdraw') THEN 'consent' ELSE 'objection' END`;
@@ -348,9 +332,6 @@ export function sqliteStore(db: SqliteDatabase): DpdpStore & AccessLogStore & Br
 /** Quote a table or column name for SQLite. */
 const ident = (name: string) => `"${name.replace(/"/g, '""')}"`;
 
-/** BigInt values (node:sqlite with readBigInts) as numbers, or text when too big. */
-const plainRow = (row: Row) =>
-  Object.fromEntries(Object.entries(row).map(([k, v]) => [k, typeof v === "bigint" ? (Number.isSafeInteger(Number(v)) ? Number(v) : v.toString()) : v]));
 
 /**
  * Data access for your own SQLite tables, for access summaries, erasure and corrections. Pass a

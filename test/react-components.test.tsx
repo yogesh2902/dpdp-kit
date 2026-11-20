@@ -92,10 +92,24 @@ describe("<PrivacyCentre>", () => {
     expect(screen.queryByRole("switch", { name: "account" })).toBeNull();
     expect(container.querySelector(".dpdp-always-on")?.textContent).toContain("account");
 
+    // The consent purpose is shown in the notice's words, with its data, and the full notice is one tap away,
+    // so a consent given here is accompanied by the notice (Section 5(1)) and recorded against it.
+    const choices = screen.getByRole("region", { name: "Your choices" });
+    await waitFor(() => expect(within(choices).getByText("Data used: Mobile number")).toBeTruthy());
+    expect(within(choices).getByText("Read the privacy notice")).toBeTruthy();
     await userEvent.click(offers);
     await waitFor(() => expect(screen.getAllByRole("status").some((s) => s.textContent === "Saved.")).toBe(true));
     expect(await dpdp.consent.active("u1")).toEqual(["offers"]);
+    const [granted] = await dpdp.consent.history("u1");
+    expect(granted?.noticeVersion).toBe((await dpdp.notice.list())[0]?.notice.version);
+
+    // Objecting asks first, and Cancel changes nothing.
     await userEvent.click(receipts);
+    expect(within(choices).getByRole("alertdialog").textContent).toMatch(/Stop using your data for "SMS receipts"/);
+    await userEvent.click(within(choices).getByRole("button", { name: "Cancel" }));
+    expect(await dpdp.consent.objections("u1")).toEqual([]);
+    await userEvent.click(receipts);
+    await userEvent.click(within(choices).getByRole("button", { name: "Yes, stop" }));
     await waitFor(async () => expect(await dpdp.consent.objections("u1")).toEqual(["receipts"]));
 
     // Data: the rows, and msg91 now that offers are on.

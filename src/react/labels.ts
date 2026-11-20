@@ -19,6 +19,12 @@ export interface Labels {
   consentsIntro: string;
   alwaysOn: string;
   alwaysOnIntro: string;
+  /** The link that opens the full privacy notice next to the choices. */
+  readNotice: string;
+  /** Asked before an objection to a Section 7(a) use takes effect. */
+  confirmObjection: (use: string) => string;
+  confirm: string;
+  cancel: string;
   dataHeading: string;
   dataIntro: string;
   noData: string;
@@ -67,6 +73,10 @@ export const DEFAULT_LABELS: Labels = {
   consentsIntro: "Turn each use on or off. You can change your mind at any time.",
   alwaysOn: "Needed to provide the service",
   alwaysOnIntro: "We use your data for these without asking, as the law allows:",
+  readNotice: "Read the privacy notice",
+  confirmObjection: (use) => `Stop using your data for "${use}"? Anything we hold only for this will be erased, and some things may stop working.`,
+  confirm: "Yes, stop",
+  cancel: "Cancel",
   dataHeading: "Your data",
   dataIntro: "What we hold about you, and who we share it with.",
   noData: "We hold no personal data about you.",

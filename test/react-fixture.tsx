@@ -50,10 +50,13 @@ export const config = defineConfig({
 });
 export type Purpose = keyof typeof config.purposes;
 
-/** A provider whose client reaches the real API as u1; `hold` delays answers, `refuse` turns writes away. */
+/**
+ * A provider whose client reaches the real API as u1; `hold` delays every answer, `holdNextWrite`
+ * only the next write, and `refuse` turns writes away.
+ */
 export function setup() {
   const dpdp = createDpdp({ config, store: memoryStore(), data: memoryData({ users: [{ id: "u1", name: "Asha", phone: "98xxxxxx01" }] }) });
-  const control = { refuse: false, hold: undefined as Promise<void> | undefined, calls: [] as string[] };
+  const control = { refuse: false, hold: undefined as Promise<void> | undefined, holdNextWrite: undefined as Promise<void> | undefined, calls: [] as string[] };
   const handlers = createHandlers(dpdp, { base: "/privacy", subject: () => "u1", limitWrites: () => !control.refuse });
   const client = createClient({
     base: "http://shop.test/privacy",
@@ -61,6 +64,11 @@ export function setup() {
       const req = new Request(url, init);
       control.calls.push(`${req.method} ${new URL(req.url).pathname}${new URL(req.url).search}`);
       if (control.hold) await control.hold;
+      if (req.method !== "GET" && control.holdNextWrite) {
+        const wait = control.holdNextWrite;
+        control.holdNextWrite = undefined;
+        await wait;
+      }
       return handlers[req.method as "GET" | "POST" | "DELETE"](req);
     }) as typeof fetch,
   });

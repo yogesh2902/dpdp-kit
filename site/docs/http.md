@@ -111,7 +111,7 @@ Errors answer `{ "error": "<code>" }` with a status: 400 for invalid input, 401 
 | `subject(req)` | Required. The signed-in person's id, or `undefined` |
 | `admin(req)` | The signed-in staff member's id. Without it, `/admin` doesn't exist |
 | `limitWrites(subjectId)` | Return `false` to refuse a change |
-| `channel` | Recorded on consent events. Default `"web"`; use `"android"`, `"ios"`… per app |
+| `channel` | Recorded on consent events. Default `"web"`. A function picks it per request, e.g. `(req) => req.header("x-app-platform") ?? "web"` when your mobile app sends `"ios"` or `"android"` |
 | `bodyLimit` | Bytes. Default 16 KiB |
 | `onError(err)` | For unexpected errors |
 | `base` | Hono and Next.js: where the API is mounted |

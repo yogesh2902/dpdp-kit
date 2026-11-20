@@ -1,5 +1,5 @@
 import type { Dpdp } from "./dpdp.js";
-import { type ApiOptions, bodyOrResponse, DEFAULT_BODY_LIMIT, handle, isApiRoute } from "./http.js";
+import { type ApiOptions, bodyOrResponse, channelOf, DEFAULT_BODY_LIMIT, handle, httpOptions, isApiRoute } from "./http.js";
 import { type AccessLogOptions, checkConsent, consentDeniedBody, type GuardOptions, recordAccess } from "./guard.js";
 
 /** The parts of Express's response this middleware uses. */
@@ -140,8 +140,9 @@ export function dpdpRouter<P extends string, Req extends ApiRequestLike = any, R
           ...(actor ? { actor } : {}),
           ...(req.ip ? { ip: req.ip } : {}),
           ...(userAgent ? { userAgent } : {}),
+          ...channelOf(options, req),
         },
-        { ...options, admin },
+        { ...httpOptions(options), admin },
       );
     })().then(
       (r) => {

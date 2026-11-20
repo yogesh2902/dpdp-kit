@@ -40,7 +40,9 @@ describe("dpdp-kit/react-native", () => {
 
     await userEvent.click(await screen.findByRole("switch", { name: "Offers by SMS" }));
     await waitFor(async () => expect(await dpdp.consent.active("u1")).toEqual(["offers"]));
+    await waitFor(() => expect(screen.getByText("Data used: Mobile number")).toBeTruthy()); // the notice's words beside the switch
     await userEvent.click(screen.getByRole("switch", { name: "SMS receipts" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Yes, stop" })); // objecting asks first
     await waitFor(async () => expect(await dpdp.consent.objections("u1")).toEqual(["receipts"]));
     await waitFor(() => expect(screen.getByText("• msg91 (IN)")).toBeTruthy());
     expect(screen.getByText("Mobile number")).toBeTruthy();

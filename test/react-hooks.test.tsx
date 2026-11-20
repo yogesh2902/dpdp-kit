@@ -62,6 +62,26 @@ describe("dpdp-kit/react hooks", () => {
     expect(result.current.saving.size).toBe(0);
   });
 
+  it("undoes only the change that failed when changes overlap", async () => {
+    const { control, dpdp, wrapper } = setup();
+    const { result } = renderHook(() => useConsents<Purpose>(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let release!: () => void;
+    control.holdNextWrite = new Promise((r) => (release = r));
+    let first!: Promise<void>;
+    act(() => {
+      first = result.current.set("offers", true); // held, then refused
+    });
+    await act(() => result.current.set("receipts", false)); // goes through meanwhile
+    control.refuse = true;
+    release();
+    await act(() => expect(first).rejects.toMatchObject({ code: "too-many-requests" }));
+    const active = Object.fromEntries(result.current.purposes.map((p) => [p.purpose, p.active]));
+    expect(active).toMatchObject({ offers: false, receipts: false }); // the objection stays shown
+    expect(await dpdp.consent.objections("u1")).toEqual(["receipts"]);
+  });
+
   it("loads the notice in the language asked for, keeping only the latest answer", async () => {
     const { control, wrapper } = setup();
     const { result: langs } = renderHook(() => useNoticeLanguages(), { wrapper });

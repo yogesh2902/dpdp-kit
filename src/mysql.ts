@@ -10,6 +10,13 @@ import type { NoticeStore, PrivacyNotice } from "./notice.js";
 import type { Schema } from "./schema-check.js";
 import {
   ACCESS_COLUMNS,
+  ACCESS_WHERE,
+  batchSize,
+  insertSql,
+  plainRow,
+  positional,
+  RUNNABLE,
+  updateSql,
   accessFromRow,
   accessValues,
   BREACH_COLUMNS,
@@ -160,15 +167,6 @@ const dt = (v: unknown) => (v === null || v === undefined ? null : new Date(v as
 /** A DATETIME column read back as ISO 8601 UTC text. */
 const utc = (col: string) => `DATE_FORMAT(${col}, '%Y-%m-%dT%H:%i:%s.%fZ')`;
 
-/** The statements use `$n` so a value can appear twice; mysql2 takes `?`. */
-function positional(sql: string, params: readonly unknown[]): [string, unknown[]] {
-  const out: unknown[] = [];
-  const text = sql.replace(/\$(\d+)/g, (_, n: string) => {
-    out.push(params[Number(n) - 1]);
-    return "?";
-  });
-  return [text, out];
-}
 
 const rowsOf = (r: MysqlResult): Row[] => (Array.isArray(r) ? r : []);
 const affected = (r: MysqlResult): number => (Array.isArray(r) ? r.length : num(r.affectedRows));
@@ -178,21 +176,10 @@ const select = (cols: Columns) => cols.map(([c, t]) => (t === "timestamptz" ? `$
 /** Values in column order, with timestamps as DATETIME text. */
 const asDb = (cols: Columns, values: unknown[]) => values.map((v, i) => (cols[i]![1] === "timestamptz" ? dt(v) : v));
 
-const insertSql = (table: string, cols: Columns, rows = 1, verb = "INSERT") =>
-  `${verb} INTO ${table} (${cols.map(([c]) => c).join(", ")}) VALUES ${Array.from({ length: rows }, (_, r) => `(${cols.map((_c, i) => `$${r * cols.length + i + 1}`).join(", ")})`).join(", ")}`;
-const updateSql = (table: string, cols: Columns) =>
-  `UPDATE ${table} SET ${cols
-    .slice(1)
-    .map(([c], i) => `${c} = $${i + 2}`)
-    .join(", ")} WHERE ${cols[0]![0]} = $1`;
 
-/** Rows per statement, well under MySQL's 65,535 placeholders. */
-const batchSize = (cols: Columns) => Math.floor(30_000 / cols.length);
 /** MySQL's "no limit". */
 const ALL = "18446744073709551615";
 
-const RUNNABLE = `due_at <= $1 AND (status = 'pending' OR (status = 'failed' AND attempts < $3) OR (status = 'running' AND claimed_at < $2))`;
-const ACCESS_WHERE = `($1 IS NULL OR subject_id = $1) AND ($2 IS NULL OR actor = $2) AND ($3 IS NULL OR purpose = $3) AND ($4 IS NULL OR at >= $4) AND ($5 IS NULL OR at < $5)`;
 const accessParams = (f: AccessFilter) => [f.subjectId ?? null, f.actor ?? null, f.purpose ?? null, dt(f.from), dt(f.to)];
 const PURPOSES = `JSON_TABLE(e.purposes, '$[*]' COLUMNS (purpose varchar(255) PATH '$')) AS p`;
 const KIND = `CASE WHEN e.action IN ('grant', 'withdraw') THEN 'consent' ELSE 'objection' END`;
@@ -215,16 +202,34 @@ export function mysqlStore(db: MysqlDatabase): DpdpStore & AccessLogStore & Brea
   const query = (sql: string, params: readonly unknown[] = []) => raw(...positional(sql, params));
   const rows = async (sql: string, params: readonly unknown[] = []) => rowsOf(await query(sql, params));
 
-  async function insertMany<T>(table: string, cols: Columns, items: readonly T[], values: (item: T) => unknown[], verb = "INSERT") {
+  async function insertMany<T>(table: string, cols: Columns, items: readonly T[], values: (item: T) => unknown[]) {
     let total = 0;
     const size = batchSize(cols);
     for (let i = 0; i < items.length; i += size) {
       const batch = items.slice(i, i + size);
-      total += affected(await query(insertSql(table, cols, batch.length, verb), batch.flatMap((item) => asDb(cols, values(item)))));
+      total += affected(await query(insertSql(table, cols, batch.length), batch.flatMap((item) => asDb(cols, values(item)))));
     }
     return total;
   }
   const savedNotice = (r: Row) => ({ notice: json<PrivacyNotice>(r.content), firstShownAt: iso(r.first_shown_at)! });
+  /** The notices in `batch` for people not already on their breach, each person once. */
+  async function notYetAdded(batch: readonly BreachNotice[]): Promise<BreachNotice[]> {
+    const byBreach = new Map<string, BreachNotice[]>();
+    for (const n of batch) byBreach.set(n.breachId, [...(byBreach.get(n.breachId) ?? []), n]);
+    const fresh: BreachNotice[] = [];
+    for (const [breachId, notices] of byBreach) {
+      const ids = [...new Set(notices.map((n) => n.subjectId))];
+      const placeholders = ids.map((_, k) => `$${k + 2}`).join(", ");
+      const found = await rows(`SELECT subject_id FROM dpdp_breach_notices WHERE breach_id = $1 AND subject_id IN (${placeholders})`, [breachId, ...ids]);
+      const skip = new Set(found.map((r) => String(r.subject_id)));
+      for (const n of notices) {
+        if (skip.has(n.subjectId)) continue;
+        skip.add(n.subjectId);
+        fresh.push(n);
+      }
+    }
+    return fresh;
+  }
 
   return {
     async consentStats(from, to) {
@@ -254,14 +259,20 @@ export function mysqlStore(db: MysqlDatabase): DpdpStore & AccessLogStore & Brea
     },
 
     async savePrivacyNotice(n, at) {
-      const r = await query(`INSERT IGNORE INTO dpdp_privacy_notices (version, language, kind, content, first_shown_at) VALUES ($1, $2, $3, $4, $5)`, [
-        n.version,
-        n.language,
-        n.kind,
-        JSON.stringify(n),
-        dt(at),
-      ]);
-      return affected(r) > 0;
+      // A plain INSERT: INSERT IGNORE would also store a too-long value cut short instead of failing.
+      try {
+        await query(`INSERT INTO dpdp_privacy_notices (version, language, kind, content, first_shown_at) VALUES ($1, $2, $3, $4, $5)`, [
+          n.version,
+          n.language,
+          n.kind,
+          JSON.stringify(n),
+          dt(at),
+        ]);
+        return true;
+      } catch (err) {
+        if (isUniqueViolation(err)) return false;
+        throw err;
+      }
     },
     async getPrivacyNotice(version, language, kind) {
       const [row] = await rows(`SELECT content, ${utc("first_shown_at")} AS first_shown_at FROM dpdp_privacy_notices WHERE version = $1 AND language = $2 AND kind = $3`, [
@@ -390,8 +401,27 @@ export function mysqlStore(db: MysqlDatabase): DpdpStore & AccessLogStore & Brea
     },
     async addNotices(list) {
       const values = (n: BreachNotice) => [n.breachId, n.subjectId, n.status, n.addedAt, n.sentAt ?? null, n.channel ?? null];
-      // INSERT IGNORE skips people already on the breach; the count is the new ones.
-      return insertMany("dpdp_breach_notices", NOTICE_COLUMNS, list, values, "INSERT IGNORE");
+      // People already on the breach are skipped, and the count is the new ones. Not INSERT IGNORE,
+      // which would also store a too-long value cut short instead of failing.
+      let added = 0;
+      for (let i = 0; i < list.length; i += 1000) {
+        const fresh = await notYetAdded(list.slice(i, i + 1000));
+        if (fresh.length === 0) continue;
+        try {
+          added += await insertMany("dpdp_breach_notices", NOTICE_COLUMNS, fresh, values);
+        } catch (err) {
+          if (!isUniqueViolation(err)) throw err;
+          // Someone added the same people at the same moment: one at a time, skipping those.
+          for (const n of fresh) {
+            try {
+              added += await insertMany("dpdp_breach_notices", NOTICE_COLUMNS, [n], values);
+            } catch (e) {
+              if (!isUniqueViolation(e)) throw e;
+            }
+          }
+        }
+      }
+      return added;
     },
     async markNotices(breachId, subjectIds, sentAt, channel) {
       let changed = 0;
@@ -430,9 +460,6 @@ export function mysqlStore(db: MysqlDatabase): DpdpStore & AccessLogStore & Brea
 /** Quote a table or column name for MySQL. */
 const ident = (name: string) => `\`${name.replace(/`/g, "``")}\``;
 
-/** BigInt values as numbers, or text when too big, so rows serialise to JSON. */
-const plainRow = (row: Row) =>
-  Object.fromEntries(Object.entries(row).map(([k, v]) => [k, typeof v === "bigint" ? (Number.isSafeInteger(Number(v)) ? Number(v) : v.toString()) : v]));
 
 /**
  * Data access for your own MySQL tables, for access summaries, erasure and corrections. Pass a

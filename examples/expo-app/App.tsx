@@ -4,7 +4,7 @@
 import { ConsentNotice, DpdpProvider, PrivacyCentre } from "dpdp-kit/react-native";
 import { StatusBar } from "expo-status-bar";
 import { useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 /** The Next.js example (examples/next-app). The iOS Simulator reaches your Mac as localhost; the Android emulator as 10.0.2.2. */
@@ -16,7 +16,8 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: "sign-up" });
   const token = screen.name === "sign-up" ? undefined : screen.token;
   // The client sends the token with every call; the server's `subject` reads it.
-  const options = useMemo(() => ({ base: `${API}/privacy`, headers: () => ({ authorization: `Bearer ${token ?? ""}` }) }), [token]);
+  // x-app-platform lets the server record the consent channel as "ios" or "android".
+  const options = useMemo(() => ({ base: `${API}/privacy`, headers: () => ({ authorization: `Bearer ${token ?? ""}`, "x-app-platform": Platform.OS }) }), [token]);
 
   return (
     <SafeAreaProvider>

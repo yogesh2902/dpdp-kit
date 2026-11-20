@@ -55,7 +55,9 @@ export interface ScreenProps {
 function useLook({ labels, theme = "light", colors }: ScreenProps) {
   const system = useColorScheme();
   const dark = theme === "dark" || (theme === "auto" && system === "dark");
-  const c = useMemo(() => ({ ...(dark ? DARK : LIGHT), ...colors }), [dark, colors]);
+  // Keyed by the colour values, so an inline `colors={{ … }}` doesn't rebuild the styles on every render.
+  const key = JSON.stringify(colors ?? {});
+  const c = useMemo(() => ({ ...(dark ? DARK : LIGHT), ...colors }), [dark, key]);
   const s = useMemo(() => makeStyles(c), [c]);
   return { l: { ...DEFAULT_LABELS, ...labels }, c, s };
 }
@@ -100,7 +102,7 @@ function Linked({ text, s, style }: { text: string; s: Styles; style: object }) 
     <Text style={style}>
       {splitLinks(text).map((p, i) =>
         p.url ? (
-          <Text key={i} style={s.link} accessibilityRole="link" onPress={() => Linking.openURL(p.text)}>
+          <Text key={i} style={s.link} accessibilityRole="link" onPress={() => Linking.openURL(p.text).catch(() => {})}>
             {p.text}
           </Text>
         ) : (
@@ -289,36 +291,83 @@ function Card({ heading, intro, s, children }: { heading: string; intro?: string
   );
 }
 
-/** Consents and Section 7(a) objections as switches; withdrawing is as easy as granting (Section 6(4)). */
-export function ConsentSettings(look: ScreenProps) {
+/**
+ * Consents and Section 7(a) objections as switches; withdrawing is as easy as granting (Section 6(4)).
+ * Each consent purpose shows the notice's own words and data, with the full notice a tap away, so a
+ * consent given here is accompanied by the notice (Section 5(1)) and recorded against it. Objecting
+ * asks for confirmation first.
+ */
+export function ConsentSettings({ language: initial = "en", ...look }: ScreenProps & { language?: NoticeLanguage }) {
   const { l, c, s } = useLook(look);
   const consents = useConsents();
+  const [language, setLanguage] = useState<NoticeLanguage>(initial);
+  const notice = useNotice({ language });
+  const parts = notice.data ? noticeParts(notice.data) : undefined;
   const [said, setSaid] = useState<"" | "saved" | "failed">("");
+  const [confirming, setConfirming] = useState<string | undefined>(undefined);
+  const [showNotice, setShowNotice] = useState(false);
   const choices = consents.purposes.filter(switchable);
   const fixed = consents.purposes.filter((p) => !switchable(p));
+
+  const change = (purpose: string, on: boolean) => {
+    setSaid("");
+    setConfirming(undefined);
+    consents.set(purpose, on, { language }).then(
+      () => setSaid("saved"),
+      () => setSaid("failed"),
+    );
+  };
+
   return (
     <Card heading={l.consentsHeading} intro={l.consentsIntro} s={s}>
+      <LanguagePicker value={language} onChange={setLanguage} {...look} />
       <Status loading={consents.loading && !consents.data} error={!consents.data && consents.error} retry={consents.reload} l={l} s={s} />
-      {choices.map((p) => (
-        <View key={p.purpose} style={s.purpose}>
-          <Text style={[s.purposeName, s.purposeText]}>{p.description ?? p.purpose}</Text>
-          <Switch
-            accessibilityLabel={p.description ?? p.purpose}
-            value={p.active}
-            disabled={consents.saving.has(p.purpose)}
-            trackColor={{ false: c.off, true: c.accent }}
-            thumbColor="#ffffff"
-            ios_backgroundColor={c.off}
-            onValueChange={(on) => {
-              setSaid("");
-              consents.set(p.purpose, on).then(
-                () => setSaid("saved"),
-                () => setSaid("failed"),
-              );
-            }}
-          />
+      {choices.map((p) => {
+        const item = p.basis === "consent" ? parts?.items.find((x) => x.purpose === p.purpose) : undefined;
+        const name = item?.text ?? p.description ?? p.purpose;
+        return (
+          <View key={p.purpose} style={s.purpose}>
+            <View style={s.purposeText}>
+              <Text style={s.purposeName}>{name}</Text>
+              {item?.data ? <Text style={s.small}>{item.data}</Text> : null}
+              {confirming === p.purpose && (
+                <View accessibilityRole="alert" style={{ gap: 6, marginTop: 4 }}>
+                  <Text style={s.text}>{l.confirmObjection(name)}</Text>
+                  <View style={s.chips}>
+                    <Text style={s.link} accessibilityRole="button" onPress={() => change(p.purpose, false)}>
+                      {l.confirm}
+                    </Text>
+                    <Text style={s.link} accessibilityRole="button" onPress={() => setConfirming(undefined)}>
+                      {l.cancel}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
+            <Switch
+              accessibilityLabel={name}
+              {...(item?.data ? { accessibilityHint: item.data } : {})}
+              value={p.active}
+              disabled={consents.saving.has(p.purpose)}
+              trackColor={{ false: c.off, true: c.accent }}
+              thumbColor="#ffffff"
+              ios_backgroundColor={c.off}
+              onValueChange={(on) => (p.basis === "legitimate-use" && !on ? setConfirming(p.purpose) : change(p.purpose, on))}
+            />
+          </View>
+        );
+      })}
+      {parts && (
+        <View style={{ gap: 6 }}>
+          <Text style={s.link} accessibilityRole="button" accessibilityState={{ expanded: showNotice }} onPress={() => setShowNotice((v) => !v)}>
+            {l.readNotice}
+          </Text>
+          {showNotice &&
+            [parts.title, ...parts.intro, ...parts.items.map((x) => `${x.text}. ${x.data}`), ...parts.footer].map((line, k) => (
+              <Linked key={k} text={line} s={s} style={k === 0 ? s.subheading : s.small} />
+            ))}
         </View>
-      ))}
+      )}
       {fixed.length > 0 && (
         <View>
           <Text style={s.small}>{l.alwaysOnIntro}</Text>
@@ -527,16 +576,18 @@ export function HowToReachUs(look: ScreenProps) {
 export type PrivacyCentreSection = "consents" | "data" | "requests" | "nominees" | "contact";
 
 export interface PrivacyCentreProps extends ScreenProps {
+  /** The notice language to start in for the consent choices. Default English. */
+  language?: NoticeLanguage;
   sections?: PrivacyCentreSection[];
   /** Wrap in a ScrollView. Default true; pass false inside your own. */
   scroll?: boolean;
 }
 
 /** The whole privacy centre. Each part is also exported on its own. */
-export function PrivacyCentre({ sections = ["consents", "data", "requests", "nominees", "contact"], scroll = true, ...look }: PrivacyCentreProps) {
+export function PrivacyCentre({ sections = ["consents", "data", "requests", "nominees", "contact"], scroll = true, language, ...look }: PrivacyCentreProps) {
   const { s } = useLook(look);
   const parts: Record<PrivacyCentreSection, ReactNode> = {
-    consents: <ConsentSettings key="consents" {...look} />,
+    consents: <ConsentSettings key="consents" {...look} {...(language ? { language } : {})} />,
     data: <MyData key="data" {...look} />,
     requests: <Requests key="requests" {...look} />,
     nominees: <Nominees key="nominees" {...look} />,

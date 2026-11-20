@@ -199,6 +199,19 @@ describe("the core handler's safety rules", () => {
     }
   });
 
+  it("records the channel each request says it came from", async () => {
+    const { dpdp } = makeDpdp();
+    const handlers = createHandlers(dpdp, {
+      base: "/p",
+      subject: () => "u1",
+      channel: (req) => req.headers.get("x-app-platform") ?? undefined,
+    });
+    const post = (headers: Record<string, string>) =>
+      handlers.POST(new Request("http://x/p/consents", { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify({ purposes: ["offers"] }) }));
+    expect((await (await post({ "x-app-platform": "ios" })).json()).event.channel).toBe("ios");
+    expect((await (await post({})).json()).event.channel).toBe("web"); // no channel: the default
+  });
+
   it("has no /admin routes unless you turn them on", async () => {
     const { dpdp } = makeDpdp();
     expect(await handle(dpdp, { method: "GET", path: "/admin/requests", actor: "anita" })).toEqual({ status: 404, body: { error: "not-found" } });

@@ -106,6 +106,14 @@
 :where(.dpdp-link-button) { font: inherit; padding: 0; border: 0; background: none; color: var(--dpdp-accent); text-decoration: underline; cursor: pointer; }
 :where(.dpdp-switch:focus-visible, .dpdp-button:focus-visible, .dpdp-link-button:focus-visible, .dpdp-notice select:focus-visible, .dpdp-centre select:focus-visible, .dpdp-centre input:focus-visible, .dpdp-centre textarea:focus-visible) { outline: none; box-shadow: var(--dpdp-focus); }
 
+/* Asking before an objection takes effect, and the full notice next to the choices */
+:where(.dpdp-confirm) { display: grid; gap: 6px; margin-top: 6px; font-size: 0.875rem; }
+:where(.dpdp-confirm-actions) { display: flex; gap: 16px; }
+:where(.dpdp-notice-full) { margin-top: var(--dpdp-gap); font-size: 0.875rem; color: var(--dpdp-muted); }
+:where(.dpdp-notice-full summary) { cursor: pointer; color: var(--dpdp-accent); }
+:where(.dpdp-notice-full p) { margin: 6px 0; }
+:where(.dpdp-notice-full .dpdp-title) { font-size: 1rem; color: var(--dpdp-text); }
+
 /* Things that are always on */
 :where(.dpdp-always-on) { margin-top: var(--dpdp-gap); font-size: 0.875rem; color: var(--dpdp-muted); }
 :where(.dpdp-always-on p) { margin: 0 0 4px; }

@@ -49,13 +49,13 @@ import "dpdp-kit/react/styles.css"; // optional: the default look
 
 | Part | Shows |
 |---|---|
-| `<ConsentSettings>` | A switch per consent purpose and Section 7(a) use; withdrawing is as easy as granting (Section 6(4)). Other legitimate uses are listed as always on |
+| `<ConsentSettings>` | A switch per consent purpose and Section 7(a) use; withdrawing is as easy as granting (Section 6(4)). Each consent purpose is shown in the notice's words with its data, and the full notice opens beside the choices, so consent given here is accompanied by the notice (Section 5(1)) and recorded against that version and language. Turning off a 7(a) use asks for confirmation first. Other legitimate uses are listed as always on |
 | `<MyData>` | What you hold, using your fields' `label`s, who it's shared with and where, and a download as JSON (Section 11) |
 | `<Requests>` | A form for access, correction, erasure or a complaint, the acknowledgement once sent, and the list with due dates |
 | `<Nominees>` | Add and remove nominees (Section 14) |
 | `<HowToReachUs>` | How to make a request, identifiers and answer times (Rule 14(1)) |
 
-`<PrivacyCentre sections={["consents", "requests"]} />` shows some of them.
+`<PrivacyCentre sections={["consents", "requests"]} />` shows some of them, and `language="hi"` starts the choices and their notice in Hindi.
 
 ### Your own words
 

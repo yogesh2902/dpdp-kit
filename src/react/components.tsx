@@ -196,36 +196,77 @@ function Section({ heading, intro, children, className }: { heading: string; int
 }
 
 
-/** The person's consents and Section 7(a) objections as switches; withdrawing is as easy as granting (Section 6(4)). */
-export function ConsentSettings({ labels }: { labels?: Partial<Labels> }) {
+/**
+ * The person's consents and Section 7(a) objections as switches; withdrawing is as easy as granting
+ * (Section 6(4)). Each consent purpose shows the notice's own words and data, and the full notice
+ * is one tap away, so a consent given here is accompanied by the notice (Section 5(1)) and recorded
+ * against the version shown, in the language shown. Objecting asks for confirmation first.
+ */
+export function ConsentSettings({ labels, language: initial = "en" }: { labels?: Partial<Labels>; language?: NoticeLanguage }) {
   const l = { ...DEFAULT_LABELS, ...labels };
   const consents = useConsents();
+  const [language, setLanguage] = useState<NoticeLanguage>(initial);
+  const notice = useNotice({ language });
+  const parts = notice.data ? noticeParts(notice.data) : undefined;
   const [said, setSaid] = useState<"" | "saved" | "failed">("");
+  const [confirming, setConfirming] = useState<string | undefined>(undefined);
   const id = useId();
   const choices = consents.purposes.filter(switchable);
   const fixed = consents.purposes.filter((p) => !switchable(p));
+
+  const change = (purpose: string, on: boolean) => {
+    setSaid("");
+    setConfirming(undefined);
+    consents.set(purpose, on, { language }).then(
+      () => setSaid("saved"),
+      () => setSaid("failed"),
+    );
+  };
+
   return (
     <Section heading={l.consentsHeading} intro={l.consentsIntro} className="dpdp-consents">
+      <LanguagePicker value={language} onChange={setLanguage} labels={l} />
       <Status loading={consents.loading && !consents.data} error={!consents.data && consents.error} labels={l} retry={consents.reload} />
       <ul className="dpdp-purposes">
-        {choices.map((p, i) => (
-          <li key={p.purpose} className="dpdp-purpose" data-state={p.active ? "on" : "off"}>
-            <span id={`${id}-${i}`} className="dpdp-purpose-name">{p.description ?? p.purpose}</span>
-            <Switch
-              on={p.active}
-              disabled={consents.saving.has(p.purpose)}
-              labelledBy={`${id}-${i}`}
-              onChange={(on) => {
-                setSaid("");
-                consents.set(p.purpose, on).then(
-                  () => setSaid("saved"),
-                  () => setSaid("failed"),
-                );
-              }}
-            />
-          </li>
-        ))}
+        {choices.map((p, i) => {
+          // A consent purpose in the notice's words (and language); a 7(a) use by its description.
+          const item = p.basis === "consent" ? parts?.items.find((x) => x.purpose === p.purpose) : undefined;
+          const name = item?.text ?? p.description ?? p.purpose;
+          return (
+            <li key={p.purpose} className="dpdp-purpose" data-state={p.active ? "on" : "off"}>
+              <div className="dpdp-purpose-text">
+                <span id={`${id}-${i}`} className="dpdp-purpose-name">{name}</span>
+                {item?.data && <span id={`${id}-${i}-data`} className="dpdp-purpose-data">{item.data}</span>}
+                {confirming === p.purpose && (
+                  <span className="dpdp-confirm" role="alertdialog" aria-labelledby={`${id}-${i}-confirm`}>
+                    <span id={`${id}-${i}-confirm`}>{l.confirmObjection(name)}</span>
+                    <span className="dpdp-confirm-actions">
+                      <button type="button" className="dpdp-link-button" onClick={() => change(p.purpose, false)}>{l.confirm}</button>
+                      <button type="button" className="dpdp-link-button" onClick={() => setConfirming(undefined)}>{l.cancel}</button>
+                    </span>
+                  </span>
+                )}
+              </div>
+              <Switch
+                on={p.active}
+                disabled={consents.saving.has(p.purpose)}
+                labelledBy={`${id}-${i}`}
+                {...(item?.data ? { describedBy: `${id}-${i}-data` } : {})}
+                onChange={(on) => (p.basis === "legitimate-use" && !on ? setConfirming(p.purpose) : change(p.purpose, on))}
+              />
+            </li>
+          );
+        })}
       </ul>
+      {parts && (
+        <details className="dpdp-notice-full" lang={language}>
+          <summary>{l.readNotice}</summary>
+          <p className="dpdp-title">{parts.title}</p>
+          {[...parts.intro, ...parts.items.map((x) => `${x.text}. ${x.data}`), ...parts.footer].map((line, k) => (
+            <p key={k}><Linkified text={line} /></p>
+          ))}
+        </details>
+      )}
       {fixed.length > 0 && (
         <div className="dpdp-always-on">
           <p>{l.alwaysOnIntro}</p>
@@ -243,7 +284,6 @@ export function ConsentSettings({ labels }: { labels?: Partial<Labels> }) {
   );
 }
 
-
 /** What you hold about the person and who you share it with (Section 11), with a download. */
 export function MyData({ labels }: { labels?: Partial<Labels> }) {
   const l = { ...DEFAULT_LABELS, ...labels };
@@ -257,7 +297,8 @@ export function MyData({ labels }: { labels?: Partial<Labels> }) {
     a.href = url;
     a.download = "my-data.json";
     a.click();
-    URL.revokeObjectURL(url);
+    // Revoked later: some browsers (Firefox, Safari) cancel the download if it's revoked at once.
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
   return (
     <Section heading={l.dataHeading} intro={l.dataIntro} className="dpdp-data">
@@ -464,6 +505,8 @@ export function HowToReachUs({ labels }: { labels?: Partial<Labels> }) {
 export type PrivacyCentreSection = "consents" | "data" | "requests" | "nominees" | "contact";
 
 export interface PrivacyCentreProps {
+  /** The notice language to start in for the consent choices. Default English. */
+  language?: NoticeLanguage;
   /** Which parts to show, in order. Default all five. */
   sections?: PrivacyCentreSection[];
   labels?: Partial<Labels>;
@@ -471,9 +514,9 @@ export interface PrivacyCentreProps {
 }
 
 /** The whole privacy centre: choices, data, requests, nominees and how to reach you. Each part is also exported on its own. */
-export function PrivacyCentre({ sections = ["consents", "data", "requests", "nominees", "contact"], labels, className }: PrivacyCentreProps) {
+export function PrivacyCentre({ sections = ["consents", "data", "requests", "nominees", "contact"], labels, className, language }: PrivacyCentreProps) {
   const parts: Record<PrivacyCentreSection, ReactNode> = {
-    consents: <ConsentSettings key="consents" {...(labels ? { labels } : {})} />,
+    consents: <ConsentSettings key="consents" {...(labels ? { labels } : {})} {...(language ? { language } : {})} />,
     data: <MyData key="data" {...(labels ? { labels } : {})} />,
     requests: <Requests key="requests" {...(labels ? { labels } : {})} />,
     nominees: <Nominees key="nominees" {...(labels ? { labels } : {})} />,

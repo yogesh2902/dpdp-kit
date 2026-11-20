@@ -10,4 +10,6 @@ export const { GET, POST, DELETE } = createHandlers(dpdp, {
   admin: staffId,
   // Behind a proxy, take the address it reports.
   ip: (req) => req.headers.get("x-forwarded-for")?.split(",")[0]?.trim(),
+  // The mobile app (examples/expo-app) says which platform it is, so consent records "ios" or "android".
+  channel: (req) => req.headers.get("x-app-platform") ?? "web",
 });

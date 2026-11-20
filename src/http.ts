@@ -24,6 +24,8 @@ export interface HttpRequest {
   actor?: string;
   ip?: string;
   userAgent?: string;
+  /** Where the consent was given, e.g. `"ios"`; overrides `HttpOptions.channel` for this request. */
+  channel?: string;
 }
 
 export interface HttpResponse {
@@ -274,7 +276,7 @@ async function route<P extends string>(dpdp: Dpdp<P>, req: HttpRequest, options:
   const write = method !== "GET";
   if (write && options.limitWrites && !(await options.limitWrites(subjectId))) return fail(429, "too-many-requests");
   const meta = {
-    channel: options.channel ?? "web",
+    channel: req.channel ?? options.channel ?? "web",
     ...(req.ip || req.userAgent ? { evidence: { ...(req.ip ? { ip: req.ip } : {}), ...(req.userAgent ? { userAgent: req.userAgent } : {}) } } : {}),
   };
   const purposes = () => strings(body.purposes, "purposes") as P[];
@@ -417,7 +419,12 @@ export function bodyOrResponse(raw: string, limit: number): { body: unknown } | 
 }
 
 /** Options shared by the framework adapters. `Req` is the framework's request or context. */
-export interface ApiOptions<Req> extends Omit<HttpOptions, "admin"> {
+export interface ApiOptions<Req> extends Omit<HttpOptions, "admin" | "channel"> {
+  /**
+   * Recorded as each consent event's `channel`. Default `"web"`. A function picks it per request,
+   * e.g. `(req) => req.header("x-app-platform") ?? "web"` when a mobile app says it's `"ios"` or `"android"`.
+   */
+  channel?: string | ((req: Req) => string | undefined);
   /** The signed-in person's id, from your authentication. `undefined` answers 401. */
   subject: (req: Req) => string | undefined | Promise<string | undefined>;
   /**
@@ -470,8 +477,21 @@ export async function handleWeb<P extends string, Req>(
         ...(actor ? { actor } : {}),
         ...(ip ? { ip } : {}),
         ...(userAgent ? { userAgent } : {}),
+        ...channelOf(options, ctx),
       },
-      { ...options, admin: options.admin !== undefined },
+      { ...httpOptions(options), admin: options.admin !== undefined },
     ),
   );
+}
+
+/** The channel for this request, when `channel` is a function. */
+export function channelOf<Req>(options: ApiOptions<Req>, req: Req): { channel?: string } {
+  const channel = typeof options.channel === "function" ? options.channel(req) : options.channel;
+  return channel ? { channel } : {};
+}
+
+/** The adapters' options as `handle()` takes them. */
+export function httpOptions<Req>(options: ApiOptions<Req>): Omit<HttpOptions, "admin"> {
+  const { channel: _channel, subject: _subject, admin: _admin, bodyLimit: _bodyLimit, ...rest } = options;
+  return rest;
 }
