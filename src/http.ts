@@ -3,8 +3,10 @@
 import type { Dpdp } from "./dpdp.js";
 import { DpdpError, type DpdpErrorCode } from "./errors.js";
 import type { NoticeLanguage } from "./languages.js";
-import type { NoticeKind } from "./notice.js";
-import { REQUEST_TYPES, type RequestType, type RightsRequest } from "./records.js";
+import type { NoticeKind, PrivacyNotice } from "./notice.js";
+import { type Nominee, REQUEST_TYPES, type RequestHistoryEntry, type RequestType, type RightsRequest } from "./records.js";
+import type { AccessSummary, Acknowledgement, RightsInfo } from "./rights.js";
+import type { ConsentEvent } from "./store.js";
 
 /** One request, as the adapters hand it over. */
 export interface HttpRequest {
@@ -83,8 +85,87 @@ const text = (value: unknown, name: string): string => (typeof value === "string
 const object = (value: unknown): Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 
+// ---- What each route answers, shared with `dpdp-kit/client` ----
+
+/** An error answer: a `DpdpError` code, or one of the HTTP ones (`unauthenticated`, `not-found`…). */
+export interface ErrorResponse {
+  error: string;
+}
+/** A purpose as the person sees it on the consents screen. */
+export interface PurposeStatus<P extends string = string> {
+  purpose: P;
+  basis: "consent" | "legitimate-use";
+  description?: string;
+  legitimateUse?: string;
+  /** Consent purposes: granted. Legitimate uses: not objected to. */
+  active: boolean;
+}
+/** `GET /consents` */
+export interface ConsentsResponse<P extends string = string> {
+  consents: P[];
+  objections: P[];
+  purposes: PurposeStatus<P>[];
+}
+/** `POST /consents` */
+export interface GrantResponse {
+  event: ConsentEvent;
+}
+/** `POST /consents/withdraw` and `POST /objections`: the event, and how many erasure tasks it scheduled. */
+export interface WithdrawResponse {
+  event: ConsentEvent;
+  scheduled: number;
+}
+/** `DELETE /objections`: the event, and how many scheduled erasure tasks it cancelled. */
+export interface LiftObjectionResponse {
+  event: ConsentEvent;
+  cancelled: number;
+}
+/** A rights request as the person sees it: without who on your staff handled it, or how they checked. */
+export interface PersonRequest {
+  id: string;
+  type: RequestType;
+  status: RightsRequest["status"];
+  openedAt: string;
+  dueAt: string;
+  closedAt?: string;
+  details?: Record<string, unknown>;
+  history: Omit<RequestHistoryEntry, "by" | "method">[];
+}
+/** `GET /requests` */
+export interface RequestsResponse {
+  requests: PersonRequest[];
+}
+/** `POST /requests` */
+export interface OpenRequestResponse {
+  request: PersonRequest;
+  acknowledgement: Acknowledgement;
+}
+/** `GET /nominees` */
+export interface NomineesResponse {
+  nominees: Nominee[];
+}
+/** `POST /nominees` */
+export interface NominateResponse {
+  nominee: Nominee;
+}
+/** `GET /notice/languages` */
+export interface NoticeLanguagesResponse {
+  languages: NoticeLanguage[];
+}
+/** `GET /notice` is a `PrivacyNotice`, `GET /rights` a `RightsInfo`, `GET /data` an `AccessSummary`. */
+export type { AccessSummary, PrivacyNotice, RightsInfo };
+/** `GET /admin/requests` */
+export interface AdminRequestsResponse {
+  requests: RightsRequest[];
+}
+/** `POST /admin/requests/:id/correct` */
+export interface CorrectResponse {
+  request: RightsRequest;
+  changed: Record<string, number>;
+}
+
 /** A request as the person sees it: without who on your staff handled it. */
-function forPerson(r: RightsRequest) {
+function forPerson(r: RightsRequest): PersonRequest {
   return {
     id: r.id,
     type: r.type,
@@ -113,7 +194,7 @@ export async function handle<P extends string>(dpdp: Dpdp<P>, req: HttpRequest, 
 }
 
 /** Every route, as `METHOD path`, with `:id` for an id. */
-const PUBLIC_ROUTES = ["GET notice", "GET rights"];
+const PUBLIC_ROUTES = ["GET notice", "GET notice/languages", "GET rights"];
 const PERSON_ROUTES = [
   "GET consents",
   "POST consents",
@@ -182,6 +263,7 @@ async function route<P extends string>(dpdp: Dpdp<P>, req: HttpRequest, options:
     const language = query.language as NoticeLanguage | undefined;
     return ok(await dpdp.notice.show({ ...(language ? { language } : {}), ...(query.kind ? { kind: query.kind as NoticeKind } : {}) }));
   }
+  if (is("GET", "notice", "languages")) return ok({ languages: dpdp.notice.languages() } satisfies NoticeLanguagesResponse);
   if (is("GET", "rights")) return ok(dpdp.rights.how());
 
   if (parts[0] === "admin") return admin(dpdp, req, parts.slice(1), method, body, options);
@@ -199,7 +281,7 @@ async function route<P extends string>(dpdp: Dpdp<P>, req: HttpRequest, options:
 
   if (is("GET", "consents")) {
     const [consents, objections] = await Promise.all([dpdp.consent.active(subjectId), dpdp.consent.objections(subjectId)]);
-    const list = Object.entries(dpdp.config.purposes as Record<string, { basis: string; description?: string; legitimateUse?: string }>).map(
+    const list = Object.entries(dpdp.config.purposes as Record<string, { basis: PurposeStatus["basis"]; description?: string; legitimateUse?: string }>).map(
       ([purpose, def]) => ({
         purpose,
         basis: def.basis,
@@ -208,29 +290,29 @@ async function route<P extends string>(dpdp: Dpdp<P>, req: HttpRequest, options:
         active: def.basis === "consent" ? (consents as string[]).includes(purpose) : !(objections as string[]).includes(purpose),
       }),
     );
-    return ok({ consents, objections, purposes: list });
+    return ok({ consents, objections, purposes: list } satisfies ConsentsResponse);
   }
   if (is("POST", "consents")) {
     const language = typeof body.language === "string" ? body.language : undefined;
     const event = await dpdp.consent.grant(subjectId, purposes(), { ...meta, ...(language ? { language: language as NoticeLanguage } : {}) });
-    return ok({ event }, 201);
+    return ok({ event } satisfies GrantResponse, 201);
   }
   if (is("POST", "consents", "withdraw")) {
     const { event, tasks } = await dpdp.consent.withdraw(subjectId, purposes(), meta);
-    return ok({ event, scheduled: tasks.length });
+    return ok({ event, scheduled: tasks.length } satisfies WithdrawResponse);
   }
   if (is("POST", "objections")) {
     const { event, tasks } = await dpdp.consent.object(subjectId, purposes(), meta);
-    return ok({ event, scheduled: tasks.length }, 201);
+    return ok({ event, scheduled: tasks.length } satisfies WithdrawResponse, 201);
   }
   if (is("DELETE", "objections")) {
     // DELETE bodies don't survive every client and proxy, so ?purposes=a,b works too.
     const list = body.purposes ?? query.purposes?.split(",").filter(Boolean);
     const { event, cancelled } = await dpdp.consent.liftObjection(subjectId, strings(list, "purposes") as P[], meta);
-    return ok({ event, cancelled: cancelled.length });
+    return ok({ event, cancelled: cancelled.length } satisfies LiftObjectionResponse);
   }
-  if (is("GET", "data")) return ok(await dpdp.rights.summary(subjectId));
-  if (is("GET", "requests")) return ok({ requests: (await dpdp.rights.list({ subjectId })).map(forPerson) });
+  if (is("GET", "data")) return ok((await dpdp.rights.summary(subjectId)) satisfies AccessSummary);
+  if (is("GET", "requests")) return ok({ requests: (await dpdp.rights.list({ subjectId })).map(forPerson) } satisfies RequestsResponse);
   if (is("GET", "requests", ":id")) {
     const r = await dpdp.rights.get(parts[1]!);
     return r && r.subjectId === subjectId ? ok(forPerson(r)) : fail(404, "request-not-found");
@@ -240,16 +322,16 @@ async function route<P extends string>(dpdp: Dpdp<P>, req: HttpRequest, options:
     if (!REQUEST_TYPES.includes(type)) return fail(400, "invalid-request-type");
     const details = body.details === undefined ? undefined : object(body.details);
     const request = await dpdp.rights.open(subjectId, type, details);
-    return ok({ request: forPerson(request), acknowledgement: await dpdp.rights.acknowledgement(request.id) }, 201);
+    return ok({ request: forPerson(request), acknowledgement: await dpdp.rights.acknowledgement(request.id) } satisfies OpenRequestResponse, 201);
   }
-  if (is("GET", "nominees")) return ok({ nominees: await dpdp.rights.nominees(subjectId) });
+  if (is("GET", "nominees")) return ok({ nominees: await dpdp.rights.nominees(subjectId) } satisfies NomineesResponse);
   if (is("POST", "nominees")) {
     const nominee = await dpdp.rights.nominate(subjectId, {
       name: text(body.name, "name"),
       contact: text(body.contact, "contact"),
       ...(typeof body.relation === "string" ? { relation: body.relation } : {}),
     });
-    return ok({ nominee }, 201);
+    return ok({ nominee } satisfies NominateResponse, 201);
   }
   if (is("DELETE", "nominees", ":id")) {
     await dpdp.rights.revokeNominee(subjectId, parts[1]!);

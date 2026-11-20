@@ -23,6 +23,19 @@ await import("dpdp-kit/hono");
   const res = await GET(new Request("http://x/p/rights"));
   if (res.status !== 200 || (await res.json()).how !== "email") fail("dpdp-kit/next GET /rights");
 }
+{
+  // The client, against the real API through a fetch that calls the Next.js handlers.
+  const { createHandlers } = await import("dpdp-kit/next");
+  const { createClient, DpdpClientError } = await import("dpdp-kit/client");
+  const dpdp = createDpdp({ config: defineConfig({ fiduciary: { name: "S" }, purposes: { a: { basis: "consent", retain: "while-active" } }, data: {}, rights: { how: "email" } }), store: memoryStore() });
+  const handlers = createHandlers(dpdp, { base: "/p", subject: (req) => req.headers.get("x-user") ?? undefined });
+  const client = createClient({ base: "http://x/p", headers: { "x-user": "u1" }, fetch: (url, init) => handlers[init.method](new Request(url, init)) });
+  await client.grant(["a"]);
+  if ((await client.consents()).consents[0] !== "a") fail("dpdp-kit/client grant + consents");
+  const anonymous = createClient({ base: "http://x/p", fetch: (url, init) => handlers[init.method](new Request(url, init)) });
+  const err = await anonymous.consents().catch((e) => e);
+  if (!(err instanceof DpdpClientError) || err.status !== 401 || err.code !== "unauthenticated") fail("dpdp-kit/client errors");
+}
 await import("dpdp-kit/fastify");
 await import("dpdp-kit/nestjs");
 await import("dpdp-kit/schedule");

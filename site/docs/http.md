@@ -64,6 +64,7 @@ For anyone, signed in or not:
 | Route | Does |
 |---|---|
 | `GET /notice?language=hi&kind=consent` | The privacy notice, saved as proof the first time it's shown |
+| `GET /notice/languages` | The languages the notice is available in (from 0.6) |
 | `GET /rights` | How to make a request, identifiers and answer times (Rule 14(1)) |
 
 For your privacy team, when you pass `admin` (403 for anyone it doesn't return an id for):
@@ -80,6 +81,8 @@ For your privacy team, when you pass `admin` (403 for anyone it doesn't return a
 The staff id is recorded as `by` in each request's history. The person sees their requests without it.
 
 ## Calling it from a frontend
+
+Use [`dpdp-kit/client`](../client/) (new in 0.6) for typed methods, or plain `fetch`:
 
 ```ts
 const res = await fetch("/privacy/consents", {

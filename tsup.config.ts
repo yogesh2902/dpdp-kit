@@ -9,6 +9,7 @@ export default defineConfig({
     express: "src/express.ts",
     hono: "src/hono.ts",
     next: "src/next.ts",
+    client: "src/client.ts",
     fastify: "src/fastify.ts",
     nestjs: "src/nestjs.ts",
     protect: "src/protect.ts",

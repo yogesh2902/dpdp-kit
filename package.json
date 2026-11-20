@@ -63,6 +63,10 @@
       "types": "./dist/next.d.ts",
       "default": "./dist/next.js"
     },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "default": "./dist/client.js"
+    },
     "./fastify": {
       "types": "./dist/fastify.d.ts",
       "default": "./dist/fastify.js"
@@ -122,6 +126,7 @@
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
     "drizzle-orm": "^0.45.4",
+    "esbuild": "0.28.2",
     "express": "^5.3.0",
     "fastify": "^5.12.8",
     "hono": "^4.13.19",

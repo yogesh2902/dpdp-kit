@@ -75,7 +75,28 @@ export {
   type Unavailable,
 } from "./evidence.js";
 export { type ConsentStats, isStatsStore, type StatsStore, type TaskCounts } from "./stats.js";
-export { type ApiOptions, handle, isApiRoute, type HttpOptions, type HttpRequest, type HttpResponse } from "./http.js";
+export {
+  type AdminRequestsResponse,
+  type ApiOptions,
+  type ConsentsResponse,
+  type CorrectResponse,
+  type ErrorResponse,
+  type GrantResponse,
+  handle,
+  type HttpOptions,
+  type HttpRequest,
+  type HttpResponse,
+  isApiRoute,
+  type LiftObjectionResponse,
+  type NominateResponse,
+  type NomineesResponse,
+  type NoticeLanguagesResponse,
+  type OpenRequestResponse,
+  type PersonRequest,
+  type PurposeStatus,
+  type RequestsResponse,
+  type WithdrawResponse,
+} from "./http.js";
 export {
   type AccessInput,
   type AccessOptions,
