@@ -25,7 +25,7 @@ dpdp-kit is a TypeScript library that runs **inside your Node.js process**, not 
 
 - **No separate server.** There's nothing to deploy, no sidecar to keep running, and no REST API between your code and your consent records.
 - **No hosted service.** No account, no API key, and no network calls. Personal data never leaves your infrastructure.
-- **Your own database.** Consent records go into your own Postgres, SQLite or MongoDB, through the Drizzle, Prisma or Mongoose setup you already have (or any Postgres or SQLite client), in the same database as the rest of your data.
+- **Your own database.** Consent records go into your own Postgres, MySQL, SQLite or MongoDB, through the Drizzle, Prisma or Mongoose setup you already have (or any Postgres, MySQL or SQLite client), in the same database as the rest of your data.
 - **Fits your Node stack.** Typed config, guards for Express, Hono, Fastify and NestJS, a CLI for CI, and works with ESM, `require()` and TypeScript.
 
 > **Not legal advice.** dpdp-kit helps you put compliance into practice; it does not make an app compliant on its own. Section and rule references point you to the text so you can check them. Have your own lawyer review your purposes, notices and retention periods. [Who does what](https://dpdp-kit.js.org/docs/responsibility/) lists every duty in the Act and Rules, what dpdp-kit does and what your company still does.
@@ -44,6 +44,7 @@ Node.js 20.19 or later. The package is ESM-only; `require("dpdp-kit")` also work
 | Prisma (Postgres) | `dpdp-kit/prisma` | `--schema prisma/schema.prisma` |
 | MongoDB or Mongoose | `dpdp-kit/mongodb` | `--schema src/models.ts` |
 | Any other Postgres client | `dpdp-kit/postgres` | |
+| MySQL 8 (mysql2, Prisma) | `dpdp-kit/mysql` (from 0.6) | `--schema` with your Drizzle or Prisma schema |
 | SQLite (node:sqlite, better-sqlite3, libsql/Turso) | `dpdp-kit/sqlite` (from 0.6) | `--schema` with your Drizzle or Prisma schema |
 
 **Start from a working app:** [`examples/`](examples/) has the same shop on Express + Prisma + Postgres and on Express + Mongoose + MongoDB. A script takes each one through a year of customers, support, a breach and erasure. CI runs it on every change.

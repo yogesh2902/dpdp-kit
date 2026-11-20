@@ -1,6 +1,6 @@
 ---
 title: Storage
-description: Postgres through Drizzle, Prisma or any client, SQLite, MongoDB and Mongoose, or bring your own store.
+description: Postgres through Drizzle, Prisma or any client, MySQL, SQLite, MongoDB and Mongoose, or bring your own store.
 ---
 
 ## Drizzle (Postgres)
@@ -81,6 +81,26 @@ export const dpdp = createDpdp({ config, store: postgresStore(query), data: post
 Create the tables by running `DPDP_DDL`, a plain SQL string exported by `dpdp-kit/postgres` (and `dpdp-kit/drizzle`). Pass `postgresData(query, { schema })` a schema from `prismaSchema()` or `drizzleSchema()` to map names and cast values to column types.
 
 > Timestamps are read back as UTC text, so they come back exactly as written whatever the server's time zone (many Indian servers run in `Asia/Kolkata`) and however the driver parses dates.
+
+## MySQL
+
+> New in 0.6.
+
+```ts
+import mysql from "mysql2/promise";
+import { createDpdp } from "dpdp-kit";
+import { MYSQL_DDL, mysqlData, mysqlStore } from "dpdp-kit/mysql";
+
+const pool = mysql.createPool({ uri: process.env.DATABASE_URL, multipleStatements: true });
+await pool.query(MYSQL_DDL); // once; every statement is IF NOT EXISTS
+const dpdp = createDpdp({ config, store: mysqlStore(pool), data: mysqlData(pool) });
+```
+
+- MySQL 8.0.16 or later (for `JSON_TABLE`, window functions and `CHECK`). `MYSQL_DDL` creates the same tables as `DPDP_DDL` on InnoDB with utf8mb4: `JSON` columns and `DATETIME(3)` timestamps in UTC. Without `multipleStatements`, run it statement by statement (split on `;`).
+- Timestamps are written as UTC and read back as text, so neither the driver's `timezone` option nor a server in `Asia/Kolkata` can shift them. CI runs a MySQL server in IST.
+- A task is claimed in one `UPDATE`: InnoDB locks the row, so two runners never carry out the same task.
+- `mysqlData(pool, { schema })` takes a `drizzleSchema()` of your `mysqlTable`s, or a `prismaSchema()`. Date and time columns are read back as text, as stored.
+- With Prisma on MySQL, pass a function: `mysqlStore((sql, params) => /^\s*SELECT/i.test(sql) ? prisma.$queryRawUnsafe(sql, ...params) : prisma.$executeRawUnsafe(sql, ...params).then((affectedRows) => ({ affectedRows })))`.
 
 ## SQLite
 

@@ -56,6 +56,10 @@ await import("dpdp-kit/nestjs");
 await import("dpdp-kit/schedule");
 await import("dpdp-kit/drizzle");
 await import("dpdp-kit/postgres");
+{
+  const { MYSQL_DDL, mysqlStore } = await import("dpdp-kit/mysql");
+  if (!MYSQL_DDL.includes("dpdp_privacy_notices") || typeof mysqlStore(async () => []).insert !== "function") fail("dpdp-kit/mysql");
+}
 // node:sqlite arrived in Node 22.5; on 20.19 the sqlite entry still loads, for better-sqlite3 or libsql.
 {
   const { SQLITE_DDL, sqliteStore } = await import("dpdp-kit/sqlite");

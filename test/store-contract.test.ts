@@ -1,10 +1,12 @@
 // One set of tests for every store method, run on every built-in store, so a new store (or a
 // change to one) can't quietly behave differently: memory, Postgres three ways (PGlite), MongoDB and
-// SQLite (node:sqlite, and through the better-sqlite3 and libsql adapter shapes).
+// SQLite (node:sqlite, and through the better-sqlite3 and libsql adapter shapes), and a real MySQL
+// server when DPDP_MYSQL_URL is set (CI runs one with its session in IST).
 import { DatabaseSync } from "node:sqlite";
 import { PGlite } from "@electric-sql/pglite";
 import { MongoClient } from "mongodb";
 import { MongoMemoryServer } from "mongodb-memory-server";
+import mysql from "mysql2/promise";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { AccessEntry, AccessLogStore } from "../src/access.js";
 import type { Breach, BreachStore } from "../src/breach.js";
@@ -12,6 +14,7 @@ import { DPDP_DDL } from "../src/ddl.js";
 import { SeqConflictError } from "../src/errors.js";
 import { memoryStore } from "../src/index.js";
 import { mongoStore } from "../src/mongodb.js";
+import { MYSQL_DDL, mysqlStore } from "../src/mysql.js";
 import type { NoticeStore, PrivacyNotice } from "../src/notice.js";
 import type { ErasureTask, RightsRequest } from "../src/records.js";
 import { SQLITE_DDL, sqliteStore } from "../src/sqlite.js";
@@ -293,3 +296,27 @@ describe("sqlite store through a libsql-shaped client", () =>
       },
     });
   }));
+
+const MYSQL = process.env.DPDP_MYSQL_URL;
+describe.skipIf(!MYSQL)("mysql store (real server)", () => {
+  const pools: mysql.Pool[] = [];
+  let n = 0;
+  afterAll(async () => {
+    for (const p of pools) await p.end();
+  });
+  contract(async () => {
+    const admin = await mysql.createConnection(MYSQL!);
+    const name = `dpdp_contract_${process.pid}_${++n}`;
+    await admin.query(`DROP DATABASE IF EXISTS ${name}`);
+    await admin.query(`CREATE DATABASE ${name}`);
+    await admin.end();
+    const url = new URL(MYSQL!);
+    url.pathname = `/${name}`;
+    // The session runs in IST, as many Indian servers do: nothing may shift by +05:30.
+    const pool = mysql.createPool({ uri: url.toString(), timezone: "+05:30" });
+    pools.push(pool);
+    await pool.query("SET time_zone = '+05:30'");
+    for (const statement of MYSQL_DDL.split(/;\n/)) await pool.query(statement);
+    return mysqlStore(pool);
+  });
+});

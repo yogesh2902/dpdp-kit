@@ -22,9 +22,10 @@ export const defined = <T>(o: Record<string, unknown>): T => Object.fromEntries(
 /** Unique violations look different per client: pg and PGlite set code 23505, Prisma wraps it in `meta`. */
 export function isUniqueViolation(err: unknown): boolean {
   for (let e: unknown = err, depth = 0; e && depth < 5; depth++) {
-    const x = e as { code?: unknown; meta?: { code?: unknown }; message?: unknown; cause?: unknown };
-    if (x.code === "23505" || x.meta?.code === "23505") return true;
-    if (typeof x.message === "string" && /\b23505\b|unique constraint|duplicate key/i.test(x.message)) return true;
+    const x = e as { code?: unknown; errno?: unknown; meta?: { code?: unknown }; message?: unknown; cause?: unknown };
+    // Postgres 23505; MySQL ER_DUP_ENTRY (1062); SQLite "UNIQUE constraint failed".
+    if (x.code === "23505" || x.meta?.code === "23505" || x.code === "ER_DUP_ENTRY" || x.errno === 1062 || x.meta?.code === "1062") return true;
+    if (typeof x.message === "string" && /\b23505\b|unique constraint|duplicate key|duplicate entry/i.test(x.message)) return true;
     e = x.cause;
   }
   return false;

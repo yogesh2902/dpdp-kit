@@ -102,6 +102,10 @@
       "types": "./dist/sqlite.d.ts",
       "default": "./dist/sqlite.js"
     },
+    "./mysql": {
+      "types": "./dist/mysql.d.ts",
+      "default": "./dist/mysql.js"
+    },
     "./prisma": {
       "types": "./dist/prisma.d.ts",
       "default": "./dist/prisma.js"
@@ -163,6 +167,7 @@
     "mongodb": "~7.8.0",
     "mongodb-memory-server": "11.3.0",
     "mongoose": "9.12.2",
+    "mysql2": "3.24.6",
     "pg": "^8.23.1",
     "prisma": "7.10.1",
     "react": "^19.3.1",

@@ -91,6 +91,34 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm vitest run test/postgres-server.test.ts test/prisma-server.test.ts
 
+  mysql:
+    name: Real MySQL server (mysql2)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: dpdp
+          # A server in IST, as many Indian apps run: timestamps must not shift.
+          TZ: Asia/Kolkata
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -pdpdp --silent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DPDP_MYSQL_URL: mysql://root:dpdp@127.0.0.1:3306/mysql
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm vitest run test/mysql-server.test.ts test/store-contract.test.ts -t "mysql|MySQL"
+
   examples:
     name: Example apps, a year-long customer journey
     needs: check
