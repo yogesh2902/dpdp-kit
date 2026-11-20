@@ -1,6 +1,6 @@
 ---
 title: Storage
-description: Postgres through Drizzle, Prisma or any client, MongoDB and Mongoose, or bring your own store.
+description: Postgres through Drizzle, Prisma or any client, SQLite, MongoDB and Mongoose, or bring your own store.
 ---
 
 ## Drizzle (Postgres)
@@ -82,6 +82,26 @@ Create the tables by running `DPDP_DDL`, a plain SQL string exported by `dpdp-ki
 
 > Timestamps are read back as UTC text, so they come back exactly as written whatever the server's time zone (many Indian servers run in `Asia/Kolkata`) and however the driver parses dates.
 
+## SQLite
+
+> New in 0.6.
+
+```ts
+import { DatabaseSync } from "node:sqlite";
+import { createDpdp } from "dpdp-kit";
+import { SQLITE_DDL, sqliteData, sqliteStore } from "dpdp-kit/sqlite";
+
+const db = new DatabaseSync("app.db");
+db.exec(SQLITE_DDL); // once; every statement is IF NOT EXISTS
+const dpdp = createDpdp({ config, store: sqliteStore(db), data: sqliteData(db) });
+```
+
+- Pass a `node:sqlite` `DatabaseSync` (Node 22.5+), a better-sqlite3 `Database`, a libsql / Turso `Client`, or your own `(sql, params) => Promise<rows>` function.
+- `SQLITE_DDL` creates the same tables as `DPDP_DDL`, with timestamps as ISO 8601 text in UTC and JSON as text, so everything reads back exactly as written.
+- Task claims are a single `UPDATE … RETURNING`, so two runners never carry out the same task. SQLite lets one process write at a time; with several servers, use Turso or Postgres.
+- `sqliteData(db, { schema })` takes a `drizzleSchema()` of your `sqliteTable`s, or a `prismaSchema()`, when the data map uses names from code. Corrections write objects and arrays as JSON text, since SQLite has no JSON or array columns.
+- Needs SQLite 3.35 or later (2021) for `RETURNING`; `node:sqlite` and current better-sqlite3 and libsql all have it.
+
 ## MongoDB and Mongoose
 
 ```ts
@@ -116,7 +136,7 @@ Implement `DpdpStore`:
 - breaches: see `BreachStore`. `updateBreach` must save only over the version that was read (the stored history is one entry shorter) and return `false` otherwise, so changes made at once aren't lost.
 - optionally `accessSubjects`, the distinct people in matching access-log entries, so `addAffectedFromAccessLog` doesn't load every entry
 
-`insert` must throw `SeqConflictError` on a duplicate `(subjectId, seq)`, and `claimTask` must be atomic. A store with only the three consent methods still works for consent; rights and retention then throw `store-unsupported`.
+`insert` must throw `SeqConflictError` on a duplicate `(subjectId, seq)`, and `claimTask` must be atomic. The built-in stores all pass the same contract tests (`test/store-contract.test.ts` in the repository); running them against your store is the quickest way to check it. A store with only the three consent methods still works for consent; rights and retention then throw `store-unsupported`.
 
 Implement `DataAccess` (`read`, `eraseFields`, `deleteRows`) for another database. `eraseFields` receives the replacement for each column (from each field's `erase` setting); a column without one becomes null. Add `updateFields(table, subject, subjectId, values, where?)` to support `rights.correct()`.
 

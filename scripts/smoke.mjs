@@ -56,6 +56,18 @@ await import("dpdp-kit/nestjs");
 await import("dpdp-kit/schedule");
 await import("dpdp-kit/drizzle");
 await import("dpdp-kit/postgres");
+// node:sqlite arrived in Node 22.5; on 20.19 the sqlite entry still loads, for better-sqlite3 or libsql.
+{
+  const { SQLITE_DDL, sqliteStore } = await import("dpdp-kit/sqlite");
+  const sqlite = await import("node:sqlite").catch(() => undefined);
+  if (sqlite) {
+    const db = new sqlite.DatabaseSync(":memory:");
+    db.exec(SQLITE_DDL);
+    const dpdp = createDpdp({ config: defineConfig({ fiduciary: { name: "S" }, purposes: { a: { basis: "consent", retain: "while-active" } }, data: {} }), store: sqliteStore(db) });
+    await dpdp.consent.grant("u1", ["a"]);
+    if (!(await dpdp.consent.verify("u1")).ok) fail("dpdp-kit/sqlite");
+  }
+}
 
 const config = defineConfig({
   fiduciary: { name: "Smoke Test", grievanceUrl: "/grievance" },

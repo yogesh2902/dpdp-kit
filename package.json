@@ -98,6 +98,10 @@
       "types": "./dist/postgres.d.ts",
       "default": "./dist/postgres.js"
     },
+    "./sqlite": {
+      "types": "./dist/sqlite.d.ts",
+      "default": "./dist/sqlite.js"
+    },
     "./prisma": {
       "types": "./dist/prisma.d.ts",
       "default": "./dist/prisma.js"
