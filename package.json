@@ -74,6 +74,10 @@
       "default": "./dist/react.js"
     },
     "./react/styles.css": "./dist/react.css",
+    "./react-native": {
+      "types": "./dist/react-native/index.d.ts",
+      "default": "./dist/react-native.js"
+    },
     "./fastify": {
       "types": "./dist/fastify.d.ts",
       "default": "./dist/fastify.js"
@@ -113,13 +117,17 @@
   },
   "peerDependencies": {
     "drizzle-orm": ">=0.38",
-    "react": ">=18"
+    "react": ">=18",
+    "react-native": ">=0.74"
   },
   "peerDependenciesMeta": {
     "drizzle-orm": {
       "optional": true
     },
     "react": {
+      "optional": true
+    },
+    "react-native": {
       "optional": true
     }
   },
@@ -155,6 +163,8 @@
     "prisma": "7.10.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "react-native": "0.88.1",
+    "react-native-web": "0.21.4",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "shiki": "^4.6.0",

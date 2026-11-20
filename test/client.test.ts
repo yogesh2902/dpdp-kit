@@ -164,13 +164,27 @@ describe("dpdp-kit/client", () => {
       metafile: true,
       logLevel: "silent",
     });
-    expect(Object.keys(result.metafile.inputs).sort()).toEqual([
-      "src/client.ts",
-      "src/languages.ts",
-      "src/react/components.tsx",
-      "src/react/hooks.ts",
-      "src/react/index.ts",
-    ]);
+    // Only the client, the language list and the React code: nothing from the server side.
+    const inputs = Object.keys(result.metafile.inputs);
+    expect(inputs.filter((f) => !/^src\/(client|languages)\.ts$|^src\/react\//.test(f))).toEqual([]);
+    expect(inputs).toContain("src/react/components.tsx");
+    expect(result.outputFiles[0]!.text).not.toMatch(/node:/);
+  });
+
+  it("dpdp-kit/react-native bundles with React and React Native as its only imports", async () => {
+    const result = await build({
+      entryPoints: [new URL("../src/react-native/index.tsx", import.meta.url).pathname],
+      bundle: true,
+      platform: "neutral",
+      format: "esm",
+      jsx: "automatic",
+      external: ["react", "react/jsx-runtime", "react-native"],
+      write: false,
+      metafile: true,
+      logLevel: "silent",
+    });
+    const inputs = Object.keys(result.metafile.inputs);
+    expect(inputs.filter((f) => !/^src\/(client|languages)\.ts$|^src\/react(-native)?\//.test(f))).toEqual([]);
     expect(result.outputFiles[0]!.text).not.toMatch(/node:/);
   });
 });

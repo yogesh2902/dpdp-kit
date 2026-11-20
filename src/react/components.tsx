@@ -1,122 +1,20 @@
 // Ready-made, unstyled screens built on the hooks: semantic HTML with stable `dpdp-*` class names
 // and `data-state` attributes. Import "dpdp-kit/react/styles.css" for the default look.
 import { type FormEvent, type ReactNode, useId, useState } from "react";
-import type { PersonRequest, PurposeStatus } from "../http.js";
-import { NOTICE_LANGUAGES, type NoticeLanguage } from "../languages.js";
+import type { NoticeLanguage } from "../languages.js";
 import type { NoticeKind } from "../notice.js";
 import type { RequestType } from "../records.js";
 import { useChanged, useConsents, useDpdpClient, useMyData, useNominees, useNotice, useNoticeLanguages, useRequests, useRights } from "./hooks.js";
+import { DEFAULT_LABELS, type Labels } from "./labels.js";
+import { answerTime, fieldLabel, languageName, noticeParts, show, splitLinks, switchable } from "./shared.js";
 
-/** Every piece of text the components show, besides the notice itself (which comes from the server, in the person's language). */
-export interface Labels {
-  /** For dates: a BCP 47 locale. Default `"en-IN"`. */
-  locale: string;
-  loading: string;
-  failed: string;
-  retry: string;
-  saved: string;
-  notSaved: string;
-  language: string;
-  acceptSelected: string;
-  rejectAll: string;
-  continue: string;
-  consentsHeading: string;
-  consentsIntro: string;
-  alwaysOn: string;
-  alwaysOnIntro: string;
-  dataHeading: string;
-  dataIntro: string;
-  noData: string;
-  sharedWith: string;
-  sharedWithNobody: string;
-  download: string;
-  requestsHeading: string;
-  requestsIntro: string;
-  requestType: string;
-  requestDetails: string;
-  sendRequest: string;
-  noRequests: string;
-  requestTypes: Record<RequestType, string>;
-  statuses: Record<PersonRequest["status"], string>;
-  opened: string;
-  due: string;
-  nomineesHeading: string;
-  nomineesIntro: string;
-  noNominees: string;
-  nomineeName: string;
-  nomineeContact: string;
-  nomineeRelation: string;
-  addNominee: string;
-  remove: string;
-  contactHeading: string;
-  howToAsk: string;
-  contact: string;
-  identifiers: string;
-  answerTimes: string;
-  days: (n: number) => string;
-  grievances: string;
-}
-
-export const DEFAULT_LABELS: Labels = {
-  locale: "en-IN",
-  loading: "Loading…",
-  failed: "Couldn't load this.",
-  retry: "Try again",
-  saved: "Saved.",
-  notSaved: "Couldn't save that change. Please try again.",
-  language: "Language",
-  acceptSelected: "Accept selected",
-  rejectAll: "Reject all",
-  continue: "Continue",
-  consentsHeading: "Your choices",
-  consentsIntro: "Turn each use on or off. You can change your mind at any time.",
-  alwaysOn: "Needed to provide the service",
-  alwaysOnIntro: "We use your data for these without asking, as the law allows:",
-  dataHeading: "Your data",
-  dataIntro: "What we hold about you, and who we share it with.",
-  noData: "We hold no personal data about you.",
-  sharedWith: "Shared with",
-  sharedWithNobody: "We don't share your data with anyone.",
-  download: "Download a copy",
-  requestsHeading: "Your requests",
-  requestsIntro: "Ask for a copy, a correction or erasure of your data, or raise a complaint.",
-  requestType: "What do you need?",
-  requestDetails: "Details (optional)",
-  sendRequest: "Send request",
-  noRequests: "You haven't made any requests.",
-  requestTypes: {
-    access: "A summary of my data",
-    correction: "Correct or update my data",
-    erasure: "Erase my data",
-    grievance: "A complaint",
-    nomination: "A nominee",
-  },
-  statuses: { open: "Open", resolved: "Answered", rejected: "Declined" },
-  opened: "Made",
-  due: "Answer due",
-  nomineesHeading: "Your nominee",
-  nomineesIntro: "Someone who may use these rights for you if you die or can no longer act yourself.",
-  noNominees: "You haven't named anyone.",
-  nomineeName: "Name",
-  nomineeContact: "Email or phone",
-  nomineeRelation: "Relation (optional)",
-  addNominee: "Add nominee",
-  remove: "Remove",
-  contactHeading: "How to reach us",
-  howToAsk: "To make a request",
-  contact: "Data Protection Officer",
-  identifiers: "To identify you, we ask for",
-  answerTimes: "We answer",
-  days: (n) => `within ${n} day${n === 1 ? "" : "s"}`,
-  grievances: "Complaints",
-};
+export { DEFAULT_LABELS, type Labels } from "./labels.js";
 
 const cx = (...names: Array<string | false | undefined>) => names.filter(Boolean).join(" ");
 
 /** A text with any URLs in it made into links. */
 function Linkified({ text }: { text: string }) {
-  const parts = text.split(/(https?:\/\/[^\s)]+)/g);
-  return <>{parts.map((p, i) => (i % 2 === 1 ? <a key={i} href={p} target="_blank" rel="noreferrer">{p}</a> : p))}</>;
+  return <>{splitLinks(text).map((p, i) => (p.url ? <a key={i} href={p.text} target="_blank" rel="noreferrer">{p.text}</a> : p.text))}</>;
 }
 
 /** An on/off switch: a button with `role="switch"`, labelled by the text next to it. */
@@ -152,15 +50,6 @@ function Status({ loading, error, labels, retry }: { loading: boolean; error: un
   return loading ? <p className="dpdp-loading" aria-busy="true">{labels.loading}</p> : null;
 }
 
-const languageName = (code: NoticeLanguage) => {
-  try {
-    const own = new Intl.DisplayNames([code], { type: "language" }).of(code);
-    if (own && own !== code) return own;
-  } catch {
-    // An engine without this language's names: the English name.
-  }
-  return NOTICE_LANGUAGES[code];
-};
 
 export interface LanguagePickerProps {
   value: NoticeLanguage;
@@ -216,11 +105,8 @@ export function ConsentNotice<P extends string = string>({ language: initial = "
   const id = useId();
 
   const n = notice.data;
-  // The notice text is what was saved as proof; show its lines, with each purpose's two lines as a choice.
-  const lines = n ? n.text.split("\n") : [];
-  const firstItem = lines.findIndex((line) => line.startsWith("• "));
-  const head = firstItem === -1 ? lines : lines.slice(0, firstItem);
-  const tail = firstItem === -1 ? [] : lines.slice(firstItem + 2 * (n?.items.length ?? 0));
+  // The notice text is what was saved as proof: show its lines, with each purpose's two as a choice.
+  const parts = n ? noticeParts(n) : undefined;
 
   async function finish(granted: P[]) {
     if (granted.length > 0) {
@@ -241,18 +127,16 @@ export function ConsentNotice<P extends string = string>({ language: initial = "
     <section className={cx("dpdp-notice", className)} aria-labelledby={`${id}-title`} data-state={notice.loading ? "loading" : "ready"} lang={language}>
       <LanguagePicker value={language} onChange={setLanguage} labels={l} />
       <Status loading={notice.loading && !n} error={notice.error} labels={l} retry={notice.reload} />
-      {n && (
+      {n && parts && (
         <>
-          <h2 id={`${id}-title`} className="dpdp-title">{head[0]}</h2>
-          {head.slice(1).filter(Boolean).map((line, i) => (
+          <h2 id={`${id}-title`} className="dpdp-title">{parts.title}</h2>
+          {parts.intro.map((line, i) => (
             <p key={i} className="dpdp-intro"><Linkified text={line} /></p>
           ))}
           <ul className="dpdp-purposes">
-            {n.items.map((item, i) => {
-              const purpose = item.purpose as P;
+            {parts.items.map(({ purpose: key, text, data: dataLine }, i) => {
+              const purpose = key as P;
               const on = chosen.has(purpose);
-              const text = lines[firstItem + 2 * i]?.replace(/^• /, "") ?? item.description;
-              const dataLine = lines[firstItem + 2 * i + 1]?.trim() ?? "";
               return (
                 <li key={purpose} className="dpdp-purpose" data-state={on ? "on" : "off"}>
                   <div className="dpdp-purpose-text">
@@ -273,7 +157,7 @@ export function ConsentNotice<P extends string = string>({ language: initial = "
             })}
           </ul>
           <div className="dpdp-notice-footer">
-            {tail.filter(Boolean).map((line, i) => (
+            {parts.footer.map((line, i) => (
               <p key={i}><Linkified text={line} /></p>
             ))}
           </div>
@@ -311,7 +195,6 @@ function Section({ heading, intro, children, className }: { heading: string; int
   );
 }
 
-const switchable = (p: PurposeStatus) => p.basis === "consent" || p.legitimateUse === "7(a)";
 
 /** The person's consents and Section 7(a) objections as switches; withdrawing is as easy as granting (Section 6(4)). */
 export function ConsentSettings({ labels }: { labels?: Partial<Labels> }) {
@@ -360,11 +243,6 @@ export function ConsentSettings({ labels }: { labels?: Partial<Labels> }) {
   );
 }
 
-const show = (v: unknown) => (v === null || v === undefined ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v));
-const fieldName = (f: string) => {
-  const words = f.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_\-.]+/g, " ").trim().toLowerCase();
-  return words.charAt(0).toUpperCase() + words.slice(1);
-};
 
 /** What you hold about the person and who you share it with (Section 11), with a download. */
 export function MyData({ labels }: { labels?: Partial<Labels> }) {
@@ -392,7 +270,7 @@ export function MyData({ labels }: { labels?: Partial<Labels> }) {
               {t.rows.map((row, r) =>
                 Object.entries(row).map(([field, value]) => (
                   <div key={`${r}-${field}`} className="dpdp-row">
-                    <dt>{t.fields.find((f) => f.field === field)?.label ?? fieldName(field)}</dt>
+                    <dt>{fieldLabel(t.fields, field)}</dt>
                     <dd>{show(value)}</dd>
                   </div>
                 )),
@@ -542,10 +420,6 @@ export function HowToReachUs({ labels }: { labels?: Partial<Labels> }) {
   const l = { ...DEFAULT_LABELS, ...labels };
   const rights = useRights();
   const r = rights.data;
-  const days = (d: string) => {
-    const m = /^(\d+)d$/.exec(d);
-    return m ? l.days(Number(m[1])) : d;
-  };
   return (
     <Section heading={l.contactHeading} className="dpdp-contact">
       <Status loading={rights.loading && !r} error={!r && rights.error} labels={l} retry={rights.reload} />
@@ -575,7 +449,7 @@ export function HowToReachUs({ labels }: { labels?: Partial<Labels> }) {
               <ul>
                 {(["access", "correction", "erasure", "grievance"] as const).map((t) => (
                   <li key={t}>
-                    {t === "grievance" ? l.grievances : l.requestTypes[t]}: {days(r.responseWithin[t])}
+                    {t === "grievance" ? l.grievances : l.requestTypes[t]}: {answerTime(l, r.responseWithin[t])}
                   </li>
                 ))}
               </ul>

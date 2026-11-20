@@ -128,4 +128,4 @@ function ConsentSettings() {
 
 Each returns `data`, `loading`, `error` and `reload()`. A late answer never replaces a newer one, so switching languages quickly shows the last one picked.
 
-> React Native gets the same screens, built on the same hooks.
+> [React Native](../react-native/) gets the same screens, built on the same hooks.

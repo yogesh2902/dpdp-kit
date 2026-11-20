@@ -3,7 +3,7 @@ import { defineConfig } from "tsup";
 
 // Type declarations come from `tsc -p tsconfig.build.json` (tsup's dts step needs the
 // TypeScript JS API, which TypeScript 7 doesn't ship).
-const shared = { format: ["esm" as const], target: "node20", external: ["drizzle-orm", "jiti", "react", "react/jsx-runtime", "react-dom"] };
+const shared = { format: ["esm" as const], target: "node20", external: ["drizzle-orm", "jiti", "react", "react/jsx-runtime", "react-dom", "react-native"] };
 
 export default defineConfig([
   {
@@ -39,5 +39,12 @@ export default defineConfig([
       mkdirSync("dist", { recursive: true });
       copyFileSync("src/react/styles.css", "dist/react.css");
     },
+  },
+  {
+    // React Native: the same hooks, built on their own for Metro.
+    ...shared,
+    entry: { "react-native": "src/react-native/index.tsx" },
+    target: "es2020",
+    clean: false,
   },
 ]);
