@@ -1,11 +1,12 @@
 # Example apps
 
-Chai & Co is a small online tea shop. The same shop is built twice, so you can copy whichever one matches your stack:
+Chai & Co is a small online tea shop. The same shop is built three times, so you can copy whichever one matches your stack:
 
 | Example | Stack |
 |---|---|
 | [`prisma-express`](prisma-express/) | Express 5, Prisma 7, Postgres |
 | [`mongoose-express`](mongoose-express/) | Express 5, Mongoose 9, MongoDB |
+| [`next-app`](next-app/) | Next.js 16 App Router, SQLite (`node:sqlite`), with `dpdp-kit/react`'s consent screen and privacy centre |
 
 Each one shows the whole of dpdp-kit in about 150 lines of app code:
 
@@ -20,10 +21,10 @@ Each one shows the whole of dpdp-kit in about 150 lines of app code:
 
 ## The journey
 
-[`journey.mjs`](journey.mjs) plays a customer, a support agent and the privacy team through a year of that shop, over HTTP, and checks what the law asks for at each step. CI runs it against both apps on every change, using the packed npm package, a Postgres server in IST and MongoDB 8.
+[`journey.mjs`](journey.mjs) plays a customer, a support agent and the privacy team through a year of that shop, over HTTP, and checks what the law asks for at each step. CI runs it against all three apps on every change, using the packed npm package, a Postgres server in IST, MongoDB 8 and SQLite.
 
 ```bash
-cd prisma-express        # or mongoose-express
+cd prisma-express        # or mongoose-express, or next-app (npm run build first)
 npm install
 # see the example's README to set up the database, then:
 DEMO_CLOCK=1 npm start   # in one terminal

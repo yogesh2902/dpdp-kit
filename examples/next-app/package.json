@@ -1,0 +1,27 @@
+{
+  "name": "dpdp-kit-example-next-app",
+  "private": true,
+  "type": "module",
+  "description": "Chai & Co: a Next.js App Router shop on SQLite, with dpdp-kit's consent screen and privacy centre",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "audit": "dpdp-kit audit",
+    "journey": "node ../journey.mjs"
+  },
+  "dependencies": {
+    "dpdp-kit": "^0.6.0",
+    "next": "^16.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22.5"
+  }
+}

@@ -154,6 +154,18 @@ jobs:
           npx tsx src/server.ts > server.log 2>&1 &
           for i in $(seq 1 60); do curl -s -o /dev/null "$BASE_URL/privacy/rights" && break; sleep 1; done
           npm run journey || { cat server.log; exit 1; }
+      - name: Next.js App Router + SQLite
+        working-directory: examples/next-app
+        env:
+          PORT: "3003"
+          BASE_URL: http://127.0.0.1:3003
+        run: |
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/dpdp-kit-*.tgz
+          npm run audit
+          npm run build
+          npx next start -p "$PORT" > server.log 2>&1 &
+          for i in $(seq 1 60); do curl -s -o /dev/null "$BASE_URL/privacy/rights" && break; sleep 1; done
+          npm run journey || { cat server.log; exit 1; }
 
   action:
     name: GitHub Action on a sample project

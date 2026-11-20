@@ -46,7 +46,7 @@ Node.js 20.19 or later. The package is ESM-only; `require("dpdp-kit")` also work
 | Any other Postgres client | `dpdp-kit/postgres` | |
 | SQLite (node:sqlite, better-sqlite3, libsql/Turso) | `dpdp-kit/sqlite` (from 0.6) | `--schema` with your Drizzle or Prisma schema |
 
-**Start from a working app:** [`examples/`](examples/) has the same shop on Express + Prisma + Postgres and on Express + Mongoose + MongoDB. A script takes each one through a year of customers, support, a breach and erasure. CI runs it on every change.
+**Start from a working app:** [`examples/`](examples/) has the same shop on Express + Prisma + Postgres, on Express + Mongoose + MongoDB, and on Next.js + SQLite with the ready-made consent screen and privacy centre. A script takes each one through a year of customers, support, a breach and erasure. CI runs it on every change.
 
 ## 1. Declare your data
 

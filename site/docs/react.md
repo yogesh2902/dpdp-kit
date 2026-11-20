@@ -128,4 +128,4 @@ function ConsentSettings() {
 
 Each returns `data`, `loading`, `error` and `reload()`. A late answer never replaces a newer one, so switching languages quickly shows the last one picked.
 
-> [React Native](../react-native/) gets the same screens, built on the same hooks.
+> [React Native](../react-native/) gets the same screens, built on the same hooks. For a working app, see [`examples/next-app`](https://github.com/yogesh2902/dpdp-kit/tree/main/examples/next-app): Next.js App Router on SQLite, with both screens, run through a year of customers in CI.
