@@ -1,8 +1,9 @@
+import { copyFileSync, mkdirSync } from "node:fs";
 import { defineConfig } from "tsup";
 
 // Type declarations come from `tsc -p tsconfig.build.json` (tsup's dts step needs the
 // TypeScript JS API, which TypeScript 7 doesn't ship).
-const shared = { format: ["esm" as const], target: "node20", external: ["drizzle-orm", "jiti", "react", "react-dom"] };
+const shared = { format: ["esm" as const], target: "node20", external: ["drizzle-orm", "jiti", "react", "react/jsx-runtime", "react-dom"] };
 
 export default defineConfig([
   {
@@ -33,5 +34,10 @@ export default defineConfig([
     target: "es2020",
     banner: { js: '"use client";' },
     clean: false,
+    // The optional stylesheet, served as dpdp-kit/react/styles.css.
+    async onSuccess() {
+      mkdirSync("dist", { recursive: true });
+      copyFileSync("src/react/styles.css", "dist/react.css");
+    },
   },
 ]);

@@ -63,6 +63,11 @@ function useDpdpContext(): DpdpContextValue {
   return ctx;
 }
 
+/** For the components: tell the hooks showing these topics to reload. Not part of the public API. */
+export function useChanged(): (...topics: Topic[]) => void {
+  return useDpdpContext().changed;
+}
+
 /** The client the provider gives, typed with your purposes. */
 export function useDpdpClient<P extends string = string>(): DpdpClient<P> {
   return useDpdpContext().client as unknown as DpdpClient<P>;

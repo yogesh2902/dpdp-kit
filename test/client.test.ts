@@ -159,12 +159,18 @@ describe("dpdp-kit/client", () => {
       bundle: true,
       platform: "browser",
       format: "esm",
-      external: ["react"],
+      external: ["react", "react/jsx-runtime"],
       write: false,
       metafile: true,
       logLevel: "silent",
     });
-    expect(Object.keys(result.metafile.inputs).sort()).toEqual(["src/client.ts", "src/react/hooks.ts", "src/react/index.ts"]);
+    expect(Object.keys(result.metafile.inputs).sort()).toEqual([
+      "src/client.ts",
+      "src/languages.ts",
+      "src/react/components.tsx",
+      "src/react/hooks.ts",
+      "src/react/index.ts",
+    ]);
     expect(result.outputFiles[0]!.text).not.toMatch(/node:/);
   });
 });

@@ -28,7 +28,8 @@ export interface AccessSummary {
     /** Key in `config.data`. */
     key: string;
     table: string;
-    fields: Array<{ field: string; category: Category; purposes: string[] }>;
+    /** `label` is the field's `label` in the data map, when it has one (what people would call it). */
+    fields: Array<{ field: string; label?: string; category: Category; purposes: string[] }>;
     /** The person's rows, personal fields only. */
     rows: Record<string, unknown>[];
   }>;
@@ -65,6 +66,7 @@ export async function buildAccessSummary(input: {
   for (const [key, def] of Object.entries(config.data)) {
     const fields = Object.entries(def.fields).map(([field, f]) => ({
       field,
+      ...(f.label ? { label: f.label } : {}),
       category: f.category,
       purposes: [...f.purposes],
     }));

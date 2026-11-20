@@ -45,6 +45,11 @@ await import("dpdp-kit/hono");
   const Screen = () => createElement("p", null, useConsents().loading ? "loading" : "ready");
   const html = renderToString(createElement(DpdpProvider, { options: { fetch: () => ((fetched = true), Promise.reject(new Error("no"))) } }, createElement(Screen)));
   if (html !== "<p>loading</p>" || fetched) fail(`dpdp-kit/react server render: ${html}`);
+  const { PrivacyCentre } = await import("dpdp-kit/react");
+  const centre = renderToString(createElement(DpdpProvider, { options: { fetch: () => Promise.reject(new Error("no")) } }, createElement(PrivacyCentre)));
+  if (!centre.includes('class="dpdp-centre"') || !centre.includes("Loading…")) fail("dpdp-kit/react <PrivacyCentre> server render");
+  const css = createRequire(import.meta.url).resolve("dpdp-kit/react/styles.css");
+  if (!css.endsWith("dist/react.css")) fail(`dpdp-kit/react/styles.css resolves to ${css}`);
 }
 await import("dpdp-kit/fastify");
 await import("dpdp-kit/nestjs");
