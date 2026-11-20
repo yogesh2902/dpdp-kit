@@ -47,7 +47,7 @@ Node.js 20.19 or later. The package is ESM-only; `require("dpdp-kit")` also work
 | MySQL 8 (mysql2, Prisma) | `dpdp-kit/mysql` (from 0.6) | `--schema` with your Drizzle or Prisma schema |
 | SQLite (node:sqlite, better-sqlite3, libsql/Turso) | `dpdp-kit/sqlite` (from 0.6) | `--schema` with your Drizzle or Prisma schema |
 
-**Start from a working app:** [`examples/`](examples/) has the same shop on Express + Prisma + Postgres, on Express + Mongoose + MongoDB, and on Next.js + SQLite with the ready-made consent screen and privacy centre. A script takes each one through a year of customers, support, a breach and erasure. CI runs it on every change.
+**Start from a working app:** [`examples/`](examples/) has the same shop on Express + Prisma + Postgres, on Express + Mongoose + MongoDB, and on Next.js + SQLite with the ready-made consent screen and privacy centre, plus an Expo app with the React Native screens. A script takes each one through a year of customers, support, a breach and erasure. CI runs it on every change.
 
 ## 1. Declare your data
 

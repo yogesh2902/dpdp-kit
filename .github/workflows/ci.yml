@@ -194,6 +194,12 @@ jobs:
           npx next start -p "$PORT" > server.log 2>&1 &
           for i in $(seq 1 60); do curl -s -o /dev/null "$BASE_URL/privacy/rights" && break; sleep 1; done
           npm run journey || { cat server.log; exit 1; }
+      - name: Expo app (React Native) builds against this version
+        working-directory: examples/expo-app
+        run: |
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/dpdp-kit-*.tgz
+          npm run typecheck
+          npm run export:web
 
   action:
     name: GitHub Action on a sample project

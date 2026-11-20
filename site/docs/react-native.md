@@ -61,3 +61,5 @@ Switches, buttons and language choices carry accessibility roles and labels, so 
 ## Hooks
 
 `useConsents`, `useNotice`, `useMyData`, `useRequests`, `useNominees` and `useRights` are exported here too, the same as in [React](../react/#hooks), for screens of your own.
+
+For a working app, see [`examples/expo-app`](https://github.com/yogesh2902/dpdp-kit/tree/main/examples/expo-app): an Expo app with these screens, calling the Next.js example's API with a Bearer token.

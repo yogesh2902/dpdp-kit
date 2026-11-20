@@ -1,12 +1,13 @@
 # Example apps
 
-Chai & Co is a small online tea shop. The same shop is built three times, so you can copy whichever one matches your stack:
+Chai & Co is a small online tea shop. The same shop is built three times on the server, plus a mobile app, so you can copy whichever matches your stack:
 
 | Example | Stack |
 |---|---|
 | [`prisma-express`](prisma-express/) | Express 5, Prisma 7, Postgres |
 | [`mongoose-express`](mongoose-express/) | Express 5, Mongoose 9, MongoDB |
 | [`next-app`](next-app/) | Next.js 16 App Router, SQLite (`node:sqlite`), with `dpdp-kit/react`'s consent screen and privacy centre |
+| [`expo-app`](expo-app/) | Expo 58 (React Native), with `dpdp-kit/react-native`'s screens, calling `next-app`'s API with a Bearer token |
 
 Each one shows the whole of dpdp-kit in about 150 lines of app code:
 

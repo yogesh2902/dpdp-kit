@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Chai & Co",
+    "slug": "chai-and-co",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": { "supportsTablet": true },
+    "web": { "favicon": "./assets/favicon.png" }
+  }
+}
