@@ -36,6 +36,16 @@ await import("dpdp-kit/hono");
   const err = await anonymous.consents().catch((e) => e);
   if (!(err instanceof DpdpClientError) || err.status !== 401 || err.code !== "unauthenticated") fail("dpdp-kit/client errors");
 }
+{
+  // dpdp-kit/react renders on the server (Next.js) without touching the network or the DOM.
+  const { DpdpProvider, useConsents } = await import("dpdp-kit/react");
+  const { createElement } = await import("react");
+  const { renderToString } = await import("react-dom/server");
+  let fetched = false;
+  const Screen = () => createElement("p", null, useConsents().loading ? "loading" : "ready");
+  const html = renderToString(createElement(DpdpProvider, { options: { fetch: () => ((fetched = true), Promise.reject(new Error("no"))) } }, createElement(Screen)));
+  if (html !== "<p>loading</p>" || fetched) fail(`dpdp-kit/react server render: ${html}`);
+}
 await import("dpdp-kit/fastify");
 await import("dpdp-kit/nestjs");
 await import("dpdp-kit/schedule");

@@ -152,4 +152,19 @@ describe("dpdp-kit/client", () => {
     expect(inputs).toEqual(["src/client.ts"]);
     expect(result.outputFiles[0]!.text).not.toMatch(/node:/);
   });
+
+  it("dpdp-kit/react bundles for the browser with React as its only import", async () => {
+    const result = await build({
+      entryPoints: [new URL("../src/react/index.ts", import.meta.url).pathname],
+      bundle: true,
+      platform: "browser",
+      format: "esm",
+      external: ["react"],
+      write: false,
+      metafile: true,
+      logLevel: "silent",
+    });
+    expect(Object.keys(result.metafile.inputs).sort()).toEqual(["src/client.ts", "src/react/hooks.ts", "src/react/index.ts"]);
+    expect(result.outputFiles[0]!.text).not.toMatch(/node:/);
+  });
 });

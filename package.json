@@ -67,6 +67,10 @@
       "types": "./dist/client.d.ts",
       "default": "./dist/client.js"
     },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "default": "./dist/react.js"
+    },
     "./fastify": {
       "types": "./dist/fastify.d.ts",
       "default": "./dist/fastify.js"
@@ -98,17 +102,21 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "tsup && tsc -p tsconfig.build.json",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsup && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "prepublishOnly": "pnpm typecheck && pnpm test && pnpm build",
     "site": "node site/build.mjs"
   },
   "peerDependencies": {
-    "drizzle-orm": ">=0.38"
+    "drizzle-orm": ">=0.38",
+    "react": ">=18"
   },
   "peerDependenciesMeta": {
     "drizzle-orm": {
+      "optional": true
+    },
+    "react": {
       "optional": true
     }
   },
@@ -122,20 +130,26 @@
     "@nestjs/platform-express": "^12.5.1",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
+    "@testing-library/react": "^16.3.3",
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "drizzle-orm": "^0.45.4",
     "esbuild": "0.28.2",
     "express": "^5.3.0",
     "fastify": "^5.12.8",
     "hono": "^4.13.19",
+    "jsdom": "^31.0.1",
     "marked": "^18.2.1",
     "mongodb": "~7.8.0",
     "mongodb-memory-server": "11.3.0",
     "mongoose": "9.12.2",
     "pg": "^8.23.1",
     "prisma": "7.10.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "shiki": "^4.6.0",
