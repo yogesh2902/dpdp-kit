@@ -543,7 +543,7 @@ Section 6(10) puts the burden on you: if consent is questioned in a proceeding, 
 | **v0.3.0** | Security safeguards (Rule 6): access log with review and one-year retention, `dpdp-kit/protect` (encryption, virtual tokens, masking), `protect` / `contract` / `security` in the config, `dpdp-kit safeguards`; Fastify and NestJS guards; `logAccess` for every framework; events (`dpdp.on`); `erase` replacements for `NOT NULL` columns; `dpdp.daily()` and `startDaily` |
 | **v0.4.0** | **Breach records** (Section 8(6), Rule 7) with the 72-hour Board report; **Prisma**, **MongoDB and Mongoose** and plain-SQL Postgres stores and data access; drift checks on Prisma schemas and Mongoose models; example apps run in CI |
 | **v0.5.0** | **Notices** that meet Rule 3, built from the config and saved as proof; **objections** to a Section 7(a) use; rights requests completed (corrections, identity checks, nominees, acknowledgements); **cross-border transfers** (Section 16); an **HTTP API** for Express, Hono and Next.js; the **evidence report**; npm releases with provenance |
-| next (0.6) | React and React Native consent screens on the HTTP API, MySQL and SQLite data access, Next.js and Expo example apps |
+| **v0.6.0** | A ready-made **consent screen and privacy centre** for React, Next.js and React Native (`dpdp-kit/react`, `dpdp-kit/react-native`) on a typed `dpdp-kit/client`; **SQLite and MySQL** stores and data access; Next.js and Expo example apps |
 | later | Children and guardian consent (Section 9, Rule 10), inactivity erasure (Rule 8(1)–(2), Third Schedule), erasure beyond SQL (files, caches, search indexes), Consent Manager interop (Sections 6(7)–6(9), Rule 4) |
 
 ## When the Rules apply

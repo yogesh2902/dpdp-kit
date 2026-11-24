@@ -171,7 +171,7 @@ describe("nominations (Section 14, Rule 14(4))", () => {
 });
 
 describe("auditing rights settings", () => {
-  it("warns when how to make a request isn't published, without failing --strict in 0.5", () => {
+  it("warns when how to make a request isn't published (a 0.5 check: fails --strict from 0.6)", () => {
     const { how: _, ...rest } = config.rights ?? {};
     const issue = audit({ ...config, rights: rest }).find((i) => i.code === "rights-how-missing");
     expect(issue).toMatchObject({ level: "warning", path: "rights.how", since: "0.5" });

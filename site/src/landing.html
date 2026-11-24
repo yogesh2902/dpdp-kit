@@ -272,11 +272,12 @@ jobs:
     <p class="intro reveal">dpdp-kit is growing from a backend toolkit into a full-stack one: the same config will drive the screens people see, on the web and on mobile.</p>
     <div class="board">
       <div class="col reveal">
-        <div class="col-head"><span class="pill done">Shipped</span><span class="ver">0.1 – 0.5</span></div>
+        <div class="col-head"><span class="pill done">Shipped</span><span class="ver">0.1 – 0.6</span></div>
         <ul>
           <li><b>Typed config and audit CLI</b>purposes, data map, checks</li>
           <li><b>Schema drift check</b>Drizzle, Prisma and Mongoose</li>
-          <li><b>Your database</b>Drizzle, Prisma, MongoDB and Mongoose, or any Postgres client</li>
+          <li><b>Your database</b>Postgres (Drizzle, Prisma, any client), MySQL, SQLite, MongoDB and Mongoose</li>
+          <li><b>Consent screen and privacy centre</b>ready-made for React, Next.js and React Native</li>
           <li><b>Consent records</b>hash-chained, 22 languages + English</li>
           <li><b>Rule 3 notices from the config</b>in the languages you offer, versioned and saved as proof</li>
           <li><b>Objections to a legitimate use</b>Section 7(a), respected everywhere</li>
@@ -289,15 +290,7 @@ jobs:
           <li><b>Evidence report</b>what you declare and what your records show, in one document</li>
           <li><b>Guards for every framework</b>Express, Hono, Fastify, NestJS</li>
           <li><b>Events, daily upkeep, GitHub Action</b><code>dpdp.on</code>, <code>dpdp.daily()</code>, pull request annotations</li>
-          <li><b>Example apps</b>Prisma and Mongoose, a year of customers in CI</li>
-        </ul>
-      </div>
-      <div class="col now reveal">
-        <div class="col-head"><span class="pill building"><i></i>Building now</span><span class="ver">0.6</span></div>
-        <ul>
-          <li><b>React and React Native</b>a consent notice and a privacy centre, on the HTTP API</li>
-          <li><b>MySQL and SQLite</b>data access</li>
-          <li><b>Example apps</b>Next.js and Expo, run in CI</li>
+          <li><b>Example apps</b>Prisma, Mongoose, Next.js and Expo, a year of customers in CI</li>
         </ul>
       </div>
       <div class="col reveal">
@@ -324,7 +317,7 @@ jobs:
       <details class="reveal"><summary>Does dpdp-kit make my app compliant?</summary><p>No tool can do that on its own. dpdp-kit puts the obligations into practice in your code: declared purposes, consent records, erasure and rights requests. Your company still writes its notices, signs its vendor contracts, runs access control and backups, and has its own lawyer review its purposes and retention periods. <a href="{{base}}docs/responsibility/">Who does what</a> lists every duty in the Act and Rules, and which side does it.</p></details>
       <details class="reveal"><summary>Is it free?</summary><p>Yes. It's licensed under MIT or Apache 2.0, whichever you prefer, with no paid tier and no account. You can use it in commercial products. Apache 2.0 adds an explicit patent grant.</p></details>
       <details class="reveal"><summary>Do I need to run a server or sign up for anything?</summary><p>No. It's a library that runs inside your Node.js process and writes to your own database. There's no API key, and it makes no network calls.</p></details>
-      <details class="reveal"><summary>Which databases and frameworks does it support?</summary><p>Storage and data access work with Postgres through Drizzle, Prisma or any Postgres client (node-postgres, postgres.js, Kysely, Knex), and with MongoDB and Mongoose. The schema drift check reads Drizzle schemas (Postgres, MySQL, SQLite), Prisma schemas and Mongoose models. Guards are included for Express, Hono, Fastify and NestJS. Every store is an interface, so you can add another database. MySQL and SQLite data access come in 0.6.</p></details>
+      <details class="reveal"><summary>Which databases and frameworks does it support?</summary><p>Storage and data access work with Postgres through Drizzle, Prisma or any Postgres client (node-postgres, postgres.js, Kysely, Knex), MySQL, SQLite, and MongoDB and Mongoose. The schema drift check reads Drizzle schemas (Postgres, MySQL, SQLite), Prisma schemas and Mongoose models. Guards are included for Express, Hono, Fastify and NestJS. Every store is an interface, so you can add another database. From 0.6, MySQL and SQLite too, and a ready-made consent screen and privacy centre for React, Next.js and React Native.</p></details>
       <details class="reveal"><summary>Which Node.js versions?</summary><p>Node.js 20.19 or later. The package is ESM-only, and <code>require("dpdp-kit")</code> also works on those versions.</p></details>
       <details class="reveal"><summary>When do I need to have this in place?</summary><p>The DPDP Rules were notified on 13 November 2025. Most obligations, including notices, erasure, breaches, children and rights requests, start in May 2027 (Rule 1). Starting now leaves time to test.</p></details>
       <details class="reveal"><summary>What if a legal reference is wrong?</summary><p>Every reference was checked against the official texts of the Act, the Rules and their corrigendum, but laws change. Report it as a <a href="https://github.com/yogesh2902/dpdp-kit/issues">GitHub issue</a>; it's treated as a bug.</p></details>

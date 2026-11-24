@@ -99,7 +99,7 @@ describe("transfers outside India", () => {
 });
 
 describe("--strict and warnings added in 0.5", () => {
-  it("doesn't fail a 0.4 config on the new warning, but still fails on older ones", async () => {
+  it("fails --strict on them from 0.6, as the 0.5 changelog announced", async () => {
     // A new folder each time: the CLI imports the config, and Node caches modules by path.
     const write = (contract: string) => {
       const dir = mkdtempSync(join(tmpdir(), "dpdp-kit-"));
@@ -122,10 +122,12 @@ describe("--strict and warnings added in 0.5", () => {
       return { code, out: lines.join("\n") };
     };
 
-    const fresh = await run(write(`, contract: "DPA"`)); // only processor-countries-missing, new in 0.5
+    // Only warnings added in 0.5 (processor-countries-missing, legitimate-use-clause-missing,
+    // rights-how-missing): their grace period ended with 0.6, so --strict fails on them now.
+    const fresh = await run(write(`, contract: "DPA"`));
     expect(fresh.out).toContain("processors.sms.countries");
-    expect(fresh.out).toContain("don't fail --strict until the next minor version");
-    expect(fresh.code).toBe(0);
+    expect(fresh.out).not.toContain("don't fail --strict until the next minor version");
+    expect(fresh.code).toBe(1);
 
     // processor-contract-missing is from 0.3, so --strict still fails
     expect((await run(write(""))).code).toBe(1);

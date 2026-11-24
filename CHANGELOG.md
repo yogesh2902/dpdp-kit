@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.6.0
+
+**From the database to the consent screen.** A ready-made consent screen and privacy centre for React, Next.js and React Native, a typed client for the HTTP API, and stores on SQLite and MySQL. A 0.5 app that changes nothing keeps working; the one deliberate change is that warnings added in 0.5 now fail `--strict`, as 0.5 announced.
+
+### Added
+
+- **`dpdp-kit/client`**: a typed client for the HTTP API, one method per route (`notice`, `languages`, `consents`, `grant`, `withdraw`, `object`, `liftObjection`, `data`, `requests`, `openRequest`, `nominees`, `nominate`, `revokeNominee`, and `admin.*`). Errors throw `DpdpClientError { status, code }`. `headers` (for a mobile app's Bearer token) and `credentials` (cookies on another origin). It imports types only: 4 KB, nothing from Node.js.
+- **`dpdp-kit/react`**, for React and the Next.js App Router (marked `"use client"`):
+  - `<ConsentNotice>`: the notice's own text (what the server saves as proof) in the person's language, a switch per purpose with **every switch off to start**, and "Accept selected" and "Reject all" alike. The grant is recorded with the notice's version.
+  - `<PrivacyCentre>` with `<ConsentSettings>` (each consent purpose in the notice's words with the full notice beside it, Section 5(1); objecting to a Section 7(a) use asks for confirmation), `<MyData>` (with a JSON download), `<Requests>`, `<Nominees>` and `<HowToReachUs>`, each usable alone.
+  - Hooks: `DpdpProvider`, `useConsents` (changes show at once and are undone if refused), `useNotice`, `useNoticeLanguages`, `useMyData`, `useRequests`, `useNominees`, `useRights`, `useDpdpClient`.
+  - Unstyled semantic HTML with `dpdp-*` classes, `role="switch"` and live regions, checked with axe-core; all text in `labels`. Optional `dpdp-kit/react/styles.css`: no specificity (`:where()`), custom properties, dark mode with `data-dpdp-theme="dark" | "auto"`.
+- **`dpdp-kit/react-native`**: the same screens from `View`, `Text`, `Switch`, `Pressable` and `TextInput`, on the same hooks; `theme` (`light`, `dark`, `auto`), `colors`, `labels`; VoiceOver and TalkBack labels; a share sheet for the data copy.
+- **`dpdp-kit/sqlite`**: `sqliteStore` and `sqliteData` for `node:sqlite`, better-sqlite3, libsql/Turso or any query function. `SQLITE_DDL` is `DPDP_DDL` with timestamps as UTC text and JSON as text.
+- **`dpdp-kit/mysql`**: `mysqlStore` and `mysqlData` for MySQL 8 through mysql2 or Prisma. `MYSQL_DDL` uses `JSON` and `DATETIME(3)` in UTC, read back as text so no driver or server time zone shifts them (tested on a server in IST).
+- **HTTP API**: `GET /notice/languages`; `channel` can be a function of the request (record `"ios"` or `"android"` from your mobile app); the response types (`ConsentsResponse`, `PersonRequest`, …) are exported and the handler is checked against them.
+- **Data summaries** carry each field's `label`, so people see "Mobile number" rather than "phone".
+- **Examples**: `examples/next-app` (Next.js App Router on SQLite, with the consent screen and privacy centre; the year-long journey runs against it in CI) and `examples/expo-app` (the React Native screens, calling the Next.js example with a Bearer token).
+- **A store contract suite** runs the same tests for every store method on every built-in store: memory, Postgres three ways, MongoDB, SQLite and MySQL.
+
+### Upgrading from 0.5.x
+
+1. **`--strict`**: the warnings added in 0.5 (`legitimate-use-clause-missing`, `rights-how-missing`, `processor-countries-missing`, `foreign-state-transfer`, `notice-label-missing`) now fail `dpdp-kit audit --strict`. Set `legitimateUse` on each legitimate use, `rights.how`, `countries` on each processor and field `label`s, or run without `--strict`.
+2. **Nothing else to do.** The new entry points are opt-in. `react` and `react-native` are optional peer dependencies; SQLite and MySQL users create the tables with `SQLITE_DDL` or `MYSQL_DDL`.
+3. **Custom stores** can be checked against the contract tests in `test/store-contract.test.ts` in the repository.
+
 ## 0.5.1
 
 **Dual licence.** dpdp-kit is now available under MIT or Apache-2.0, at your option (`LICENSE-MIT`, `LICENSE-APACHE`). Apache-2.0 adds an explicit patent grant. Versions up to 0.5.0 remain MIT. No changes to the library.

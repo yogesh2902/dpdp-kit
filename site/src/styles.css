@@ -331,8 +331,10 @@ footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
 .who .card:hover { background: var(--paper); }
 
 /* ---------- roadmap board ---------- */
-.board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: start; }
-@media (max-width: 1000px) { .board { grid-template-columns: 1fr 1fr; } }
+.board { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; align-items: start; }
+.board .col:first-child ul { columns: 2; column-gap: 28px; }
+.board .col:first-child li { break-inside: avoid; }
+@media (max-width: 1000px) { .board { grid-template-columns: 1fr; } .board .col:first-child ul { columns: 1; } }
 @media (max-width: 600px) { .board { grid-template-columns: 1fr; } }
 .board .col { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
 .board .col.now { border-color: color-mix(in srgb, var(--terra) 55%, transparent); box-shadow: 0 0 0 4px var(--terra-soft), var(--shadow); }
