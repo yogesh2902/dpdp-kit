@@ -15,7 +15,6 @@ dpdp-kit is growing from a backend toolkit into a full-stack one: the same `dpdp
 | **0.3.0** | [Security safeguards and access logs](../security/) (Rule 6), Fastify and NestJS [guards](../guards/), [events](../events/), `erase` replacements for `NOT NULL` columns, and [daily upkeep](../daily/) |
 | **0.4.0** | [Breach records](../breaches/) (Section 8(6), Rule 7) with the 72-hour Board report; [Prisma, MongoDB and Mongoose](../storage/) stores and data access; drift checks on Prisma schemas and Mongoose models; [example apps](https://github.com/yogesh2902/dpdp-kit/tree/main/examples) run in CI |
 | **0.5.0** | [Notices](../notices/) that meet Rule 3, built from the config and saved as proof; [objections](../objections/) to a Section 7(a) use; [rights requests](../rights/) completed (corrections, identity checks, nominees, acknowledgements); [cross-border transfers](../transfers/) (Section 16); an [HTTP API](../http/) for Express, Hono and Next.js; the [evidence report](../evidence/); npm releases with provenance |
-
 | **0.6.0** | A ready-made consent screen and privacy centre for [React](../react/) and [React Native](../react-native/), on a typed [client](../client/) for the HTTP API; [SQLite and MySQL](../storage/) stores and data access; Next.js and Expo example apps; a contract test suite that every store passes |
 
 ## Later
