@@ -1,5 +1,8 @@
 <!doctype html>
-<!-- Source for site/public/og.png (1200×630 link preview). Render: see site/README.md -->
+<!-- Source for site/public/og.png (1200×630 link preview). Render from the repository root:
+     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --hide-scrollbars \
+       --window-size=1200,630 --virtual-time-budget=5000 --screenshot=site/public/og.png site/src/og.html
+     The phone screenshots in og/ are the Expo example (examples/expo-app) in the iOS Simulator. -->
 <html><head><meta charset="utf-8">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@500;600&family=JetBrains+Mono:wght@500&display=swap">
 <style>
@@ -7,20 +10,29 @@
   body { background: radial-gradient(700px 500px at 88% -10%, rgba(240,198,164,.75), transparent 65%),
                       radial-gradient(700px 520px at -10% 120%, rgba(207,216,194,.85), transparent 65%), #f4efe6;
     color: #1f1c17; font-family: Inter, sans-serif; position: relative; }
-  .in { position: absolute; inset: 70px 80px; display: flex; flex-direction: column; }
+  .in { position: absolute; top: 64px; bottom: 64px; left: 72px; width: 650px; display: flex; flex-direction: column; }
   .brand { display: flex; align-items: center; gap: 14px; font: 500 30px "JetBrains Mono", monospace; letter-spacing: -.02em; }
-  h1 { font: 400 92px/1 "Instrument Serif", serif; letter-spacing: -.035em; margin: auto 0 28px; max-width: 15ch; }
+  h1 { font: 400 76px/1 "Instrument Serif", serif; letter-spacing: -.035em; margin: auto 0 22px; }
   em { color: #c4623a; }
-  .row { display: flex; gap: 16px; align-items: center; font-size: 22px; color: #4b453c; }
-  .pill { font: 500 22px "JetBrains Mono", monospace; background: #fbf8f2; border: 1px solid rgba(31,28,23,.14); border-radius: 999px; padding: 12px 24px; color: #1f1c17; }
-  .grain { position: absolute; inset: 0; opacity: .08; mix-blend-mode: multiply;
+  .lede { font-size: 22px; line-height: 1.45; color: #4b453c; margin: 0 0 30px; max-width: 34ch; }
+  .row { display: flex; gap: 16px; align-items: center; font-size: 19px; color: #4b453c; }
+  .pill { font: 500 21px "JetBrains Mono", monospace; background: #fbf8f2; border: 1px solid rgba(31,28,23,.14); border-radius: 999px; padding: 11px 22px; color: #1f1c17; }
+  .phone { position: absolute; width: 250px; border: 8px solid #1f1c17; border-radius: 40px; overflow: hidden; background: #fbfaf7;
+    box-shadow: 0 34px 60px -28px rgba(40,30,20,.5); }
+  .phone img { display: block; width: 100%; }
+  .p1 { left: 770px; top: 40px; }
+  .p2 { left: 935px; top: 120px; }
+  .grain { position: absolute; inset: 0; opacity: .08; mix-blend-mode: multiply; z-index: 2; pointer-events: none;
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
 </style></head>
 <body>
   <div class="grain"></div>
   <div class="in">
     <div class="brand"><img src="../public/favicon.svg" width="44" height="44" alt=""> dpdp-kit</div>
-    <h1>India's DPDP Act, <em>built into</em> your Node.js backend.</h1>
+    <h1>India's DPDP Act, from the database to the <em>consent screen</em>.</h1>
+    <p class="lede">For Node.js, React, Next.js and React Native, on Postgres, MySQL, SQLite or MongoDB.</p>
     <div class="row"><span class="pill">$ npm i dpdp-kit</span><span>Open source · MIT / Apache 2.0 · No SaaS</span></div>
   </div>
+  <div class="phone p1"><img src="og/phone-notice.jpg" alt=""></div>
+  <div class="phone p2"><img src="og/phone-centre.jpg" alt=""></div>
 </body></html>
